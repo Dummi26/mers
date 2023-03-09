@@ -29,7 +29,7 @@ In mers, each variable has a type. However, this type is actually a list of all 
 
 To ensure that variables with more than one possible type won't cause issues, **every possible type has to be handeled**. This can, for example, be achieved using to_string(), which accepts arguments of types String, Int, Float, Tuple, or List.
 If a variable could be a String, Int or Float and should be multiplied with another Float, the type-checker will complain that the String case isn't handeled because the mul() function doesn't accept String arguments.
-To distinguish between different types, a *switch* statement has to be used. To pattern-match on known types, *match* statements can be used. (TODO! Both of these aren't implemented yet. There is currently no way to handle different types.)
+To distinguish between different types, a *switch* statement has to be used. To pattern-match on known types, *match* statements can be used. (TODO! match isn't implemented yet.)
 
 ## Error handling
 
