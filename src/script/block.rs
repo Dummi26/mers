@@ -10,7 +10,10 @@ use std::{
 
 use self::to_runnable::ToRunnableError;
 
-use super::value::{VData, VDataEnum, VDataThreadEnum, VSingleType, VType};
+use super::{
+    builtins::BuiltinFunction,
+    value::{VData, VDataEnum, VDataThreadEnum, VSingleType, VType},
+};
 
 // Represents a block of code
 #[derive(Debug)]
@@ -56,6 +59,7 @@ impl SStatement {
 #[derive(Debug)]
 pub enum SStatementEnum {
     Value(VData),
+    Tuple(Vec<SStatement>),
     Variable(String),
     FunctionCall(String, Vec<SStatement>),
     FunctionDefinition(Option<String>, SFunction),
@@ -249,6 +253,13 @@ pub mod to_runnable {
     ) -> Result<RStatement, ToRunnableError> {
         let mut statement = match &*s.statement {
             SStatementEnum::Value(v) => RStatementEnum::Value(v.clone()),
+            SStatementEnum::Tuple(v) => {
+                let mut w = Vec::with_capacity(v.len());
+                for v in v {
+                    w.push(statement(v, ginfo, linfo)?);
+                }
+                RStatementEnum::Tuple(w)
+            }
             SStatementEnum::Variable(v) => {
                 if let Some(var) = linfo.vars.get(v) {
                     RStatementEnum::Variable(var.0, var.1.clone())
@@ -282,21 +293,12 @@ pub mod to_runnable {
                     }
                     RStatementEnum::FunctionCall(func.clone(), rargs)
                 } else {
-                    RStatementEnum::BuiltinFunction(
-                        // TODO: type-checking for builtins
-                        match v.as_str() {
-                            "print" => BuiltinFunction::Print,
-                            "debug" => BuiltinFunction::Debug,
-                            "to_string" => BuiltinFunction::ToString,
-                            "format" => BuiltinFunction::Format,
-                            "run" => BuiltinFunction::Run,
-                            "thread" => BuiltinFunction::Thread,
-                            "await" => BuiltinFunction::Await,
-                            "sleep" => BuiltinFunction::Sleep,
-                            _ => return Err(ToRunnableError::UseOfUndefinedFunction(v.clone())),
-                        },
-                        rargs,
-                    )
+                    // TODO: type-checking for builtins
+                    if let Some(builtin) = BuiltinFunction::get(v) {
+                        RStatementEnum::BuiltinFunction(builtin, rargs)
+                    } else {
+                        return Err(ToRunnableError::UseOfUndefinedFunction(v.clone()));
+                    }
                 }
             }
             SStatementEnum::FunctionDefinition(name, f) => {
@@ -443,10 +445,10 @@ impl RBlock {
 
 #[derive(Clone, Debug)]
 pub struct RFunction {
-    inputs: Vec<usize>,
-    input_types: Vec<VType>,
-    input_output_map: Vec<(Vec<VSingleType>, VType)>,
-    block: RBlock,
+    pub inputs: Vec<usize>,
+    pub input_types: Vec<VType>,
+    pub input_output_map: Vec<(Vec<VSingleType>, VType)>,
+    pub block: RBlock,
 }
 impl RFunction {
     pub fn run(&self, vars: &Vec<Am<VData>>) -> VData {
@@ -500,6 +502,7 @@ impl RStatement {
 #[derive(Clone, Debug)]
 pub enum RStatementEnum {
     Value(VData),
+    Tuple(Vec<RStatement>),
     Variable(usize, VType), // Arc<Mutex<..>> here, because imagine variable in for loop that is used in a different thread -> we need multiple "same" variables
     FunctionCall(Arc<RFunction>, Vec<RStatement>),
     BuiltinFunction(BuiltinFunction, Vec<RStatement>),
@@ -509,30 +512,17 @@ pub enum RStatementEnum {
     For(usize, RStatement, RStatement),
     Switch(RStatement, Vec<(VType, RStatement)>),
 }
-#[derive(Clone, Debug)]
-pub enum BuiltinFunction {
-    // print
-    Print,
-    Debug,
-    // format
-    ToString,
-    Format,
-    // math and basic operators (not possible, need to be different for each type)
-    // Add,
-    // Sub,
-    // Mul,
-    // Div,
-    // Mod,
-    // functions
-    Run,
-    Thread,
-    Await,
-    Sleep,
-}
 impl RStatementEnum {
     pub fn run(&self, vars: &Vec<Am<VData>>) -> VData {
         match self {
             Self::Value(v) => v.clone(),
+            Self::Tuple(v) => {
+                let mut w = vec![];
+                for v in v {
+                    w.push(v.run(vars));
+                }
+                VDataEnum::Tuple(w).to()
+            }
             Self::Variable(v, _) => vars[*v].lock().unwrap().clone(),
             Self::FunctionCall(func, args) => {
                 for (i, input) in func.inputs.iter().enumerate() {
@@ -595,95 +585,7 @@ impl RStatementEnum {
                 }
                 VDataEnum::Tuple(vec![]).to()
             }
-            Self::BuiltinFunction(v, args) => match v {
-                BuiltinFunction::Print => {
-                    if let VDataEnum::String(arg) = args[0].run(vars).data {
-                        println!("{}", arg);
-                        VDataEnum::Tuple(vec![]).to()
-                    } else {
-                        unreachable!()
-                    }
-                }
-                BuiltinFunction::Debug => {
-                    println!("{:?}", args[0].run(vars).data);
-                    VDataEnum::Tuple(vec![]).to()
-                }
-                BuiltinFunction::ToString => {
-                    VDataEnum::String(format!("{}", args[0].run(vars).data)).to()
-                }
-                BuiltinFunction::Format => todo!("Format function (and validity check!)"),
-                BuiltinFunction::Run => {
-                    if args.len() >= 1 {
-                        if let VDataEnum::Function(f) = args[0].run(vars).data {
-                            if f.inputs.len() != args.len() - 1 {
-                                unreachable!()
-                            }
-                            for (i, var) in f.inputs.iter().enumerate() {
-                                let val = args[i + 1].run(vars);
-                                *vars[*var].lock().unwrap() = val;
-                            }
-                            f.run(vars)
-                        } else {
-                            unreachable!()
-                        }
-                    } else {
-                        unreachable!()
-                    }
-                }
-                BuiltinFunction::Thread => {
-                    if args.len() >= 1 {
-                        if let VDataEnum::Function(f) = args[0].run(vars).data {
-                            if f.inputs.len() != args.len() - 1 {
-                                unreachable!()
-                            }
-                            // to prevent weird stuff from happening, the function args will be stored in different Arc<Mutex<_>>s. This means that the args are different for each thread, while any variables that are captured from outside will be shared.
-                            let mut thread_vars = vars.clone();
-                            let mut run_input_types = vec![];
-                            for (i, var) in f.inputs.iter().enumerate() {
-                                let val = args[i + 1].run(vars);
-                                run_input_types.push(val.out_single());
-                                thread_vars[*var] = Arc::new(Mutex::new(val));
-                            }
-                            let out_type = f.out(&run_input_types);
-                            VDataEnum::Thread(
-                                VDataThreadEnum::Running(std::thread::spawn(move || {
-                                    f.run(&thread_vars)
-                                }))
-                                .to(),
-                                out_type,
-                            )
-                            .to()
-                        } else {
-                            unreachable!()
-                        }
-                    } else {
-                        unreachable!()
-                    }
-                }
-                BuiltinFunction::Await => {
-                    if args.len() == 1 {
-                        if let VDataEnum::Thread(t, _) = args[0].run(vars).data {
-                            t.get()
-                        } else {
-                            unreachable!()
-                        }
-                    } else {
-                        unreachable!()
-                    }
-                }
-                BuiltinFunction::Sleep => {
-                    if args.len() == 1 {
-                        match args[0].run(vars).data {
-                            VDataEnum::Int(v) => std::thread::sleep(Duration::from_secs(v as _)),
-                            VDataEnum::Float(v) => std::thread::sleep(Duration::from_secs_f64(v)),
-                            _ => unreachable!(),
-                        }
-                        VDataEnum::Tuple(vec![]).to()
-                    } else {
-                        unreachable!()
-                    }
-                }
-            },
+            Self::BuiltinFunction(v, args) => v.run(args, vars),
             Self::Switch(switch_on, cases) => {
                 let switch_on = switch_on.run(vars);
                 let switch_on_type = switch_on.out();
@@ -701,6 +603,7 @@ impl RStatementEnum {
     pub fn out(&self) -> VType {
         match self {
             Self::Value(v) => v.out(),
+            Self::Tuple(v) => VSingleType::Tuple(v.iter().map(|v| v.out()).collect()).into(),
             Self::Variable(_, t) => t.clone(),
             Self::FunctionCall(f, _) => {
                 eprintln!("Warn: generalizing a functions return type regardless of the inputs. Type-checker might assume this value can have more types than it really can.");
@@ -722,16 +625,7 @@ impl RStatementEnum {
                         types: vec![VSingleType::Tuple(vec![])],
                     }
             }
-            Self::BuiltinFunction(f, _) => match f {
-                BuiltinFunction::Print | BuiltinFunction::Debug | BuiltinFunction::Sleep => VType {
-                    types: vec![VSingleType::Tuple(vec![])],
-                },
-                BuiltinFunction::ToString | BuiltinFunction::Format => VSingleType::String.into(),
-                BuiltinFunction::Run | BuiltinFunction::Thread | BuiltinFunction::Await => {
-                    VType { types: vec![] } // TODO!
-                                            // unreachable!("this has to be implemented somewhere else!")
-                }
-            },
+            Self::BuiltinFunction(f, _) => f.returns(),
             Self::Switch(_, cases) => {
                 let mut out = VSingleType::Tuple(vec![]).into(); // if nothing is executed
                 for (_, case) in cases.iter() {
@@ -843,6 +737,13 @@ impl Display for SStatementEnum {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SStatementEnum::Value(v) => write!(f, "{v}"),
+            SStatementEnum::Tuple(v) => {
+                write!(
+                    f,
+                    "[{}]",
+                    v.iter().map(|v| format!("{} ", v)).collect::<String>()
+                )
+            }
             SStatementEnum::Variable(v) => write!(f, "{v}"),
             SStatementEnum::FunctionCall(func, args) => {
                 write!(f, "{func}(")?;

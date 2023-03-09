@@ -115,6 +115,17 @@ fn parse_statement_adv(
     let mut start = String::new();
     let out = match file.get_char(file.get_char_index()) {
         Some('{') => Some(SStatementEnum::Block(parse_block(file)?).into()),
+        Some('[') => {
+            let mut v = vec![];
+            loop {
+                file.skip_whitespaces();
+                if let Some(']') = file.get_char(file.get_char_index()) {
+                    break;
+                }
+                v.push(parse_statement(file)?);
+            }
+            Some(SStatementEnum::Tuple(v).into())
+        }
         Some('$') => {
             file.next();
             file.skip_whitespaces();
@@ -162,6 +173,23 @@ fn parse_statement_adv(
                     } else {
                         let start = start.trim();
                         match start {
+                            "fn" => {
+                                file.skip_whitespaces();
+                                let mut fn_name = String::new();
+                                loop {
+                                    match file.next() {
+                                        Some('(') => break,
+                                        Some(ch) => fn_name.push(ch),
+                                        None => break,
+                                    }
+                                }
+                                let func = parse_function(file)?;
+                                break SStatementEnum::FunctionDefinition(
+                                    Some(fn_name.trim().to_string()),
+                                    func,
+                                )
+                                .into();
+                            }
                             "if" => {
                                 // TODO: Else
                                 let condition = parse_statement(file)?;
