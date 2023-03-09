@@ -46,6 +46,28 @@ run() will return what the function returns while thread() will return a Thread 
 
 ## Examples
 
+### Switching on an unknown type.
+
+    string = false
+    var = if string "test string" else -1
+    
+    print_int = (num int) num.to_string().print()
+    
+    debug( var )
+    
+    switch! var {
+        string {
+            print("String:")
+            print( var )
+        }
+        int {
+            print("integer:")
+            print_int.run( var )
+        }
+    }
+
+using switch! forces you to cover all possible types. Try removing the string or int case and see what happens!
+
 ### Running a thread and awaiting it, passing arguments to the thread when starting it and sharing a variable because the thread's function captured it (useful for reporting progress, i.e. changing a float from 0.0 to 100.0 while downloading and using the main thread to animate a progress bar, then using .await() only when the float is set to 100 to avoid blocking)
 
     print( "Starting" )
