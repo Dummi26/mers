@@ -68,6 +68,20 @@ run() will return what the function returns while thread() will return a Thread 
 
 using switch! forces you to cover all possible types. Try removing the string or int case and see what happens!
 
+### Reading /tmp/ and filtering for files/directories
+
+    for file fs_list("/tmp/") {
+        list = file.fs_list()
+        switch! list {
+            [] {
+                "\"{0}\" is a file".format(file).println()
+            }
+            [string] {
+                "\"{0}\" is a directory".format(file).println()
+            }
+        }
+    }
+
 ### Running a thread and awaiting it, passing arguments to the thread when starting it and sharing a variable because the thread's function captured it (useful for reporting progress, i.e. changing a float from 0.0 to 100.0 while downloading and using the main thread to animate a progress bar, then using .await() only when the float is set to 100 to avoid blocking)
 
     print( "Starting" )
@@ -94,5 +108,3 @@ using switch! forces you to cover all possible types. Try removing the string or
 ## Quirks
 
 currently, f(a b c) is the same as a.f(b c). var.function(args) will use var as the function's first argument, moving all other arguments back. This removes the need for struct/class syntax. Simply declare a function scream(str string) { str.to_upper().print() } and you can now use var.scream() on all strings.
-
-function(var) will break the parser, every argument has to be followed by a whitespace (space, tab, newline, ...). This will hopefully be fixed soon, but for now, function(var ) or just var.function() is the syntax that works.

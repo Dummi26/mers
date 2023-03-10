@@ -1,9 +1,9 @@
 use crate::script::{
     block::{
-        to_runnable, to_runnable::ToRunnableError, RFunction, RScript, SBlock, SFunction,
-        SStatement, SStatementEnum,
+        to_runnable, to_runnable::ToRunnableError, RScript, SBlock, SFunction, SStatement,
+        SStatementEnum,
     },
-    value::{VData, VDataEnum, VSingleType, VType},
+    value::{VDataEnum, VSingleType, VType},
 };
 
 use super::file::File;
@@ -113,18 +113,30 @@ fn parse_statement_adv(
 ) -> Result<SStatement, ParseError> {
     file.skip_whitespaces();
     let mut start = String::new();
-    let out = match file.get_char(file.get_char_index()) {
+    let out = match file.peek() {
         Some('{') => Some(SStatementEnum::Block(parse_block(file)?).into()),
         Some('[') => {
+            file.next();
             let mut v = vec![];
+            let mut list = false;
             loop {
                 file.skip_whitespaces();
-                if let Some(']') = file.get_char(file.get_char_index()) {
+                if let Some(']') = file.peek() {
+                    file.next();
+                    if file[file.get_char_index()..].starts_with("[]") {
+                        list = true;
+                        file.next();
+                        file.next();
+                    }
                     break;
                 }
                 v.push(parse_statement(file)?);
             }
-            Some(SStatementEnum::Tuple(v).into())
+            Some(if list {
+                SStatementEnum::List(v).into()
+            } else {
+                SStatementEnum::Tuple(v).into()
+            })
         }
         Some('$') => {
             file.next();
@@ -163,12 +175,16 @@ fn parse_statement_adv(
         out
     } else {
         loop {
-            match file.next() {
+            match match file.peek() {
+                Some(ch) if matches!(ch, '}' | ')' | '.') => Some(ch),
+                _ => file.next(),
+            } {
                 Some('=') => {
                     break parse_statement(file)?.output_to(start.trim().to_string());
                 }
-                Some(ch) if ch.is_whitespace() || matches!(ch, '}' | ')' | '.') => {
-                    if let Some('=') = file.get_char(file.get_char_index()) {
+                Some(ch) if (ch.is_whitespace() || ch == '}' || ch == ')' || ch == '.') => {
+                    file.skip_whitespaces();
+                    if let Some('=') = file.peek() {
                         continue;
                     } else {
                         let start = start.trim();
@@ -230,7 +246,14 @@ fn parse_statement_adv(
                             }
                             "switch" | "switch!" => {
                                 let force = start.ends_with("!");
-                                let switch_on_what = parse_statement(file)?;
+                                let mut switch_on_what = String::new();
+                                loop {
+                                    match file.next() {
+                                        None => break,
+                                        Some(ch) if ch.is_whitespace() => break,
+                                        Some(ch) => switch_on_what.push(ch),
+                                    }
+                                }
                                 file.skip_whitespaces();
                                 if let Some('{') = file.next() {
                                 } else {
@@ -239,12 +262,17 @@ fn parse_statement_adv(
                                 let mut cases = vec![];
                                 loop {
                                     file.skip_whitespaces();
-                                    if let Some('}') = file.get_char(file.get_char_index()) {
+                                    if let Some('}') = file.peek() {
                                         break;
                                     }
                                     cases.push((parse_type(file)?, parse_statement(file)?));
                                 }
-                                break SStatementEnum::Switch(switch_on_what, cases, force).into();
+                                break SStatementEnum::Switch(
+                                    SStatementEnum::Variable(switch_on_what).into(),
+                                    cases,
+                                    force,
+                                )
+                                .into();
                             }
                             "true" => {
                                 break SStatementEnum::Value(VDataEnum::Bool(true).to()).into()
@@ -350,7 +378,7 @@ fn parse_type_adv(file: &mut File, in_fn_args: bool) -> Result<(VType, bool), Pa
             break;
         }
         file.skip_whitespaces();
-        match file.get_char(file.get_char_index()) {
+        match file.peek() {
             Some('/') => (),
             _ => break,
         }
@@ -375,12 +403,15 @@ fn parse_single_type_adv(
             Some('[') => {
                 let mut types = vec![];
                 loop {
-                    types.push(parse_single_type(file)?.into());
                     file.skip_whitespaces();
-                    match file.get_char(file.get_char_index()) {
-                        Some(']') => break,
+                    match file.peek() {
+                        Some(']') => {
+                            file.next();
+                            break;
+                        }
                         _ => (),
                     }
+                    types.push(parse_single_type(file)?.into());
                 }
                 if types.len() == 1 {
                     VSingleType::List(types.pop().unwrap())
@@ -391,6 +422,10 @@ fn parse_single_type_adv(
             Some(ch) => {
                 let mut name = ch.to_string();
                 loop {
+                    match file.peek() {
+                        Some(']') => break,
+                        _ => (),
+                    }
                     match file.next() {
                         Some(ch) if ch.is_whitespace() => break,
                         Some(')') if in_fn_args => {

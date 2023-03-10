@@ -26,9 +26,7 @@ impl VData {
             VDataEnum::Float(..) => VSingleType::Float,
             VDataEnum::String(..) => VSingleType::String,
             VDataEnum::Tuple(v) => VSingleType::Tuple(v.iter().map(|v| v.out()).collect()),
-            VDataEnum::List(v) => {
-                VSingleType::List(v.iter().fold(VType { types: vec![] }, |a, b| a | b.out()))
-            }
+            VDataEnum::List(t, _) => VSingleType::List(t.clone()),
             VDataEnum::Function(f) => VSingleType::Function(f.in_types().clone(), {
                 eprintln!("Warn: generalizing function return type, disregarding input types. might make the type checker think it can return types it can only return with different arguments as the ones that were actually provided.");
                 f.out_all()
@@ -45,7 +43,7 @@ pub enum VDataEnum {
     Float(f64),
     String(String),
     Tuple(Vec<VData>),
-    List(Vec<VData>),
+    List(VType, Vec<VData>),
     Function(RFunction),
     Thread(VDataThread, VType),
 }

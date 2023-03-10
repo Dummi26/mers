@@ -2,17 +2,15 @@
 // Types starting with S are directly parsed from Strings and unchecked. Types starting with T are type-checked templates for R-types. Types starting with R are runnable. S are converted to T after parsing is done, and T are converted to R whenever they need to run.
 
 use std::{
-    collections::HashMap,
     fmt::Display,
     sync::{Arc, Mutex},
-    time::Duration,
 };
 
 use self::to_runnable::ToRunnableError;
 
 use super::{
     builtins::BuiltinFunction,
-    value::{VData, VDataEnum, VDataThreadEnum, VSingleType, VType},
+    value::{VData, VDataEnum, VSingleType, VType},
 };
 
 // Represents a block of code
@@ -60,6 +58,7 @@ impl SStatement {
 pub enum SStatementEnum {
     Value(VData),
     Tuple(Vec<SStatement>),
+    List(Vec<SStatement>),
     Variable(String),
     FunctionCall(String, Vec<SStatement>),
     FunctionDefinition(Option<String>, SFunction),
@@ -94,11 +93,11 @@ pub mod to_runnable {
         sync::Arc,
     };
 
-    use crate::script::value::{VData, VDataEnum, VSingleType, VType};
+    use crate::script::value::{VDataEnum, VSingleType, VType};
 
     use super::{
-        Am, BuiltinFunction, RBlock, RFunction, RScript, RStatement, RStatementEnum, SBlock,
-        SFunction, SStatement, SStatementEnum,
+        BuiltinFunction, RBlock, RFunction, RScript, RStatement, RStatementEnum, SBlock, SFunction,
+        SStatement, SStatementEnum,
     };
 
     pub enum ToRunnableError {
@@ -253,12 +252,16 @@ pub mod to_runnable {
     ) -> Result<RStatement, ToRunnableError> {
         let mut statement = match &*s.statement {
             SStatementEnum::Value(v) => RStatementEnum::Value(v.clone()),
-            SStatementEnum::Tuple(v) => {
+            SStatementEnum::Tuple(v) | SStatementEnum::List(v) => {
                 let mut w = Vec::with_capacity(v.len());
                 for v in v {
                     w.push(statement(v, ginfo, linfo)?);
                 }
-                RStatementEnum::Tuple(w)
+                if let SStatementEnum::List(_) = &*s.statement {
+                    RStatementEnum::List(w)
+                } else {
+                    RStatementEnum::Tuple(w)
+                }
             }
             SStatementEnum::Variable(v) => {
                 if let Some(var) = linfo.vars.get(v) {
@@ -376,7 +379,6 @@ pub mod to_runnable {
                 let mut ncases = Vec::with_capacity(cases.len());
                 for case in cases {
                     ncases.push((case.0.clone(), statement(&case.1, ginfo, linfo)?));
-                    eprintln!("NCASE: {:#?}", ncases.last().unwrap().0);
                 }
                 let switch_on = statement(switch_on, ginfo, linfo)?;
                 let switch_on_out = switch_on.out();
@@ -386,7 +388,6 @@ pub mod to_runnable {
                         'force: {
                             for (case_type, _) in ncases.iter() {
                                 if val_type.fits_in(&case_type).is_empty() {
-                                    eprintln!("Breaking.");
                                     break 'force;
                                 }
                             }
@@ -503,6 +504,7 @@ impl RStatement {
 pub enum RStatementEnum {
     Value(VData),
     Tuple(Vec<RStatement>),
+    List(Vec<RStatement>),
     Variable(usize, VType), // Arc<Mutex<..>> here, because imagine variable in for loop that is used in a different thread -> we need multiple "same" variables
     FunctionCall(Arc<RFunction>, Vec<RStatement>),
     BuiltinFunction(BuiltinFunction, Vec<RStatement>),
@@ -522,6 +524,16 @@ impl RStatementEnum {
                     w.push(v.run(vars));
                 }
                 VDataEnum::Tuple(w).to()
+            }
+            Self::List(v) => {
+                let mut w = vec![];
+                let mut out = VType { types: vec![] };
+                for v in v {
+                    let val = v.run(vars);
+                    out = out | val.out();
+                    w.push(val);
+                }
+                VDataEnum::List(out, w).to()
             }
             Self::Variable(v, _) => vars[*v].lock().unwrap().clone(),
             Self::FunctionCall(func, args) => {
@@ -576,7 +588,7 @@ impl RStatementEnum {
                             in_loop(VDataEnum::String(ch.to_string()).to())
                         }
                     }
-                    VDataEnum::Tuple(v) | VDataEnum::List(v) => {
+                    VDataEnum::Tuple(v) | VDataEnum::List(_, v) => {
                         for v in v {
                             in_loop(v)
                         }
@@ -603,7 +615,9 @@ impl RStatementEnum {
     pub fn out(&self) -> VType {
         match self {
             Self::Value(v) => v.out(),
-            Self::Tuple(v) => VSingleType::Tuple(v.iter().map(|v| v.out()).collect()).into(),
+            Self::Tuple(v) | Self::List(v) => {
+                VSingleType::Tuple(v.iter().map(|v| v.out()).collect()).into()
+            }
             Self::Variable(_, t) => t.clone(),
             Self::FunctionCall(f, _) => {
                 eprintln!("Warn: generalizing a functions return type regardless of the inputs. Type-checker might assume this value can have more types than it really can.");
@@ -658,6 +672,7 @@ impl RScript {
     pub fn run(&self, args: Vec<String>) -> VData {
         let mut vars = Vec::with_capacity(self.vars);
         vars.push(am(VDataEnum::List(
+            VSingleType::String.into(),
             args.into_iter()
                 .map(|v| VDataEnum::String(v).to())
                 .collect(),
@@ -744,6 +759,13 @@ impl Display for SStatementEnum {
                     v.iter().map(|v| format!("{} ", v)).collect::<String>()
                 )
             }
+            SStatementEnum::List(v) => {
+                write!(
+                    f,
+                    "[{} ...]",
+                    v.iter().map(|v| format!("{} ", v)).collect::<String>()
+                )
+            }
             SStatementEnum::Variable(v) => write!(f, "{v}"),
             SStatementEnum::FunctionCall(func, args) => {
                 write!(f, "{func}(")?;
@@ -805,7 +827,7 @@ impl Display for VDataEnum {
             Self::Int(v) => write!(f, "{v}"),
             Self::Float(v) => write!(f, "{v}"),
             Self::String(v) => write!(f, "{v}"),
-            Self::Tuple(v) | Self::List(v) => {
+            Self::Tuple(v) | Self::List(_, v) => {
                 write!(f, "[")?;
                 for v in v {
                     write!(f, "{v}")?;

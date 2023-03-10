@@ -65,6 +65,12 @@ impl File {
             None => None,
         }
     }
+    pub fn peek(&self) -> Option<char> {
+        match self.chars.get(self.pos.current_char_index) {
+            Some((_, c)) => Some(*c),
+            None => None,
+        }
+    }
 }
 
 impl Iterator for File {
