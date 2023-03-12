@@ -34,6 +34,9 @@ impl VData {
             VDataEnum::Thread(_, o) => VSingleType::Thread(o.clone()),
         }
     }
+    pub fn get(&self, i: usize) -> Option<Self> {
+        self.data.get(i)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -118,6 +121,45 @@ impl VDataEnum {
     }
 }
 
+// get()
+impl VDataEnum {
+    pub fn get(&self, i: usize) -> Option<VData> {
+        match self {
+            Self::Bool(..)
+            | Self::Int(..)
+            | Self::Float(..)
+            | Self::Function(..)
+            | Self::Thread(..) => None,
+            Self::String(s) => match s.chars().nth(i) {
+                // Slow!
+                Some(ch) => Some(Self::String(format!("{ch}")).to()),
+                None => None,
+            },
+            Self::Tuple(v) | Self::List(_, v) => v.get(i).cloned(),
+        }
+    }
+}
+impl VSingleType {
+    // None => Cannot get, Some(t) => getting can return t or nothing
+    pub fn get(&self, i: usize) -> Option<VType> {
+        match self {
+            Self::Bool | Self::Int | Self::Float | Self::Function(..) | Self::Thread(..) => None,
+            Self::String => Some(VSingleType::String.into()),
+            Self::Tuple(t) => t.get(i).cloned(),
+            Self::List(t) => Some(t.clone()),
+        }
+    }
+}
+impl VType {
+    pub fn get(&self, i: usize) -> Option<VType> {
+        let mut out = VType { types: vec![] };
+        for t in &self.types {
+            out = out | t.get(i)?; // if we can't use *get* on one type, we can't use it at all.
+        }
+        Some(out)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VType {
     pub types: Vec<VSingleType>,
@@ -127,7 +169,8 @@ impl VType {
     pub fn fits_in(&self, rhs: &Self) -> Vec<VSingleType> {
         let mut no = vec![];
         for t in &self.types {
-            if !rhs.types.contains(t) {
+            // if t doesnt fit in any of rhs's types
+            if !rhs.types.iter().any(|r| t.fits_in(r)) {
                 no.push(t.clone())
             }
         }
@@ -185,6 +228,34 @@ impl VSingleType {
             }
             Self::List(v) => v.types.clone(),
             _ => vec![],
+        }
+    }
+    pub fn fits_in(&self, rhs: &Self) -> bool {
+        match (self, rhs) {
+            (Self::Bool, Self::Bool)
+            | (Self::Int, Self::Int)
+            | (Self::Float, Self::Float)
+            | (Self::String, Self::String) => true,
+            (Self::Bool | Self::Int | Self::Float | Self::String, _) => false,
+            (Self::Tuple(a), Self::Tuple(b)) => {
+                if a.len() == b.len() {
+                    a.iter().zip(b.iter()).all(|(a, b)| a.fits_in(b).is_empty())
+                } else {
+                    false
+                }
+            }
+            (Self::Tuple(_), _) => false,
+            (Self::List(a), Self::List(b)) => a.fits_in(b).is_empty(),
+            (Self::List(_), _) => false,
+            (Self::Function(ai, ao), Self::Function(bi, bo)) => {
+                ai.iter()
+                    .zip(bi.iter())
+                    .all(|(a, b)| a.fits_in(b).is_empty())
+                    && ao.fits_in(bo).is_empty()
+            }
+            (Self::Function(..), _) => false,
+            (Self::Thread(a), Self::Thread(b)) => a.fits_in(b).is_empty(),
+            (Self::Thread(..), _) => false,
         }
     }
 }

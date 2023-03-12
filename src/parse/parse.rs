@@ -271,12 +271,7 @@ fn parse_statement_adv(
                                     }
                                     cases.push((parse_type(file)?, parse_statement(file)?));
                                 }
-                                break SStatementEnum::Switch(
-                                    SStatementEnum::Variable(switch_on_what).into(),
-                                    cases,
-                                    force,
-                                )
-                                .into();
+                                break SStatementEnum::Switch(switch_on_what, cases, force).into();
                             }
                             "true" => {
                                 break SStatementEnum::Value(VDataEnum::Bool(true).to()).into()
@@ -332,6 +327,10 @@ fn parse_statement_adv(
                         let args = [out].into_iter().chain(args.into_iter()).collect();
                         SStatementEnum::FunctionCall(func, args).into()
                     }
+                    SStatementEnum::Value(vd) => match vd.data {
+                        VDataEnum::Int(i) => SStatementEnum::IndexFixed(out, i as _).into(),
+                        _ => todo!("fixed-indexing not available with this type."),
+                    },
                     other => {
                         todo!("Wrapping in this type isn't implemented (yet?). Type: {other:?}")
                     }

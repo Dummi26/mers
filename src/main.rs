@@ -6,8 +6,21 @@ pub(crate) mod parse;
 pub(crate) mod script;
 
 fn main() {
-    let str1: VType = VSingleType::String.into();
-    assert!(str1.fits_in(&VSingleType::String.into()).is_empty());
+    let val: VType = VSingleType::Tuple(vec![
+        VSingleType::Int.into(),
+        VSingleType::String.into(),
+        VSingleType::String.into(),
+    ])
+    .into();
+    let case: VType = VSingleType::Tuple(vec![
+        VType {
+            types: vec![VSingleType::Tuple(vec![]).into(), VSingleType::Int.into()],
+        },
+        VSingleType::String.into(),
+        VSingleType::String.into(),
+    ])
+    .into();
+    assert!(val.fits_in(&case).is_empty());
     let script = parse::parse::parse(&mut parse::file::File::new(
         std::fs::read_to_string("/tmp/script.txt").unwrap(),
     ))

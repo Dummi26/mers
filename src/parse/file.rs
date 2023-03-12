@@ -25,6 +25,41 @@ impl Display for FilePosition {
 
 impl File {
     pub fn new(data: String) -> Self {
+        let mut chs = data.chars();
+        let mut data = String::with_capacity(data.len());
+        loop {
+            match chs.next() {
+                Some('/') => match chs.next() {
+                    Some('/') => loop {
+                        match chs.next() {
+                            Some('\n') | None => break,
+                            _ => (),
+                        }
+                    },
+                    Some('*') => loop {
+                        match chs.next() {
+                            Some('*') => {
+                                if let Some('/') = chs.next() {
+                                    break;
+                                }
+                            }
+                            None => break,
+                            _ => (),
+                        }
+                    },
+                    Some(ch) => {
+                        data.push('/');
+                        data.push(ch);
+                    }
+                    None => {
+                        data.push('/');
+                        break;
+                    }
+                },
+                Some(ch) => data.push(ch),
+                None => break,
+            }
+        }
         let chars = data.char_indices().collect();
         Self {
             data,

@@ -66,8 +66,9 @@ pub enum SStatementEnum {
     If(SStatement, SStatement, Option<SStatement>),
     While(SStatement),
     For(String, SStatement, SStatement),
-    Switch(SStatement, Vec<(VType, SStatement)>, bool),
+    Switch(String, Vec<(VType, SStatement)>, bool),
     // Match(???),
+    IndexFixed(SStatement, usize),
 }
 impl Into<SStatement> for SStatementEnum {
     fn into(self) -> SStatement {
@@ -112,6 +113,7 @@ pub mod to_runnable {
         },
         InvalidTypeForWhileLoop(VType),
         CaseForceButTypeNotCovered(VType),
+        NotIndexableFixed(VType, usize),
     }
     impl Debug for ToRunnableError {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -137,6 +139,7 @@ pub mod to_runnable {
                 }
                 Self::InvalidTypeForWhileLoop(v) => write!(f, "Invalid type: Expected bool or Tuples of length 0 or 1 as return types for the while loop, but found {v:?} instead."),
                 Self::CaseForceButTypeNotCovered(v) => write!(f, "Switch! statement, but not all types covered. Types to cover: {v}"),
+                Self::NotIndexableFixed(t, i) => write!(f, "Cannot use fixed-index {i} on type {t}."),
             }
         }
     }
@@ -376,26 +379,62 @@ pub mod to_runnable {
                 o
             }
             SStatementEnum::Switch(switch_on, cases, force) => {
-                let mut ncases = Vec::with_capacity(cases.len());
-                for case in cases {
-                    ncases.push((case.0.clone(), statement(&case.1, ginfo, linfo)?));
-                }
-                let switch_on = statement(switch_on, ginfo, linfo)?;
-                let switch_on_out = switch_on.out();
-                if *force {
-                    for val_type in switch_on_out.types.iter() {
-                        let val_type: VType = val_type.clone().into();
-                        'force: {
-                            for (case_type, _) in ncases.iter() {
-                                if val_type.fits_in(&case_type).is_empty() {
-                                    break 'force;
+                if let Some(switch_on_v) = linfo.vars.get(switch_on).cloned() {
+                    let mut ncases = Vec::with_capacity(cases.len());
+                    let og_type = linfo.vars.get(switch_on).unwrap().1.clone();
+                    for case in cases {
+                        linfo.vars.get_mut(switch_on).unwrap().1 = case.0.clone();
+                        ncases.push((case.0.clone(), statement(&case.1, ginfo, linfo)?));
+                    }
+                    linfo.vars.get_mut(switch_on).unwrap().1 = og_type;
+
+                    let switch_on_out = switch_on_v.1;
+                    if *force {
+                        for val_type in switch_on_out.types.iter() {
+                            let val_type: VType = val_type.clone().into();
+                            let mut linf2 = linfo.clone();
+                            linf2.vars.get_mut(switch_on).unwrap().1 = val_type.clone();
+                            'force: {
+                                for (case_type, _) in cases {
+                                    if val_type.fits_in(&case_type).is_empty() {
+                                        break 'force;
+                                    }
                                 }
+                                return Err(ToRunnableError::CaseForceButTypeNotCovered(val_type));
                             }
-                            return Err(ToRunnableError::CaseForceButTypeNotCovered(val_type));
                         }
                     }
+                    RStatementEnum::Switch(
+                        RStatementEnum::Variable(switch_on_v.0, switch_on_out).to(),
+                        ncases,
+                    )
+                } else {
+                    return Err(ToRunnableError::UseOfUndefinedVariable(switch_on.clone()));
                 }
-                RStatementEnum::Switch(switch_on, ncases)
+            }
+            SStatementEnum::IndexFixed(st, i) => {
+                let st = statement(st, ginfo, linfo)?;
+                let ok = 'ok: {
+                    let mut one = false;
+                    for t in st.out().types {
+                        one = true;
+                        // only if all types are indexable by i
+                        match t {
+                            VSingleType::Tuple(v) => {
+                                if v.len() <= *i {
+                                    break 'ok false;
+                                }
+                            }
+                            _ => break 'ok false,
+                        }
+                    }
+                    one
+                };
+                if ok {
+                    RStatementEnum::IndexFixed(st, *i)
+                } else {
+                    return Err(ToRunnableError::NotIndexableFixed(st.out(), *i));
+                }
             }
         }
         .to();
@@ -523,6 +562,7 @@ pub enum RStatementEnum {
     While(RStatement),
     For(usize, RStatement, RStatement),
     Switch(RStatement, Vec<(VType, RStatement)>),
+    IndexFixed(RStatement, usize),
 }
 impl RStatementEnum {
     pub fn run(&self, vars: &Vec<Am<VData>>) -> VData {
@@ -620,6 +660,7 @@ impl RStatementEnum {
                 }
                 out
             }
+            Self::IndexFixed(st, i) => st.run(vars).get(*i).unwrap(),
         }
     }
     pub fn out(&self) -> VType {
@@ -657,6 +698,7 @@ impl RStatementEnum {
                 }
                 out
             }
+            Self::IndexFixed(st, i) => st.out().get(*i).unwrap(),
         }
     }
     pub fn to(self) -> RStatement {
@@ -820,6 +862,7 @@ impl Display for SStatementEnum {
                 }
                 write!(f, "}}")
             }
+            SStatementEnum::IndexFixed(st, i) => write!(f, "{st}.{i}"),
         }
     }
 }
