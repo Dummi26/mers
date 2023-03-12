@@ -123,11 +123,14 @@ fn parse_statement_adv(
                 file.skip_whitespaces();
                 if let Some(']') = file.peek() {
                     file.next();
-                    if file[file.get_char_index()..].starts_with("[]") {
-                        list = true;
-                        file.next();
-                        file.next();
-                    }
+                    break;
+                }
+                if file[file.get_char_index()..].starts_with("...]") {
+                    list = true;
+                    file.next();
+                    file.next();
+                    file.next();
+                    file.next();
                     break;
                 }
                 v.push(parse_statement(file)?);
@@ -314,19 +317,24 @@ fn parse_statement_adv(
         }
     };
     file.skip_whitespaces();
-    if let Some('.') = file.get_char(file.get_char_index()) {
-        // consume the dot (otherwise, a.b.c syntax will break in certain cases)
-        file.next();
-    }
-    if !is_part_of_chain_already {
-        while let Some('.') = file.get_char(file.get_char_index().saturating_sub(1)) {
-            let wrapper = parse_statement_adv(file, true)?;
-            out = match *wrapper.statement {
-                SStatementEnum::FunctionCall(func, args) => {
-                    let args = [out].into_iter().chain(args.into_iter()).collect();
-                    SStatementEnum::FunctionCall(func, args).into()
+    if !file[file.get_char_index()..].starts_with("..") {
+        // dot chain syntax only works if there is only one dot
+        if let Some('.') = file.get_char(file.get_char_index()) {
+            // consume the dot (otherwise, a.b.c syntax will break in certain cases)
+            file.next();
+        }
+        if !is_part_of_chain_already {
+            while let Some('.') = file.get_char(file.get_char_index().saturating_sub(1)) {
+                let wrapper = parse_statement_adv(file, true)?;
+                out = match *wrapper.statement {
+                    SStatementEnum::FunctionCall(func, args) => {
+                        let args = [out].into_iter().chain(args.into_iter()).collect();
+                        SStatementEnum::FunctionCall(func, args).into()
+                    }
+                    other => {
+                        todo!("Wrapping in this type isn't implemented (yet?). Type: {other:?}")
+                    }
                 }
-                other => todo!("Wrapping in this type isn't implemented (yet?). Type: {other:?}"),
             }
         }
     }

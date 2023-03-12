@@ -832,6 +832,10 @@ impl Display for VDataEnum {
                 for v in v {
                     write!(f, "{v}")?;
                 }
+                match self {
+                    Self::List(..) => write!(f, "...")?,
+                    _ => (),
+                }
                 write!(f, "]")?;
                 Ok(())
             }
