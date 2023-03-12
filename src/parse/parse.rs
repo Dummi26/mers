@@ -379,7 +379,10 @@ fn parse_type(file: &mut File) -> Result<VType, ParseError> {
 fn parse_type_adv(file: &mut File, in_fn_args: bool) -> Result<(VType, bool), ParseError> {
     let mut types = vec![];
     let mut closed_fn_args = false;
+    let mut count = 0;
     loop {
+        count += 1;
+        eprintln!("count: {count}");
         let (st, closed_bracket) = parse_single_type_adv(file, in_fn_args)?;
         types.push(st);
         if closed_bracket {
@@ -388,7 +391,14 @@ fn parse_type_adv(file: &mut File, in_fn_args: bool) -> Result<(VType, bool), Pa
         }
         file.skip_whitespaces();
         match file.peek() {
-            Some('/') => (),
+            Some('/') => {
+                eprintln!("/ YAY");
+                file.next();
+            }
+            Some(ch) => {
+                eprintln!("Ch: {ch}");
+                break;
+            }
             _ => break,
         }
     }
@@ -420,7 +430,7 @@ fn parse_single_type_adv(
                         }
                         _ => (),
                     }
-                    types.push(parse_single_type(file)?.into());
+                    types.push(parse_type(file)?);
                 }
                 if types.len() == 1 {
                     VSingleType::List(types.pop().unwrap())
