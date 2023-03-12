@@ -266,6 +266,7 @@ fn parse_statement_adv(
                                 loop {
                                     file.skip_whitespaces();
                                     if let Some('}') = file.peek() {
+                                        file.next();
                                         break;
                                     }
                                     cases.push((parse_type(file)?, parse_statement(file)?));

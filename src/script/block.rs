@@ -400,9 +400,19 @@ pub mod to_runnable {
         }
         .to();
         if let Some(opt) = &s.output_to {
-            if let Some(var) = linfo.vars.get_mut(opt) {
-                var.1 = var.1.clone() | statement.out();
-                statement.output_to = Some(var.0);
+            if let Some(var) = linfo.vars.get(opt) {
+                let out = statement.out();
+                let var_id = var.0;
+                let var_out = &var.1;
+                let inv_types = out.fits_in(&var_out);
+                if !inv_types.is_empty() {
+                    eprintln!("Warn: shadowing variable {opt} because statement's output type {out} does not fit in the original variable's {var_out}. This might become an error in the future, or it might stop shadowing the variiable entirely - for stable scripts, avoid this by giving the variable a different name.");
+                    linfo.vars.insert(opt.clone(), (ginfo.vars, out));
+                    statement.output_to = Some(ginfo.vars);
+                    ginfo.vars += 1;
+                } else {
+                    statement.output_to = Some(var_id);
+                }
             } else {
                 linfo
                     .vars
@@ -728,8 +738,12 @@ impl Display for VSingleType {
             Self::String => write!(f, "string"),
             Self::Tuple(types) => {
                 write!(f, "[")?;
-                for t in types {
-                    write!(f, "{t}")?;
+                for (i, t) in types.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, " {t}")?;
+                    } else {
+                        write!(f, "{t}")?;
+                    }
                 }
                 write!(f, "]")?;
                 Ok(())
@@ -829,8 +843,12 @@ impl Display for VDataEnum {
             Self::String(v) => write!(f, "{v}"),
             Self::Tuple(v) | Self::List(_, v) => {
                 write!(f, "[")?;
-                for v in v {
-                    write!(f, "{v}")?;
+                for (i, v) in v.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, " {v}")?;
+                    } else {
+                        write!(f, "{v}")?;
+                    }
                 }
                 match self {
                     Self::List(..) => write!(f, "...")?,

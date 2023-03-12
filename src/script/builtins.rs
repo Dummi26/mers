@@ -38,6 +38,7 @@ pub enum BuiltinFunction {
     StringToBytes,
     // OS
     RunCommand,
+    RunCommandGetBytes,
 }
 
 impl BuiltinFunction {
@@ -60,6 +61,7 @@ impl BuiltinFunction {
             "bytes_to_string" => Self::BytesToString,
             "string_to_bytes" => Self::StringToBytes,
             "run_command" => Self::RunCommand,
+            "run_command_get_bytes" => Self::RunCommandGetBytes,
             _ => return None,
         })
     }
@@ -120,6 +122,20 @@ impl BuiltinFunction {
                     ]),
                 ],
             },
+            Self::RunCommandGetBytes => VType {
+                types: vec![
+                    // error
+                    VSingleType::String.into(),
+                    // success: Option<ExitCode>, stdout, stderr
+                    VSingleType::Tuple(vec![
+                        VType {
+                            types: vec![VSingleType::Tuple(vec![]).into(), VSingleType::Int.into()],
+                        },
+                        VSingleType::List(VSingleType::Int.into()).into(),
+                        VSingleType::List(VSingleType::Int.into()).into(),
+                    ]),
+                ],
+            },
         }
     }
     pub fn run(&self, args: &Vec<RStatement>, vars: &Vec<Arc<Mutex<VData>>>) -> VData {
@@ -129,7 +145,7 @@ impl BuiltinFunction {
                     print!("{}", arg);
                     VDataEnum::Tuple(vec![]).to()
                 } else {
-                    unreachable!()
+                    unreachable!("print function called with non-string arg")
                 }
             }
             BuiltinFunction::Println => {
@@ -365,7 +381,7 @@ impl BuiltinFunction {
                     unreachable!("string_to_bytes not 1 arg")
                 }
             }
-            Self::RunCommand => {
+            Self::RunCommand | Self::RunCommandGetBytes => {
                 if args.len() > 0 {
                     if let VDataEnum::String(s) = args[0].run(vars).data {
                         let mut command = std::process::Command::new(s);
@@ -390,13 +406,31 @@ impl BuiltinFunction {
                                     VDataEnum::Tuple(vec![])
                                 }
                                 .to(),
-                                VDataEnum::String(
-                                    String::from_utf8_lossy(&out.stdout).into_owned(),
-                                )
+                                match self {
+                                    Self::RunCommandGetBytes => VDataEnum::List(
+                                        VSingleType::Int.into(),
+                                        out.stdout
+                                            .iter()
+                                            .map(|v| VDataEnum::Int(*v as _).to())
+                                            .collect(),
+                                    ),
+                                    _ => VDataEnum::String(
+                                        String::from_utf8_lossy(&out.stdout).into_owned(),
+                                    ),
+                                }
                                 .to(),
-                                VDataEnum::String(
-                                    String::from_utf8_lossy(&out.stderr).into_owned(),
-                                )
+                                match self {
+                                    Self::RunCommandGetBytes => VDataEnum::List(
+                                        VSingleType::Int.into(),
+                                        out.stderr
+                                            .iter()
+                                            .map(|v| VDataEnum::Int(*v as _).to())
+                                            .collect(),
+                                    ),
+                                    _ => VDataEnum::String(
+                                        String::from_utf8_lossy(&out.stderr).into_owned(),
+                                    ),
+                                }
                                 .to(),
                             ])
                             .to(),
