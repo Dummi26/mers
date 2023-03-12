@@ -382,7 +382,6 @@ fn parse_type_adv(file: &mut File, in_fn_args: bool) -> Result<(VType, bool), Pa
     let mut count = 0;
     loop {
         count += 1;
-        eprintln!("count: {count}");
         let (st, closed_bracket) = parse_single_type_adv(file, in_fn_args)?;
         types.push(st);
         if closed_bracket {
@@ -392,11 +391,9 @@ fn parse_type_adv(file: &mut File, in_fn_args: bool) -> Result<(VType, bool), Pa
         file.skip_whitespaces();
         match file.peek() {
             Some('/') => {
-                eprintln!("/ YAY");
                 file.next();
             }
             Some(ch) => {
-                eprintln!("Ch: {ch}");
                 break;
             }
             _ => break,
