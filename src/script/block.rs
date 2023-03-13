@@ -59,7 +59,7 @@ pub enum SStatementEnum {
     Value(VData),
     Tuple(Vec<SStatement>),
     List(Vec<SStatement>),
-    Variable(String),
+    Variable(String, bool),
     FunctionCall(String, Vec<SStatement>),
     FunctionDefinition(Option<String>, SFunction),
     Block(SBlock),
@@ -266,9 +266,9 @@ pub mod to_runnable {
                     RStatementEnum::Tuple(w)
                 }
             }
-            SStatementEnum::Variable(v) => {
+            SStatementEnum::Variable(v, is_ref) => {
                 if let Some(var) = linfo.vars.get(v) {
-                    RStatementEnum::Variable(var.0, var.1.clone())
+                    RStatementEnum::Variable(var.0, var.1.clone(), *is_ref)
                 } else {
                     return Err(ToRunnableError::UseOfUndefinedVariable(v.clone()));
                 }
@@ -405,7 +405,7 @@ pub mod to_runnable {
                         }
                     }
                     RStatementEnum::Switch(
-                        RStatementEnum::Variable(switch_on_v.0, switch_on_out).to(),
+                        RStatementEnum::Variable(switch_on_v.0, switch_on_out, false).to(),
                         ncases,
                     )
                 } else {
@@ -554,7 +554,7 @@ pub enum RStatementEnum {
     Value(VData),
     Tuple(Vec<RStatement>),
     List(Vec<RStatement>),
-    Variable(usize, VType), // Arc<Mutex<..>> here, because imagine variable in for loop that is used in a different thread -> we need multiple "same" variables
+    Variable(usize, VType, bool), // Arc<Mutex<..>> here, because imagine variable in for loop that is used in a different thread -> we need multiple "same" variables
     FunctionCall(Arc<RFunction>, Vec<RStatement>),
     BuiltinFunction(BuiltinFunction, Vec<RStatement>),
     Block(RBlock),
@@ -585,7 +585,13 @@ impl RStatementEnum {
                 }
                 VDataEnum::List(out, w).to()
             }
-            Self::Variable(v, _) => vars[*v].lock().unwrap().clone(),
+            Self::Variable(v, _, is_ref) => {
+                if *is_ref {
+                    VDataEnum::Reference(vars[*v].clone()).to()
+                } else {
+                    vars[*v].lock().unwrap().clone()
+                }
+            }
             Self::FunctionCall(func, args) => {
                 for (i, input) in func.inputs.iter().enumerate() {
                     *vars[*input].lock().unwrap() = args[i].run(vars);
@@ -627,6 +633,7 @@ impl RStatementEnum {
                     vars[*v] = Arc::new(Mutex::new(c));
                     b.run(&vars);
                 };
+
                 match c.data {
                     VDataEnum::Int(v) => {
                         for i in 0..v {
@@ -666,10 +673,28 @@ impl RStatementEnum {
     pub fn out(&self) -> VType {
         match self {
             Self::Value(v) => v.out(),
-            Self::Tuple(v) | Self::List(v) => {
-                VSingleType::Tuple(v.iter().map(|v| v.out()).collect()).into()
+            Self::Tuple(v) => VSingleType::Tuple(v.iter().map(|v| v.out()).collect()).into(),
+            Self::List(v) => VSingleType::List({
+                let mut types = VType { types: vec![] };
+                for t in v {
+                    types = types | t.out();
+                }
+                types
+            })
+            .into(),
+            Self::Variable(_, t, is_ref) => {
+                if *is_ref {
+                    VType {
+                        types: t
+                            .types
+                            .iter()
+                            .map(|t| VSingleType::Reference(Box::new(t.clone())))
+                            .collect(),
+                    }
+                } else {
+                    t.clone()
+                }
             }
-            Self::Variable(_, t) => t.clone(),
             Self::FunctionCall(f, _) => {
                 eprintln!("Warn: generalizing a functions return type regardless of the inputs. Type-checker might assume this value can have more types than it really can.");
                 f.out_all()
@@ -793,6 +818,7 @@ impl Display for VSingleType {
             Self::List(t) => write!(f, "[{t}]"),
             Self::Function(args, out) => write!(f, "({args:?}) -> {out}"),
             Self::Thread(_) => write!(f, "THREAD"),
+            Self::Reference(r) => write!(f, "&{r}"),
         }
     }
 }
@@ -822,7 +848,9 @@ impl Display for SStatementEnum {
                     v.iter().map(|v| format!("{} ", v)).collect::<String>()
                 )
             }
-            SStatementEnum::Variable(v) => write!(f, "{v}"),
+            SStatementEnum::Variable(v, is_ref) => {
+                write!(f, "{}{v}", if *is_ref { "&" } else { "" })
+            }
             SStatementEnum::FunctionCall(func, args) => {
                 write!(f, "{func}(")?;
                 for (i, arg) in args.iter().enumerate() {
@@ -902,6 +930,7 @@ impl Display for VDataEnum {
             }
             Self::Function(v) => write!(f, "{v}"),
             Self::Thread(..) => write!(f, "THREAD"),
+            Self::Reference(r) => write!(f, "{}", r.lock().unwrap()),
         }
     }
 }

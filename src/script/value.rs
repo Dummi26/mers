@@ -32,6 +32,7 @@ impl VData {
                 f.out_all()
             }),
             VDataEnum::Thread(_, o) => VSingleType::Thread(o.clone()),
+            VDataEnum::Reference(r) => r.lock().unwrap().out_single(),
         }
     }
     pub fn get(&self, i: usize) -> Option<Self> {
@@ -49,6 +50,7 @@ pub enum VDataEnum {
     List(VType, Vec<VData>),
     Function(RFunction),
     Thread(VDataThread, VType),
+    Reference(Arc<Mutex<VData>>),
 }
 
 #[derive(Clone)]
@@ -136,6 +138,7 @@ impl VDataEnum {
                 None => None,
             },
             Self::Tuple(v) | Self::List(_, v) => v.get(i).cloned(),
+            Self::Reference(r) => r.lock().unwrap().get(i),
         }
     }
 }
@@ -147,6 +150,7 @@ impl VSingleType {
             Self::String => Some(VSingleType::String.into()),
             Self::Tuple(t) => t.get(i).cloned(),
             Self::List(t) => Some(t.clone()),
+            Self::Reference(r) => r.get(i),
         }
     }
 }
@@ -209,6 +213,7 @@ pub enum VSingleType {
     List(VType),
     Function(Vec<VType>, VType),
     Thread(VType),
+    Reference(Box<Self>),
 }
 impl VSingleType {
     pub fn inner_types(&self) -> Vec<VSingleType> {
@@ -256,6 +261,8 @@ impl VSingleType {
             (Self::Function(..), _) => false,
             (Self::Thread(a), Self::Thread(b)) => a.fits_in(b).is_empty(),
             (Self::Thread(..), _) => false,
+            (Self::Reference(r), Self::Reference(b)) => r.fits_in(b),
+            (Self::Reference(_), _) => false,
         }
     }
 }

@@ -141,11 +141,6 @@ fn parse_statement_adv(
                 SStatementEnum::Tuple(v).into()
             })
         }
-        Some('$') => {
-            file.next();
-            file.skip_whitespaces();
-            Some(SStatementEnum::Variable(file.take_while(|v| !v.is_whitespace()).collect()).into())
-        }
         Some('"') => {
             file.next();
             let mut buf = String::new();
@@ -280,15 +275,22 @@ fn parse_statement_adv(
                                 break SStatementEnum::Value(VDataEnum::Bool(false).to()).into()
                             }
                             _ => {
+                                // int, float, var
                                 break {
                                     if let Ok(v) = start.parse() {
                                         SStatementEnum::Value(VDataEnum::Int(v).to()).into()
                                     } else if let Ok(v) = start.replace(",", ".").parse() {
                                         SStatementEnum::Value(VDataEnum::Float(v).to()).into()
                                     } else {
-                                        SStatementEnum::Variable(start.to_string()).into()
+                                        if start.starts_with('&') {
+                                            SStatementEnum::Variable(start[1..].to_string(), true)
+                                                .into()
+                                        } else {
+                                            SStatementEnum::Variable(start.to_string(), false)
+                                                .into()
+                                        }
                                     }
-                                }
+                                };
                             }
                         }
                     }
@@ -378,9 +380,7 @@ fn parse_type(file: &mut File) -> Result<VType, ParseError> {
 fn parse_type_adv(file: &mut File, in_fn_args: bool) -> Result<(VType, bool), ParseError> {
     let mut types = vec![];
     let mut closed_fn_args = false;
-    let mut count = 0;
     loop {
-        count += 1;
         let (st, closed_bracket) = parse_single_type_adv(file, in_fn_args)?;
         types.push(st);
         if closed_bracket {
@@ -414,6 +414,13 @@ fn parse_single_type_adv(
     let mut closed_bracket_in_fn_args = false;
     Ok((
         match file.next() {
+            Some('&') => {
+                let parse_output = parse_single_type_adv(file, in_fn_args)?;
+                if parse_output.1 {
+                    closed_bracket_in_fn_args = true;
+                }
+                VSingleType::Reference(Box::new(parse_output.0))
+            }
             // Tuple or Array
             Some('[') => {
                 let mut types = vec![];
@@ -439,6 +446,7 @@ fn parse_single_type_adv(
                 loop {
                     match file.peek() {
                         Some(']') => break,
+                        Some('/') => break,
                         _ => (),
                     }
                     match file.next() {

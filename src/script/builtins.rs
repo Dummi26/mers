@@ -39,6 +39,20 @@ pub enum BuiltinFunction {
     // OS
     RunCommand,
     RunCommandGetBytes,
+    // Math
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    Pow,
+    // List
+    Push,
+    Insert,
+    Pop,
+    Remove,
+    Get,
+    Len,
 }
 
 impl BuiltinFunction {
@@ -62,6 +76,18 @@ impl BuiltinFunction {
             "string_to_bytes" => Self::StringToBytes,
             "run_command" => Self::RunCommand,
             "run_command_get_bytes" => Self::RunCommandGetBytes,
+            "add" => Self::Add,
+            "sub" => Self::Sub,
+            "mul" => Self::Mul,
+            "div" => Self::Div,
+            "mod" => Self::Mod,
+            "pow" => Self::Pow,
+            "push" => Self::Push,
+            "insert" => Self::Insert,
+            "pop" => Self::Pop,
+            "remove" => Self::Remove,
+            "get" => Self::Get,
+            "len" => Self::Len,
             _ => return None,
         })
     }
@@ -74,7 +100,7 @@ impl BuiltinFunction {
             // String
             Self::ToString | Self::Format => VSingleType::String.into(),
             // !
-            Self::Run | Self::Thread | Self::Await => {
+            Self::Run | Self::Thread | Self::Await | Self::Pop | Self::Remove | Self::Get => {
                 VType { types: vec![] } // TODO!
                                         // unreachable!("this has to be implemented somewhere else!")
             }
@@ -136,6 +162,11 @@ impl BuiltinFunction {
                     ]),
                 ],
             },
+            Self::Add | Self::Sub | Self::Mul | Self::Div | Self::Mod | Self::Pow => VType {
+                types: vec![VSingleType::Int, VSingleType::Float],
+            },
+            Self::Push | Self::Insert => VSingleType::Tuple(vec![]).into(),
+            Self::Len => VSingleType::Int.into(),
         }
     }
     pub fn run(&self, args: &Vec<RStatement>, vars: &Vec<Arc<Mutex<VData>>>) -> VData {
@@ -441,6 +472,220 @@ impl BuiltinFunction {
                     }
                 } else {
                     unreachable!("run_command not 1 arg")
+                }
+            }
+            Self::Add => {
+                if args.len() == 2 {
+                    match (args[0].run(vars).data, args[1].run(vars).data) {
+                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a + b).to(),
+                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                            VDataEnum::Float(a as f64 + b).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                            VDataEnum::Float(a + b as f64).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Float(a + b).to(),
+                        _ => unreachable!("add: not a number"),
+                    }
+                } else {
+                    unreachable!("add: not 2 args")
+                }
+            }
+            Self::Sub => {
+                if args.len() == 2 {
+                    match (args[0].run(vars).data, args[1].run(vars).data) {
+                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a - b).to(),
+                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                            VDataEnum::Float(a as f64 - b).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                            VDataEnum::Float(a - b as f64).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Float(a - b).to(),
+                        _ => unreachable!("sub: not a number"),
+                    }
+                } else {
+                    unreachable!("sub: not 2 args")
+                }
+            }
+            Self::Mul => {
+                if args.len() == 2 {
+                    match (args[0].run(vars).data, args[1].run(vars).data) {
+                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a * b).to(),
+                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                            VDataEnum::Float(a as f64 * b).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                            VDataEnum::Float(a * b as f64).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Float(a * b).to(),
+                        _ => unreachable!("mul: not a number"),
+                    }
+                } else {
+                    unreachable!("mul: not 2 args")
+                }
+            }
+            Self::Div => {
+                if args.len() == 2 {
+                    match (args[0].run(vars).data, args[1].run(vars).data) {
+                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a / b).to(),
+                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                            VDataEnum::Float(a as f64 / b).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                            VDataEnum::Float(a / b as f64).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Float(a / b).to(),
+                        _ => unreachable!("div: not a number"),
+                    }
+                } else {
+                    unreachable!("div: not 2 args")
+                }
+            }
+            Self::Mod => {
+                if args.len() == 2 {
+                    match (args[0].run(vars).data, args[1].run(vars).data) {
+                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a % b).to(),
+                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                            VDataEnum::Float(a as f64 % b).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                            VDataEnum::Float(a % b as f64).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Float(a % b).to(),
+                        _ => unreachable!("mod: not a number"),
+                    }
+                } else {
+                    unreachable!("mod: not 2 args")
+                }
+            }
+            Self::Pow => {
+                if args.len() == 2 {
+                    match (args[0].run(vars).data, args[1].run(vars).data) {
+                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(if b == 0 {
+                            1
+                        } else if b > 0 {
+                            a.pow(b as _)
+                        } else {
+                            0
+                        })
+                        .to(),
+                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                            VDataEnum::Float((a as f64).powf(b)).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                            VDataEnum::Float(a.powi(b as _)).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Float(b)) => {
+                            VDataEnum::Float(a.powf(b)).to()
+                        }
+                        _ => unreachable!("pow: not a number"),
+                    }
+                } else {
+                    unreachable!("pow: not 2 args")
+                }
+            }
+            Self::Push => {
+                if args.len() == 2 {
+                    if let VDataEnum::Reference(v) = args[0].run(vars).data {
+                        if let VDataEnum::List(_, v) = &mut v.lock().unwrap().data {
+                            v.push(args[1].run(vars));
+                        }
+                        VDataEnum::Tuple(vec![]).to()
+                    } else {
+                        unreachable!("push: not a reference")
+                    }
+                } else {
+                    unreachable!("push: not 2 args")
+                }
+            }
+            Self::Insert => {
+                if args.len() == 3 {
+                    if let (VDataEnum::Reference(v), VDataEnum::Int(i)) =
+                        (args[0].run(vars).data, args[1].run(vars).data)
+                    {
+                        if let VDataEnum::List(_, v) = &mut v.lock().unwrap().data {
+                            v.insert(i as _, args[2].run(vars));
+                        }
+                        VDataEnum::Tuple(vec![]).to()
+                    } else {
+                        unreachable!("insert: not a reference and index")
+                    }
+                } else {
+                    unreachable!("insert: not 3 args")
+                }
+            }
+            Self::Pop => {
+                if args.len() == 1 {
+                    if let VDataEnum::Reference(v) = args[0].run(vars).data {
+                        if let VDataEnum::List(_, v) = &mut v.lock().unwrap().data {
+                            v.pop().unwrap_or_else(|| VDataEnum::Tuple(vec![]).to())
+                        } else {
+                            unreachable!("pop: not a list")
+                        }
+                    } else {
+                        unreachable!("pop: not a reference")
+                    }
+                } else {
+                    unreachable!("pop: not 1 arg")
+                }
+            }
+            Self::Remove => {
+                if args.len() == 2 {
+                    if let (VDataEnum::Reference(v), VDataEnum::Int(i)) =
+                        (args[0].run(vars).data, args[1].run(vars).data)
+                    {
+                        if let VDataEnum::List(_, v) = &mut v.lock().unwrap().data {
+                            if v.len() > i as _ && i >= 0 {
+                                v.remove(i as _)
+                            } else {
+                                VDataEnum::Tuple(vec![]).to()
+                            }
+                        } else {
+                            unreachable!("remove: not a list")
+                        }
+                    } else {
+                        unreachable!("remove: not a reference and index")
+                    }
+                } else {
+                    unreachable!("remove: not 2 args")
+                }
+            }
+            Self::Get => {
+                if args.len() == 2 {
+                    if let (VDataEnum::Reference(v), VDataEnum::Int(i)) =
+                        (args[0].run(vars).data, args[1].run(vars).data)
+                    {
+                        if let VDataEnum::List(_, v) = &mut v.lock().unwrap().data {
+                            if i >= 0 {
+                                match v.get(i as usize) {
+                                    Some(v) => v.clone(),
+                                    None => VDataEnum::Tuple(vec![]).to(),
+                                }
+                            } else {
+                                VDataEnum::Tuple(vec![]).to()
+                            }
+                        } else {
+                            unreachable!("get: not a list")
+                        }
+                    } else {
+                        unreachable!("get: not a reference and index")
+                    }
+                } else {
+                    unreachable!("get: not 2 args")
+                }
+            }
+            Self::Len => {
+                if args.len() == 1 {
+                    VDataEnum::Int(match args[0].run(vars).data {
+                        VDataEnum::String(v) => v.len(),
+                        VDataEnum::Tuple(v) => v.len(),
+                        VDataEnum::List(_, v) => v.len(),
+                        _ => unreachable!("len: invalid type"),
+                    } as _)
+                    .to()
+                } else {
+                    unreachable!("len: not 1 arg")
                 }
             }
         }
