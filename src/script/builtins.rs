@@ -91,9 +91,7 @@ impl BuiltinFunction {
             _ => return None,
         })
     }
-    pub fn takes(&self, in: Vec<VType>) -> bool {
-        todo!()
-    }
+    /// for invalid inputs, returns VType { types: vec![] }.
     pub fn returns(&self, in: Vec<VType>) -> VType {
         match self {
             // []
