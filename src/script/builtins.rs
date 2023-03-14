@@ -91,8 +91,11 @@ impl BuiltinFunction {
             _ => return None,
         })
     }
-    /// for invalid inputs, returns VType { types: vec![] }.
-    pub fn returns(&self, in: Vec<VType>) -> VType {
+    pub fn can_take(&self, input: &Vec<VType>) -> bool {
+        true // TODO!
+    }
+    /// for invalid inputs, may panic
+    pub fn returns(&self, input: Vec<VType>) -> VType {
         match self {
             // []
             Self::Print | Self::Println | Self::Debug | Self::Sleep => VType {
@@ -101,9 +104,53 @@ impl BuiltinFunction {
             // String
             Self::ToString | Self::Format => VSingleType::String.into(),
             // !
-            Self::Run | Self::Thread | Self::Await | Self::Pop | Self::Remove | Self::Get => {
-                VType { types: vec![] } // TODO!
-                                        // unreachable!("this has to be implemented somewhere else!")
+            Self::Run | Self::Thread => {
+                if let Some(funcs) = input.first() {
+                    let mut out = VType { types: vec![] };
+                    for func in &funcs.types {
+                        if let VSingleType::Function(io) = func {
+                            for (i, o) in io {
+                                if i.iter()
+                                    .zip(input.iter().skip(1))
+                                    .all(|(i, input)| input.contains(i))
+                                {
+                                    out = out | o;
+                                }
+                            }
+                        } else {
+                            unreachable!("run called, first arg not a function")
+                        }
+                    }
+                    match self {
+                        Self::Run => out,
+                        Self::Thread => VSingleType::Thread(out).to(),
+                        _ => unreachable!(),
+                    }
+                } else {
+                    unreachable!("run or thread called without args")
+                }
+            }
+            Self::Await => {
+                if let Some(v) = input.first() {
+                    let mut out = VType { types: vec![] };
+                    for v in &v.types {
+                        if let VSingleType::Thread(v) = v {
+                            out = out | v;
+                        } else {
+                            unreachable!("await called with non-thread arg")
+                        }
+                    }
+                    out
+                } else {
+                    unreachable!("await called without args")
+                }
+            }
+            Self::Pop | Self::Remove | Self::Get => {
+                if let Some(v) = input.first() {
+                    v.get_any().expect("cannot use get on this type")
+                } else {
+                    unreachable!("get, pop or remove called without args")
+                }
             }
             Self::Exit => VType { types: vec![] }, // doesn't return
             Self::FsList => VType {

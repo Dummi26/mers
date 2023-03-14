@@ -27,10 +27,7 @@ impl VData {
             VDataEnum::String(..) => VSingleType::String,
             VDataEnum::Tuple(v) => VSingleType::Tuple(v.iter().map(|v| v.out()).collect()),
             VDataEnum::List(t, _) => VSingleType::List(t.clone()),
-            VDataEnum::Function(f) => VSingleType::Function(f.in_types().clone(), {
-                eprintln!("Warn: generalizing function return type, disregarding input types. might make the type checker think it can return types it can only return with different arguments as the ones that were actually provided.");
-                f.out_all()
-            }),
+            VDataEnum::Function(f) => VSingleType::Function(f.input_output_map.clone()),
             VDataEnum::Thread(_, o) => VSingleType::Thread(o.clone()),
             VDataEnum::Reference(r) => r.lock().unwrap().out_single(),
         }
@@ -153,12 +150,28 @@ impl VSingleType {
             Self::Reference(r) => r.get(i),
         }
     }
+    pub fn get_any(&self) -> Option<VType> {
+        match self {
+            Self::Bool | Self::Int | Self::Float | Self::Function(..) | Self::Thread(..) => None,
+            Self::String => Some(VSingleType::String.into()),
+            Self::Tuple(t) => Some(t.iter().fold(VType { types: vec![] }, |a, b| a | b)),
+            Self::List(t) => Some(t.clone()),
+            Self::Reference(r) => r.get_any(),
+        }
+    }
 }
 impl VType {
     pub fn get(&self, i: usize) -> Option<VType> {
         let mut out = VType { types: vec![] };
         for t in &self.types {
             out = out | t.get(i)?; // if we can't use *get* on one type, we can't use it at all.
+        }
+        Some(out)
+    }
+    pub fn get_any(&self) -> Option<VType> {
+        let mut out = VType { types: vec![] };
+        for t in &self.types {
+            out = out | t.get_any()?; // if we can't use *get* on one type, we can't use it at all.
         }
         Some(out)
     }
@@ -184,10 +197,13 @@ impl VType {
         let mut out = VType { types: vec![] };
         for t in &self.types {
             for it in t.inner_types() {
-                out = out | it.into();
+                out = out | it.to();
             }
         }
         out
+    }
+    pub fn contains(&self, t: &VSingleType) -> bool {
+        self.types.contains(t)
     }
 }
 impl BitOr for VType {
@@ -202,6 +218,18 @@ impl BitOr for VType {
         Self { types }
     }
 }
+impl BitOr<&VType> for VType {
+    type Output = Self;
+    fn bitor(self, rhs: &Self) -> Self::Output {
+        let mut types = self.types;
+        for t in &rhs.types {
+            if !types.contains(t) {
+                types.push(t.clone())
+            }
+        }
+        Self { types }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum VSingleType {
@@ -211,11 +239,14 @@ pub enum VSingleType {
     String,
     Tuple(Vec<VType>),
     List(VType),
-    Function(Vec<VType>, VType),
+    Function(Vec<(Vec<VSingleType>, VType)>),
     Thread(VType),
     Reference(Box<Self>),
 }
 impl VSingleType {
+    pub fn to(self) -> VType {
+        VType { types: vec![self] }
+    }
     pub fn inner_types(&self) -> Vec<VSingleType> {
         match self {
             Self::Tuple(v) => {
@@ -252,11 +283,20 @@ impl VSingleType {
             (Self::Tuple(_), _) => false,
             (Self::List(a), Self::List(b)) => a.fits_in(b).is_empty(),
             (Self::List(_), _) => false,
-            (Self::Function(ai, ao), Self::Function(bi, bo)) => {
-                ai.iter()
-                    .zip(bi.iter())
-                    .all(|(a, b)| a.fits_in(b).is_empty())
-                    && ao.fits_in(bo).is_empty()
+            (Self::Function(a), Self::Function(b)) => 'func_out: {
+                for a in a {
+                    'search: {
+                        for b in b {
+                            if a.1.fits_in(&b.1).is_empty()
+                                && a.0.iter().zip(b.0.iter()).all(|(a, b)| *a == *b)
+                            {
+                                break 'search;
+                            }
+                        }
+                        break 'func_out false;
+                    }
+                }
+                true
             }
             (Self::Function(..), _) => false,
             (Self::Thread(a), Self::Thread(b)) => a.fits_in(b).is_empty(),

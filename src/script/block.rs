@@ -2,6 +2,7 @@
 // Types starting with S are directly parsed from Strings and unchecked. Types starting with T are type-checked templates for R-types. Types starting with R are runnable. S are converted to T after parsing is done, and T are converted to R whenever they need to run.
 
 use std::{
+    collections::HashSet,
     fmt::Display,
     sync::{Arc, Mutex},
 };
@@ -301,7 +302,11 @@ pub mod to_runnable {
                 } else {
                     // TODO: type-checking for builtins
                     if let Some(builtin) = BuiltinFunction::get(v) {
-                        RStatementEnum::BuiltinFunction(builtin, rargs)
+                        if builtin.can_take(&rargs.iter().map(|v| v.out()).collect()) {
+                            RStatementEnum::BuiltinFunction(builtin, rargs)
+                        } else {
+                            todo!("ERR: Builtin function with wrong args - this isn't a proper error yet, sorry.");
+                        }
                     } else {
                         return Err(ToRunnableError::UseOfUndefinedFunction(v.clone()));
                     }
@@ -516,6 +521,19 @@ impl RFunction {
             })
             .expect("invalid args for function! possible issue with type-checker if this can be reached! feel free to report a bug.")
     }
+    pub fn out_vt(&self, input_types: &Vec<VType>) -> VType {
+        let mut out = VType { types: vec![] };
+        for (itype, otype) in self.input_output_map.iter() {
+            if itype
+                .iter()
+                .zip(input_types.iter())
+                .all(|(expected, got)| got.contains(expected))
+            {
+                out = out | otype;
+            }
+        }
+        out
+    }
     pub fn out_all(&self) -> VType {
         self.block.out()
     }
@@ -695,10 +713,7 @@ impl RStatementEnum {
                     t.clone()
                 }
             }
-            Self::FunctionCall(f, _) => {
-                eprintln!("Warn: generalizing a functions return type regardless of the inputs. Type-checker might assume this value can have more types than it really can.");
-                f.out_all()
-            }
+            Self::FunctionCall(f, args) => f.out_vt(&args.iter().map(|v| v.out()).collect()),
             Self::Block(b) => b.out(),
             Self::If(_, a, b) => {
                 if let Some(b) = b {
@@ -707,7 +722,28 @@ impl RStatementEnum {
                     a.out()
                 }
             }
-            Self::While(c) => todo!("while loop output type"),
+            Self::While(c) => {
+                let mut output_types = VType { types: vec![] };
+                for t in c.out().types {
+                    match t {
+                        VSingleType::Bool => {
+                            output_types = output_types | VSingleType::Tuple(vec![]).to();
+                        }
+                        VSingleType::Tuple(mut t) => {
+                            if !t.is_empty() {
+                                if t.len() != 1 {
+                                    unreachable!("while loop with tuple of length {}>1.", t.len());
+                                }
+                                output_types = output_types | t.pop().unwrap();
+                            }
+                        }
+                        _ => unreachable!(
+                            "while loop statement didn't return bool or 0-1 length tuple."
+                        ),
+                    }
+                }
+                output_types
+            }
             Self::For(_, _, b) => {
                 // returns the return value from the last iteration or nothing if there was no iteration
                 b.out()
@@ -715,11 +751,25 @@ impl RStatementEnum {
                         types: vec![VSingleType::Tuple(vec![])],
                     }
             }
-            Self::BuiltinFunction(f, _) => f.returns(),
-            Self::Switch(_, cases) => {
+            Self::BuiltinFunction(f, args) => f.returns(args.iter().map(|rs| rs.out()).collect()),
+            Self::Switch(switch_on, cases) => {
+                let switch_on = switch_on.out().types;
+                let mut might_return_empty = switch_on.is_empty();
                 let mut out = VSingleType::Tuple(vec![]).into(); // if nothing is executed
-                for (_, case) in cases.iter() {
-                    out = out | case.out();
+                for switch_on in switch_on {
+                    let switch_on: VType = switch_on.into();
+                    'search: {
+                        for (on_type, case) in cases.iter() {
+                            if switch_on.fits_in(&on_type).is_empty() {
+                                out = out | case.out();
+                                break 'search;
+                            }
+                        }
+                        might_return_empty = true;
+                    }
+                }
+                if might_return_empty {
+                    out = out | VSingleType::Tuple(vec![]).to();
                 }
                 out
             }
@@ -816,7 +866,7 @@ impl Display for VSingleType {
                 Ok(())
             }
             Self::List(t) => write!(f, "[{t}]"),
-            Self::Function(args, out) => write!(f, "({args:?}) -> {out}"),
+            Self::Function(_) => write!(f, "FUNCTION"),
             Self::Thread(_) => write!(f, "THREAD"),
             Self::Reference(r) => write!(f, "&{r}"),
         }
