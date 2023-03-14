@@ -22,7 +22,7 @@ fn main() {
     .into();
     assert!(val.fits_in(&case).is_empty());
     let script = parse::parse::parse(&mut parse::file::File::new(
-        std::fs::read_to_string("/tmp/script.txt").unwrap(),
+        std::fs::(std::env::args().nth(1).unwrap()).unwrap(),
     ))
     .unwrap();
     println!(" - - - - -");
