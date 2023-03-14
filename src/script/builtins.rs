@@ -91,7 +91,10 @@ impl BuiltinFunction {
             _ => return None,
         })
     }
-    pub fn returns(&self) -> VType {
+    pub fn takes(&self, in: Vec<VType>) -> bool {
+        todo!()
+    }
+    pub fn returns(&self, in: Vec<VType>) -> VType {
         match self {
             // []
             Self::Print | Self::Println | Self::Debug | Self::Sleep => VType {
