@@ -174,13 +174,13 @@ fn parse_statement_adv(
     } else {
         loop {
             match match file.peek() {
-                Some(ch) if matches!(ch, '}' | ')' | '.') => Some(ch),
+                Some(ch) if matches!(ch, '}' | ']' | ')' | '.') => Some(ch),
                 _ => file.next(),
             } {
                 Some('=') => {
                     break parse_statement(file)?.output_to(start.trim().to_string());
                 }
-                Some(ch) if (ch.is_whitespace() || ch == '}' || ch == ')' || ch == '.') => {
+                Some(ch) if ch.is_whitespace() || matches!(ch, '}' | ']' | ')' | '.') => {
                     file.skip_whitespaces();
                     if let Some('=') = file.peek() {
                         continue;
