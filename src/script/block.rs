@@ -395,6 +395,8 @@ pub mod to_runnable {
 
                     let switch_on_out = switch_on_v.1;
                     if *force {
+                        let mut types_not_covered_req_error = false;
+                        let mut types_not_covered = VType { types: vec![] };
                         for val_type in switch_on_out.types.iter() {
                             let val_type: VType = val_type.clone().into();
                             let mut linf2 = linfo.clone();
@@ -405,8 +407,12 @@ pub mod to_runnable {
                                         break 'force;
                                     }
                                 }
-                                return Err(ToRunnableError::CaseForceButTypeNotCovered(val_type));
+                                types_not_covered_req_error = true;
+                                types_not_covered = types_not_covered | val_type;
                             }
+                        }
+                        if types_not_covered_req_error {
+                            return Err(ToRunnableError::CaseForceButTypeNotCovered(types_not_covered));
                         }
                     }
                     RStatementEnum::Switch(
@@ -755,7 +761,7 @@ impl RStatementEnum {
             Self::Switch(switch_on, cases) => {
                 let switch_on = switch_on.out().types;
                 let mut might_return_empty = switch_on.is_empty();
-                let mut out = VSingleType::Tuple(vec![]).into(); // if nothing is executed
+                let mut out = VType { types: vec![] }; // if nothing is executed
                 for switch_on in switch_on {
                     let switch_on: VType = switch_on.into();
                     'search: {

@@ -92,7 +92,64 @@ impl BuiltinFunction {
         })
     }
     pub fn can_take(&self, input: &Vec<VType>) -> bool {
-        true // TODO!
+        match self {
+            Self::Print | Self::Println => {
+                if input.len() == 1 {
+                    input[0].fits_in(&VSingleType::String.to()).is_empty()
+                } else {
+                    false
+                }
+            }
+            Self::Debug => true,
+            Self::ToString => true,
+            Self::Format => {
+                if let Some(format_string) = input.first() {
+                    format_string.fits_in(&VSingleType::String.to()).is_empty()
+                } else {
+                    false
+                }
+            }
+            Self::Run | Self::Thread => {
+                if input.len() >= 1 {
+                    input[0].types.iter().all(|v| {
+                        if let VSingleType::Function(v) = v {
+                            if v.iter().any(|(i, _)| i.len() == input.len()) {
+                                eprintln!("Warn: Function inputs aren't type checked yet!)");
+                                // TODO!
+                                true
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        }
+                    })
+                } else {
+                    false
+                }
+            }
+            Self::Await => {
+                input.len() == 1
+                    && input[0]
+                        .types
+                        .iter()
+                        .all(|v| matches!(v, VSingleType::Thread(_)))
+            }
+            Self::Sleep => {
+                input.len() == 1
+                    && input[0]
+                        .fits_in(&VType {
+                            types: vec![VSingleType::Int, VSingleType::Float],
+                        })
+                        .is_empty()
+            }
+            Self::Exit => {
+                input.len() == 0
+                    || (input.len() == 1 && input[0].fits_in(&VSingleType::Int.to()).is_empty())
+            }
+            // TODO! finish this
+            _ => true,
+        }
     }
     /// for invalid inputs, may panic
     pub fn returns(&self, input: Vec<VType>) -> VType {
@@ -210,9 +267,28 @@ impl BuiltinFunction {
                     ]),
                 ],
             },
-            Self::Add | Self::Sub | Self::Mul | Self::Div | Self::Mod | Self::Pow => VType {
-                types: vec![VSingleType::Int, VSingleType::Float],
-            },
+            Self::Add | Self::Sub | Self::Mul | Self::Div | Self::Mod | Self::Pow => {
+                if input.len() == 2 {
+                    match (
+                        (
+                            input[0].contains(&VSingleType::Int),
+                            input[0].contains(&VSingleType::Float),
+                        ),
+                        (
+                            input[1].contains(&VSingleType::Int),
+                            input[1].contains(&VSingleType::Float),
+                        ),
+                    ) {
+                        ((true, false), (true, false)) => VSingleType::Int.to(),
+                        ((true, _), (true, _)) => VType {
+                            types: vec![VSingleType::Int, VSingleType::Float],
+                        },
+                        _ => VSingleType::Float.to(),
+                    }
+                } else {
+                    unreachable!("called add/sub/mul/div/mod/pow with args != 2")
+                }
+            }
             Self::Push | Self::Insert => VSingleType::Tuple(vec![]).into(),
             Self::Len => VSingleType::Int.into(),
         }
