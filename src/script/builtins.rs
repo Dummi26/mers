@@ -147,6 +147,76 @@ impl BuiltinFunction {
                 input.len() == 0
                     || (input.len() == 1 && input[0].fits_in(&VSingleType::Int.to()).is_empty())
             }
+            // TODO!
+            Self::FsList => true,
+            Self::FsRead => {
+                input.len() == 1 && input[0].fits_in(&VSingleType::String.to()).is_empty()
+            }
+            Self::FsWrite => {
+                input.len() == 2
+                    && input[0].fits_in(&VSingleType::String.to()).is_empty()
+                    && input[1]
+                        .fits_in(&VSingleType::List(VSingleType::Int.to()).to())
+                        .is_empty()
+            }
+            Self::BytesToString => {
+                input.len() == 1
+                    && input[0]
+                        .fits_in(&VSingleType::List(VSingleType::Int.to()).to())
+                        .is_empty()
+            }
+            Self::StringToBytes => {
+                input.len() == 1 && input[0].fits_in(&VSingleType::String.to()).is_empty()
+            }
+            Self::RunCommand | Self::RunCommandGetBytes => {
+                if input.len() >= 1 && input[0].fits_in(&VSingleType::String.to()).is_empty() {
+                    if input.len() == 1 {
+                        true
+                    } else if input.len() == 2 {
+                        input[1]
+                            .fits_in(&VSingleType::List(VSingleType::String.to()).to())
+                            .is_empty()
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+            Self::Add | Self::Sub | Self::Mul | Self::Div | Self::Mod | Self::Pow => {
+                input.len() == 2 && {
+                    let num = VType {
+                        types: vec![VSingleType::Int, VSingleType::Float],
+                    };
+                    input[0].fits_in(&num).is_empty() && input[1].fits_in(&num).is_empty()
+                }
+            }
+            // TODO! check that we pass a reference to a list!
+            Self::Push => {
+                if input.len() == 2 {
+                    // check if the element that should be inserted fits in the list's inner type
+                    let (vec, el) = (&input[0], &input[1]);
+                    if let Some(t) = vec.get_any() {
+                        el.fits_in(&t).is_empty()
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+            Self::Insert => {
+                if input.len() == 3 {
+                    let (vec, el) = (&input[0], &input[1]);
+                    if let Some(t) = vec.get_any() {
+                        el.fits_in(&t).is_empty()
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
             // TODO! finish this
             _ => true,
         }
@@ -726,10 +796,10 @@ impl BuiltinFunction {
             Self::Insert => {
                 if args.len() == 3 {
                     if let (VDataEnum::Reference(v), VDataEnum::Int(i)) =
-                        (args[0].run(vars).data, args[1].run(vars).data)
+                        (args[0].run(vars).data, args[2].run(vars).data)
                     {
                         if let VDataEnum::List(_, v) = &mut v.lock().unwrap().data {
-                            v.insert(i as _, args[2].run(vars));
+                            v.insert(i as _, args[1].run(vars));
                         }
                         VDataEnum::Tuple(vec![]).to()
                     } else {
