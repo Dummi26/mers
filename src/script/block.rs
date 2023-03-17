@@ -310,7 +310,7 @@ pub mod to_runnable {
                         if builtin.can_take(&rargs.iter().map(|v| v.out()).collect()) {
                             RStatementEnum::BuiltinFunction(builtin, rargs)
                         } else {
-                            todo!("ERR: Builtin function with wrong args - this isn't a proper error yet, sorry.");
+                            todo!("ERR: Builtin function \"{v}\" with wrong args - this isn't a proper error yet, sorry.");
                         }
                     } else {
                         return Err(ToRunnableError::UseOfUndefinedFunction(v.clone()));

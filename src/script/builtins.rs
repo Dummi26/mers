@@ -134,7 +134,7 @@ impl BuiltinFunction {
                 if input.len() >= 1 {
                     input[0].types.iter().all(|v| {
                         if let VSingleType::Function(v) = v {
-                            if v.iter().any(|(i, _)| i.len() == input.len()) {
+                            if v.iter().any(|(i, _)| i.len() == input.len() - 1) {
                                 eprintln!("Warn: Function inputs aren't type checked yet!)");
                                 // TODO!
                                 true
