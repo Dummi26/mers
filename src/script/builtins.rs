@@ -6,7 +6,8 @@ use std::{
 
 use super::{
     block::RStatement,
-    value::{VData, VDataEnum, VDataThreadEnum, VSingleType, VType},
+    val_data::{VData, VDataEnum, VDataThreadEnum},
+    val_type::{VSingleType, VType},
 };
 
 #[derive(Clone, Debug)]

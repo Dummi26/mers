@@ -2,7 +2,6 @@
 // Types starting with S are directly parsed from Strings and unchecked. Types starting with T are type-checked templates for R-types. Types starting with R are runnable. S are converted to T after parsing is done, and T are converted to R whenever they need to run.
 
 use std::{
-    collections::HashSet,
     fmt::Display,
     sync::{Arc, Mutex},
 };
@@ -11,7 +10,8 @@ use self::to_runnable::ToRunnableError;
 
 use super::{
     builtins::BuiltinFunction,
-    value::{VData, VDataEnum, VSingleType, VType},
+    val_data::{VData, VDataEnum},
+    val_type::{VSingleType, VType},
 };
 
 // Represents a block of code
@@ -95,7 +95,10 @@ pub mod to_runnable {
         sync::Arc,
     };
 
-    use crate::script::value::{VDataEnum, VSingleType, VType};
+    use crate::script::{
+        val_data::VDataEnum,
+        val_type::{VSingleType, VType},
+    };
 
     use super::{
         BuiltinFunction, RBlock, RFunction, RScript, RStatement, RStatementEnum, SBlock, SFunction,

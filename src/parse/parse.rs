@@ -3,7 +3,8 @@ use crate::script::{
         to_runnable, to_runnable::ToRunnableError, RScript, SBlock, SFunction, SStatement,
         SStatementEnum,
     },
-    value::{VDataEnum, VSingleType, VType},
+    val_data::VDataEnum,
+    val_type::{VSingleType, VType},
 };
 
 use super::file::File;
