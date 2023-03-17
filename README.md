@@ -25,11 +25,11 @@ In mers, each variable has a type. However, this type is actually a list of all 
 - v = if some_condition { "Hello, user!" } else { -1 }
   + v could be a string or an integer. The type checker knows this, too, showing its type as [String, Int].
 - v = thread( () "This is an anonymous function returning a string" )
-  + Here, we use thread to run an anonymous function in the background. v will have the type Thread(String). If we do r = v.await(), r will be a String. The type-checker knows this (TODO! it should, but currently doesn't. prepare for crashes.).
+  + Here, we use thread to run an anonymous function in the background. v will have the type Thread(String). If we do r = v.await(), r will be a String. The type-checker knows this.
 
 To ensure that variables with more than one possible type won't cause issues, **every possible type has to be handeled**. This can, for example, be achieved using to_string(), which accepts arguments of types String, Int, Float, Tuple, or List.
 If a variable could be a String, Int or Float and should be multiplied with another Float, the type-checker will complain that the String case isn't handeled because the mul() function doesn't accept String arguments.
-To distinguish between different types, a *switch* statement has to be used. To pattern-match on known types, *match* statements can be used. (TODO! match isn't implemented yet.)
+To distinguish between different types, a *switch* statement has to be used. For pattern-matching, *match* statements can be used.
 
 ## Error handling
 
