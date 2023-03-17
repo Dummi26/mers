@@ -703,6 +703,7 @@ impl RStatementEnum {
                             break VDataEnum::Tuple(vec![]).to();
                         }
                     }
+                    VDataEnum::Tuple(v) if v.len() == 0 => (),
                     VDataEnum::Tuple(v) if v.len() == 1 => break v[0].clone(),
                     _ => unreachable!(),
                 }
