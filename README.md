@@ -70,11 +70,13 @@ using switch! forces you to cover all possible types. Try removing the string or
 
 ### Matching on user input
 
-In this script, we ask the user to enter some text. We match on the entered text.
+In this script, we ask the user to enter some text. We match on the entered text:
 
 - If it can be parsed as an int, we save it as an int.
 - If it can't be parsed as an int, but it can be parsed as a float, we save it as a float
-- If it can't ba parsed as an int or a float, we return an error (of type string)
+- If it can't be parsed as an int or a float, we return an error (of type string)
+
+We then debug-print num (try entering '12' vs '12.5' - nums type will change!)
 
     println("Enter some text, I will try to parse it!")
     text = read_line()
