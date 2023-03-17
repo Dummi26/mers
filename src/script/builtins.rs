@@ -16,15 +16,14 @@ pub enum BuiltinFunction {
     Print,
     Println,
     Debug,
+    // stdin
+    StdinReadLine,
     // format
     ToString,
     Format,
-    // math and basic operators (not possible, need to be different for each type)
-    // Add,
-    // Sub,
-    // Mul,
-    // Div,
-    // Mod,
+    // match
+    ParseInt,
+    ParseFloat,
     // functions
     Run,
     Thread,
@@ -47,6 +46,13 @@ pub enum BuiltinFunction {
     Div,
     Mod,
     Pow,
+    Eq,
+    Gt,
+    Lt,
+    Gtoe,
+    Ltoe,
+    Min,
+    Max,
     // List
     Push,
     Insert,
@@ -62,8 +68,11 @@ impl BuiltinFunction {
             "print" => Self::Print,
             "println" => Self::Println,
             "debug" => Self::Debug,
+            "read_line" => Self::StdinReadLine,
             "to_string" => Self::ToString,
             "format" => Self::Format,
+            "parse_int" => Self::ParseInt,
+            "parse_float" => Self::ParseFloat,
             "run" => Self::Run,
             "thread" => Self::Thread,
             "await" => Self::Await,
@@ -83,6 +92,13 @@ impl BuiltinFunction {
             "div" => Self::Div,
             "mod" => Self::Mod,
             "pow" => Self::Pow,
+            "eq" => Self::Eq,
+            "lt" => Self::Lt,
+            "gt" => Self::Gt,
+            "ltoe" => Self::Ltoe,
+            "gtoe" => Self::Gtoe,
+            "min" => Self::Min,
+            "max" => Self::Max,
             "push" => Self::Push,
             "insert" => Self::Insert,
             "pop" => Self::Pop,
@@ -109,6 +125,10 @@ impl BuiltinFunction {
                 } else {
                     false
                 }
+            }
+            Self::StdinReadLine => input.is_empty(),
+            Self::ParseInt | Self::ParseFloat => {
+                input.len() == 1 && input[0].fits_in(&VSingleType::String.to()).is_empty()
             }
             Self::Run | Self::Thread => {
                 if input.len() >= 1 {
@@ -184,7 +204,31 @@ impl BuiltinFunction {
                     false
                 }
             }
-            Self::Add | Self::Sub | Self::Mul | Self::Div | Self::Mod | Self::Pow => {
+            Self::Eq => {
+                if input.len() == 2 {
+                    let num = &VType {
+                        types: vec![VSingleType::Int, VSingleType::Float],
+                    };
+                    let string = &VSingleType::String.to();
+                    (input[0].fits_in(num).is_empty() && input[1].fits_in(num).is_empty())
+                        || (input[0].fits_in(string).is_empty()
+                            && input[1].fits_in(string).is_empty())
+                } else {
+                    false
+                }
+            }
+            Self::Add
+            | Self::Sub
+            | Self::Mul
+            | Self::Div
+            | Self::Mod
+            | Self::Pow
+            | Self::Gt
+            | Self::Lt
+            | Self::Gtoe
+            | Self::Ltoe
+            | Self::Min
+            | Self::Max => {
                 input.len() == 2 && {
                     let num = VType {
                         types: vec![VSingleType::Int, VSingleType::Float],
@@ -229,8 +273,15 @@ impl BuiltinFunction {
             Self::Print | Self::Println | Self::Debug | Self::Sleep => VType {
                 types: vec![VSingleType::Tuple(vec![])],
             },
+            Self::StdinReadLine => VSingleType::String.to(),
             // String
             Self::ToString | Self::Format => VSingleType::String.into(),
+            Self::ParseInt => VType {
+                types: vec![VSingleType::Tuple(vec![]), VSingleType::Int],
+            },
+            Self::ParseFloat => VType {
+                types: vec![VSingleType::Tuple(vec![]), VSingleType::Float],
+            },
             // !
             Self::Run | Self::Thread => {
                 if let Some(funcs) = input.first() {
@@ -338,7 +389,14 @@ impl BuiltinFunction {
                     ]),
                 ],
             },
-            Self::Add | Self::Sub | Self::Mul | Self::Div | Self::Mod | Self::Pow => {
+            Self::Add
+            | Self::Sub
+            | Self::Mul
+            | Self::Div
+            | Self::Mod
+            | Self::Pow
+            | Self::Min
+            | Self::Max => {
                 if input.len() == 2 {
                     match (
                         (
@@ -360,6 +418,7 @@ impl BuiltinFunction {
                     unreachable!("called add/sub/mul/div/mod/pow with args != 2")
                 }
             }
+            Self::Eq | Self::Lt | Self::Gt | Self::Ltoe | Self::Gtoe => VSingleType::Bool.to(),
             Self::Push | Self::Insert => VSingleType::Tuple(vec![]).into(),
             Self::Len => VSingleType::Int.into(),
         }
@@ -386,6 +445,11 @@ impl BuiltinFunction {
                 println!("{:#?}", args[0].run(vars).data);
                 VDataEnum::Tuple(vec![]).to()
             }
+            Self::StdinReadLine => {
+                let mut line = String::new();
+                _ = std::io::stdin().read_line(&mut line);
+                VDataEnum::String(line.trim_end_matches(['\n', '\r']).to_string()).to()
+            }
             BuiltinFunction::ToString => {
                 VDataEnum::String(format!("{}", args[0].run(vars).data)).to()
             }
@@ -398,6 +462,36 @@ impl BuiltinFunction {
                     VDataEnum::String(text).to()
                 } else {
                     unreachable!()
+                }
+            }
+            BuiltinFunction::ParseInt => {
+                if args.len() == 1 {
+                    if let VDataEnum::String(s) = args[0].run(vars).data {
+                        if let Ok(s) = s.parse() {
+                            VDataEnum::Int(s).to()
+                        } else {
+                            VDataEnum::Tuple(vec![]).to()
+                        }
+                    } else {
+                        unreachable!("parse arg not string")
+                    }
+                } else {
+                    unreachable!("parse args != 1")
+                }
+            }
+            BuiltinFunction::ParseFloat => {
+                if args.len() == 1 {
+                    if let VDataEnum::String(s) = args[0].run(vars).data {
+                        if let Ok(s) = s.parse() {
+                            VDataEnum::Float(s).to()
+                        } else {
+                            VDataEnum::Tuple(vec![]).to()
+                        }
+                    } else {
+                        unreachable!("parse arg not string")
+                    }
+                } else {
+                    unreachable!("parse args != 1")
                 }
             }
             BuiltinFunction::Run => {
@@ -778,6 +872,132 @@ impl BuiltinFunction {
                     }
                 } else {
                     unreachable!("pow: not 2 args")
+                }
+            }
+            Self::Eq => {
+                if args.len() == 2 {
+                    match (args[0].run(vars).data, args[1].run(vars).data) {
+                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(a == b).to(),
+                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                            VDataEnum::Bool(a as f64 == b).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                            VDataEnum::Bool(a == b as f64).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Bool(a == b).to(),
+                        (VDataEnum::String(a), VDataEnum::String(b)) => {
+                            VDataEnum::Bool(a == b).to()
+                        }
+                        _ => unreachable!("eq: not a number"),
+                    }
+                } else {
+                    unreachable!("eq: not 2 args")
+                }
+            }
+            Self::Gt => {
+                if args.len() == 2 {
+                    match (args[0].run(vars).data, args[1].run(vars).data) {
+                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(a > b).to(),
+                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                            VDataEnum::Bool(a as f64 > b).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                            VDataEnum::Bool(a > b as f64).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Bool(a > b).to(),
+                        _ => unreachable!("gt: not a number"),
+                    }
+                } else {
+                    unreachable!("gt: not 2 args")
+                }
+            }
+            Self::Lt => {
+                if args.len() == 2 {
+                    match (args[0].run(vars).data, args[1].run(vars).data) {
+                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(a < b).to(),
+                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                            VDataEnum::Bool((a as f64) < b).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                            VDataEnum::Bool(a < b as f64).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Bool(a < b).to(),
+                        _ => unreachable!("lt: not a number"),
+                    }
+                } else {
+                    unreachable!("lt: not 2 args")
+                }
+            }
+            Self::Gtoe => {
+                if args.len() == 2 {
+                    match (args[0].run(vars).data, args[1].run(vars).data) {
+                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(a >= b).to(),
+                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                            VDataEnum::Bool(a as f64 >= b).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                            VDataEnum::Bool(a >= b as f64).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Bool(a >= b).to(),
+                        _ => unreachable!("gtoe: not a number"),
+                    }
+                } else {
+                    unreachable!("gtoe: not 2 args")
+                }
+            }
+            Self::Ltoe => {
+                if args.len() == 2 {
+                    match (args[0].run(vars).data, args[1].run(vars).data) {
+                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(a <= b).to(),
+                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                            VDataEnum::Bool(a as f64 <= b).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                            VDataEnum::Bool(a <= b as f64).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Bool(a <= b).to(),
+                        _ => unreachable!("ltoe: not a number"),
+                    }
+                } else {
+                    unreachable!("ltoe: not 2 args")
+                }
+            }
+            Self::Min => {
+                if args.len() == 2 {
+                    match (args[0].run(vars).data, args[1].run(vars).data) {
+                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a.min(b)).to(),
+                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                            VDataEnum::Float((a as f64).min(b)).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                            VDataEnum::Float(a.min(b as f64)).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Float(b)) => {
+                            VDataEnum::Float(a.min(b)).to()
+                        }
+                        _ => unreachable!("min: not a number"),
+                    }
+                } else {
+                    unreachable!("min: not 2 args")
+                }
+            }
+            Self::Max => {
+                if args.len() == 2 {
+                    match (args[0].run(vars).data, args[1].run(vars).data) {
+                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a.max(b)).to(),
+                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                            VDataEnum::Float((a as f64).max(b)).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                            VDataEnum::Float(a.max(b as f64)).to()
+                        }
+                        (VDataEnum::Float(a), VDataEnum::Float(b)) => {
+                            VDataEnum::Float(a.max(b)).to()
+                        }
+                        _ => unreachable!("max: not a number"),
+                    }
+                } else {
+                    unreachable!("max: not 2 args")
                 }
             }
             Self::Push => {

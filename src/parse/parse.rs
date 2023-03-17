@@ -256,7 +256,7 @@ fn parse_statement_adv(
                                 file.skip_whitespaces();
                                 if let Some('{') = file.next() {
                                 } else {
-                                    eprintln!("switch statement should be followed by {{ (because they must be closed by }}). This might lead to errors when parsing, although it isn't fatal.");
+                                    eprintln!("switch statements should be followed by {{ (because they must be closed by }}). This might lead to errors when parsing, although it isn't fatal.");
                                 }
                                 let mut cases = vec![];
                                 loop {
@@ -268,6 +268,31 @@ fn parse_statement_adv(
                                     cases.push((parse_type(file)?, parse_statement(file)?));
                                 }
                                 break SStatementEnum::Switch(switch_on_what, cases, force).into();
+                            }
+                            "match" => {
+                                let mut match_what = String::new();
+                                loop {
+                                    match file.next() {
+                                        None => break,
+                                        Some(ch) if ch.is_whitespace() => break,
+                                        Some(ch) => match_what.push(ch),
+                                    }
+                                }
+                                file.skip_whitespaces();
+                                if let Some('{') = file.next() {
+                                } else {
+                                    eprintln!("match statements should be followed by {{ (because they must be closed by }}). This might lead to errors when parsing, although it isn't fatal.");
+                                }
+                                let mut cases = vec![];
+                                loop {
+                                    file.skip_whitespaces();
+                                    if let Some('}') = file.peek() {
+                                        file.next();
+                                        break;
+                                    }
+                                    cases.push((parse_statement(file)?, parse_statement(file)?));
+                                }
+                                break SStatementEnum::Match(match_what, cases).into();
                             }
                             "true" => {
                                 break SStatementEnum::Value(VDataEnum::Bool(true).to()).into()

@@ -68,6 +68,40 @@ run() will return what the function returns while thread() will return a Thread 
 
 using switch! forces you to cover all possible types. Try removing the string or int case and see what happens!
 
+### Matching on user input
+
+In this script, we ask the user to enter some text. We match on the entered text.
+
+- If it can be parsed as an int, we save it as an int.
+- If it can't be parsed as an int, but it can be parsed as a float, we save it as a float
+- If it can't ba parsed as an int or a float, we return an error (of type string)
+
+    println("Enter some text, I will try to parse it!")
+    text = read_line()
+
+    num = match text {
+        // if possible, returns an int, otherwise a float, if that's also not possible, returns an error message in form of a string
+        // parse_int and parse_float return either [] (which won't match) or int/float (which will match), so they just work with the match statement.
+        parse_int(text) text
+        parse_float(text) text
+        // eq returns a bool, which will match if it was *true*, but not if it was *false*
+        text.eq("some text") "haha, very funny..."
+        // default value (true will always match)
+        true "number wasn't int/float!"
+    }
+
+    "Input: \"{0}\"".format(text).println()
+    num.debug()
+
+A match arm consists of two consecutive statements: The condition statement followed by the action statement.
+
+If the condition statement matches, the action statement will be executed. The matched value from the condition statement can be found in the variable we originally matched on, so it can be used in the action statement.
+
+**These are the rules for matching:**
+- The condition statement *does not match* if it returns **false** or **[]**
+- If the condition statement returns a length 1 tuple [v], it will match and the matched value will be v. The condition statement can't return any tuple except [] and [v] to avoid confusion. To return a tuple, wrap it in a length-1 tuple: [[val_1, val_2, val_3]].
+- Otherwise, the condition statement will match and the matched value will be whatever it returned.
+
 ### Reading /tmp/ and filtering for files/directories
 
     for file fs_list("/tmp/") {

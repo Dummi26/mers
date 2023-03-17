@@ -68,7 +68,7 @@ pub enum SStatementEnum {
     While(SStatement),
     For(String, SStatement, SStatement),
     Switch(String, Vec<(VType, SStatement)>, bool),
-    // Match(???),
+    Match(String, Vec<(SStatement, SStatement)>),
     IndexFixed(SStatement, usize),
 }
 impl Into<SStatement> for SStatementEnum {
@@ -117,6 +117,7 @@ pub mod to_runnable {
         },
         InvalidTypeForWhileLoop(VType),
         CaseForceButTypeNotCovered(VType),
+        MatchConditionInvalidReturn(VType),
         NotIndexableFixed(VType, usize),
     }
     impl Debug for ToRunnableError {
@@ -143,6 +144,7 @@ pub mod to_runnable {
                 }
                 Self::InvalidTypeForWhileLoop(v) => write!(f, "Invalid type: Expected bool or Tuples of length 0 or 1 as return types for the while loop, but found {v:?} instead."),
                 Self::CaseForceButTypeNotCovered(v) => write!(f, "Switch! statement, but not all types covered. Types to cover: {v}"),
+                Self::MatchConditionInvalidReturn(v) => write!(f, "match statement condition returned {v}, which is not necessarily a tuple of size 0 to 1."),
                 Self::NotIndexableFixed(t, i) => write!(f, "Cannot use fixed-index {i} on type {t}."),
             }
         }
@@ -386,10 +388,11 @@ pub mod to_runnable {
                 let o = RStatementEnum::For(for_loop_var, container, block);
                 o
             }
+
             SStatementEnum::Switch(switch_on, cases, force) => {
                 if let Some(switch_on_v) = linfo.vars.get(switch_on).cloned() {
                     let mut ncases = Vec::with_capacity(cases.len());
-                    let og_type = linfo.vars.get(switch_on).unwrap().1.clone();
+                    let og_type = switch_on_v.1.clone(); // linfo.vars.get(switch_on).unwrap().1.clone();
                     for case in cases {
                         linfo.vars.get_mut(switch_on).unwrap().1 = case.0.clone();
                         ncases.push((case.0.clone(), statement(&case.1, ginfo, linfo)?));
@@ -426,6 +429,56 @@ pub mod to_runnable {
                     return Err(ToRunnableError::UseOfUndefinedVariable(switch_on.clone()));
                 }
             }
+            SStatementEnum::Match(match_on, cases) => {
+                if let Some(switch_on_v) = linfo.vars.get(match_on).cloned() {
+                    let mut ncases = Vec::with_capacity(cases.len());
+                    let og_type = switch_on_v.1.clone(); // linfo.vars.get(match_on).unwrap().1.clone();
+                    for case in cases {
+                        let case_condition = statement(&case.0, ginfo, linfo)?;
+                        let case_condition_out =  case_condition.out();
+                        let mut refutable = false;
+                        let mut success_output = VType { types: vec![] };
+                        for case_type in case_condition_out.types.iter() {
+                            match case_type {
+                            VSingleType::Tuple(tuple) =>
+                                match tuple.len() {
+                                    0 => refutable = true,
+                                    1 => success_output = success_output | &tuple[0],
+                                    _ => return Err(ToRunnableError::MatchConditionInvalidReturn(case_condition_out)),
+                                },
+                                VSingleType::Bool => {
+                                    refutable = true;
+                                    success_output = success_output | VSingleType::Bool.to()
+                                }
+                                _ => success_output = success_output | case_type.clone().to(),
+                            }
+                        }
+                        if refutable == false {
+                            eprintln!("WARN: Irrefutable match condition with return type {}", case_condition_out);
+                        }
+                        if !success_output.types.is_empty() {
+                            let var = linfo.vars.get_mut(match_on).unwrap();
+                            let og = var.1.clone();
+                            var.1 = success_output;
+                            let case_action = statement(&case.1, ginfo, linfo)?;
+                            linfo.vars.get_mut(match_on).unwrap().1 = og;
+                            ncases.push((case_condition, case_action));
+                        } else {
+                            eprintln!("WARN: Match condition with return type {} never returns a match and will be ignored entirely. Note: this also skips type-checking for the action part of this match arm because the success type is not known.", case_condition_out);
+                        }
+                        
+                    }
+                    linfo.vars.get_mut(match_on).unwrap().1 = og_type;
+
+                    RStatementEnum::Match(
+                        switch_on_v.0,
+                        ncases,
+                    )
+                } else {
+                    return Err(ToRunnableError::UseOfUndefinedVariable(match_on.clone()));
+                }
+            }
+
             SStatementEnum::IndexFixed(st, i) => {
                 let st = statement(st, ginfo, linfo)?;
                 let ok = 'ok: {
@@ -589,6 +642,7 @@ pub enum RStatementEnum {
     While(RStatement),
     For(usize, RStatement, RStatement),
     Switch(RStatement, Vec<(VType, RStatement)>),
+    Match(usize, Vec<(RStatement, RStatement)>),
     IndexFixed(RStatement, usize),
 }
 impl RStatementEnum {
@@ -694,6 +748,24 @@ impl RStatementEnum {
                 }
                 out
             }
+            Self::Match(match_on, cases) => 'm: {
+                for (case_condition, case_action) in cases {
+                    // [t] => Some(t), t => Some(t), [] => None
+                    if let Some(v) = match case_condition.run(vars).data {
+                        VDataEnum::Tuple(mut tuple) => tuple.pop(),
+                        VDataEnum::Bool(v) => if v { Some(VDataEnum::Bool(v).to()) } else { None },
+                        other => Some(other.to()),
+                    } {
+                        let og = {
+                            std::mem::replace(&mut *vars[*match_on].lock().unwrap(), v)
+                        };
+                        let res = case_action.run(vars);
+                        *vars[*match_on].lock().unwrap() = og;
+                        break 'm res;
+                    }
+                }
+                VDataEnum::Tuple(vec![]).to()
+            }
             Self::IndexFixed(st, i) => st.run(vars).get(*i).unwrap(),
         }
     }
@@ -779,6 +851,13 @@ impl RStatementEnum {
                 }
                 if might_return_empty {
                     out = out | VSingleType::Tuple(vec![]).to();
+                }
+                out
+            }
+            Self::Match(_, cases) => {
+                let mut out = VSingleType::Tuple(vec![]).to();
+                for case in cases {
+                    out = out | case.1.out();
                 }
                 out
             }
@@ -946,6 +1025,13 @@ impl Display for SStatementEnum {
                 )?;
                 for (case_type, case_action) in cases.iter() {
                     writeln!(f, "{} {}", case_type, case_action)?;
+                }
+                write!(f, "}}")
+            }
+            SStatementEnum::Match(match_on, cases) => {
+                writeln!(f, "match {match_on} {{")?;
+                for (case_cond, case_action) in cases.iter() {
+                    writeln!(f, "{} {}", case_cond, case_action)?;
                 }
                 write!(f, "}}")
             }
