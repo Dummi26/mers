@@ -100,7 +100,7 @@ A match arm consists of two consecutive statements: The condition statement foll
 If the condition statement matches, the action statement will be executed. The matched value from the condition statement can be found in the variable we originally matched on, so it can be used in the action statement.
 
 **These are the rules for matching:**
-- The condition statement *does not match* if it returns **false** or **[]**
+- The condition statement *does not match* if it returns **false**, **[]** or an error.
 - If the condition statement returns a length 1 tuple [v], it will match and the matched value will be v. The condition statement can't return any tuple except [] and [v] to avoid confusion. To return a tuple, wrap it in a length-1 tuple: [[val_1, val_2, val_3]].
 - Otherwise, the condition statement will match and the matched value will be whatever it returned.
 

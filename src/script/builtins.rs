@@ -1,3 +1,4 @@
+use core::panicking::unreachable_display;
 use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -12,6 +13,8 @@ use super::{
 
 #[derive(Clone, Debug)]
 pub enum BuiltinFunction {
+    // core
+    Assume1, // assume []/[t] is [t], return t. Optionally provide a reason as to why (2nd arg)
     // print
     Print,
     Println,
@@ -60,11 +63,19 @@ pub enum BuiltinFunction {
     Remove,
     Get,
     Len,
+    // String
+    Contains,
+    StartsWith,
+    EndsWith,
+    Trim,
+    Substring,
+    Regex,
 }
 
 impl BuiltinFunction {
     pub fn get(s: &str) -> Option<Self> {
         Some(match s {
+            "assume1" => Self::Assume1,
             "print" => Self::Print,
             "println" => Self::Println,
             "debug" => Self::Debug,
@@ -105,11 +116,50 @@ impl BuiltinFunction {
             "remove" => Self::Remove,
             "get" => Self::Get,
             "len" => Self::Len,
+            "contains" => Self::Contains,
+            "starts_with" => Self::StartsWith,
+            "ends_with" => Self::EndsWith,
+            "trim" => Self::Trim,
+            "substring" => Self::Substring,
+            "regex" => Self::Regex,
             _ => return None,
         })
     }
     pub fn can_take(&self, input: &Vec<VType>) -> bool {
         match self {
+            Self::Assume1 => {
+                if input.len() >= 1 {
+                    let len0 = false;
+                    let len1 = false;
+                    for t in input[0].types.iter() {
+                        match t {
+                            VSingleType::Tuple(v) => match v.len() {
+                                0 => len0 = true,
+                                1 => len1 = true,
+                                _ => return false,
+                            },
+                            _ => return false,
+                        }
+                    }
+                    if !len0 {
+                        eprintln!("Warn: calling assume1 on a value of type {}, which will always be a length-1 tuple.", input[0]);
+                    }
+                    if !len1 {
+                        eprintln!("Warn: calling assume1 on a value of type {}, which will never be a length-1 tuple!", input[0]);
+                    }
+                    if input.len() >= 2 {
+                        if input.len() == 2 {
+                            input[1].fits_in(&VSingleType::String.to()).is_empty()
+                        } else {
+                            false
+                        }
+                    } else {
+                        true
+                    }
+                } else {
+                    false
+                }
+            }
             Self::Print | Self::Println => {
                 if input.len() == 1 {
                     input[0].fits_in(&VSingleType::String.to()).is_empty()
@@ -269,6 +319,20 @@ impl BuiltinFunction {
     /// for invalid inputs, may panic
     pub fn returns(&self, input: Vec<VType>) -> VType {
         match self {
+            Self::Assume1 => {
+                let mut out = VType { types: vec![] };
+                for t in &input[0].types {
+                    match t {
+                        VSingleType::Tuple(v) => {
+                            if !v.is_empty() {
+                                out = out | &v[0];
+                            }
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                out
+            }
             // []
             Self::Print | Self::Println | Self::Debug | Self::Sleep => VType {
                 types: vec![VSingleType::Tuple(vec![])],
@@ -421,10 +485,47 @@ impl BuiltinFunction {
             Self::Eq | Self::Lt | Self::Gt | Self::Ltoe | Self::Gtoe => VSingleType::Bool.to(),
             Self::Push | Self::Insert => VSingleType::Tuple(vec![]).into(),
             Self::Len => VSingleType::Int.into(),
+            Self::Contains | Self::StartsWith | Self::EndsWith => VSingleType::Bool.into(),
+            Self::Trim => VSingleType::String.into(),
+            Self::Substring => VSingleType::String.into(),
+            Self::Regex => VType {
+                types: vec![
+                    VSingleType::Tuple(vec![
+                        // does match
+                        VSingleType::Tuple(vec![VSingleType::List(VSingleType::String.to()).to()])
+                            .to(),
+                        // no error
+                    ]),
+                    VSingleType::Tuple(vec![
+                        // does not match
+                        VSingleType::Tuple(vec![]).to(),
+                        // error
+                        VSingleType::String.to(),
+                    ]),
+                ],
+            },
         }
     }
     pub fn run(&self, args: &Vec<RStatement>, vars: &Vec<Arc<Mutex<VData>>>) -> VData {
         match self {
+            Self::Assume1 => {
+                if let VDataEnum::Tuple(v) = args[0].run(vars).data {
+                    v[0]
+                } else {
+                    panic!(
+                        "ASSUMPTION FAILED: assume1 :: {}",
+                        if args.len() > 1 {
+                            if let VDataEnum::String(v) = args[1].run(vars).data {
+                                v
+                            } else {
+                                String::new()
+                            }
+                        } else {
+                            String::new()
+                        }
+                    );
+                }
+            }
             BuiltinFunction::Print => {
                 if let VDataEnum::String(arg) = args[0].run(vars).data {
                     print!("{}", arg);
@@ -1101,6 +1202,131 @@ impl BuiltinFunction {
                     .to()
                 } else {
                     unreachable!("len: not 1 arg")
+                }
+            }
+            Self::Contains => {
+                if args.len() == 2 {
+                    if let VDataEnum::String(a1) = args[0].run(vars).data {
+                        if let VDataEnum::String(a2) = args[1].run(vars).data {
+                            VDataEnum::Bool(a1.contains(a2.as_str())).to()
+                        } else {
+                            unreachable!()
+                        }
+                    } else {
+                        unreachable!()
+                    }
+                } else {
+                    unreachable!()
+                }
+            }
+            Self::StartsWith => {
+                if args.len() == 2 {
+                    if let VDataEnum::String(a1) = args[0].run(vars).data {
+                        if let VDataEnum::String(a2) = args[1].run(vars).data {
+                            VDataEnum::Bool(a1.starts_with(a2.as_str())).to()
+                        } else {
+                            unreachable!()
+                        }
+                    } else {
+                        unreachable!()
+                    }
+                } else {
+                    unreachable!()
+                }
+            }
+            Self::EndsWith => {
+                if args.len() == 2 {
+                    if let VDataEnum::String(a1) = args[0].run(vars).data {
+                        if let VDataEnum::String(a2) = args[1].run(vars).data {
+                            VDataEnum::Bool(a1.ends_with(a2.as_str())).to()
+                        } else {
+                            unreachable!()
+                        }
+                    } else {
+                        unreachable!()
+                    }
+                } else {
+                    unreachable!()
+                }
+            }
+            Self::Trim => {
+                if args.len() == 1 {
+                    if let VDataEnum::String(a) = args[0].run(vars).data {
+                        VDataEnum::String(a.trim().to_string()).to()
+                    } else {
+                        unreachable!()
+                    }
+                } else {
+                    unreachable!()
+                }
+            }
+            Self::Substring => {
+                if args.len() >= 2 {
+                    if let VDataEnum::String(a) = args[0].run(vars).data {
+                        if args.len() > 3 {
+                            unreachable!()
+                        }
+                        let left = if let VDataEnum::Int(left) = args[1].run(vars).data {
+                            left
+                        } else {
+                            unreachable!()
+                        };
+                        let len = if args.len() == 3 {
+                            if let VDataEnum::Int(len) = args[2].run(vars).data {
+                                Some(len)
+                            } else {
+                                unreachable!()
+                            }
+                        } else {
+                            None
+                        };
+                        let left = if left >= 0 { left as usize } else { 0 };
+                        if let Some(len) = len {
+                            let len = if len >= 0 {
+                                len as usize
+                            } else {
+                                todo!("negative len - shorthand for backwards? not sure yet...")
+                            };
+                            VDataEnum::String(a.chars().skip(left).take(len).collect()).to()
+                        } else {
+                            VDataEnum::String(a.chars().skip(left).collect()).to()
+                        }
+                    } else {
+                        unreachable!()
+                    }
+                } else {
+                    unreachable!()
+                }
+            }
+            Self::Regex => {
+                if args.len() == 2 {
+                    if let (VDataEnum::String(a), VDataEnum::String(regex)) =
+                        (args[0].run(vars).data, args[1].run(vars).data)
+                    {
+                        match regex::Regex::new(regex.as_str()) {
+                            Ok(regex) => {
+                                VDataEnum::Tuple(vec![VDataEnum::Tuple(vec![VDataEnum::List(
+                                    VSingleType::String.to(),
+                                    regex
+                                        .find_iter(a.as_str())
+                                        .map(|v| VDataEnum::String(v.as_str().to_string()).to())
+                                        .collect(),
+                                )
+                                .to()])
+                                .to()])
+                                .to()
+                            }
+                            Err(e) => VDataEnum::Tuple(vec![
+                                VDataEnum::Tuple(vec![]).to(), // no results
+                                VDataEnum::String(e.to_string()).to(),
+                            ])
+                            .to(),
+                        }
+                    } else {
+                        unreachable!()
+                    }
+                } else {
+                    unreachable!()
                 }
             }
         }
