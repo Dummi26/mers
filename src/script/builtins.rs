@@ -1,4 +1,3 @@
-use core::panicking::unreachable_display;
 use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -129,8 +128,8 @@ impl BuiltinFunction {
         match self {
             Self::Assume1 => {
                 if input.len() >= 1 {
-                    let len0 = false;
-                    let len1 = false;
+                    let mut len0 = false;
+                    let mut len1 = false;
                     for t in input[0].types.iter() {
                         match t {
                             VSingleType::Tuple(v) => match v.len() {
@@ -509,8 +508,8 @@ impl BuiltinFunction {
     pub fn run(&self, args: &Vec<RStatement>, vars: &Vec<Arc<Mutex<VData>>>) -> VData {
         match self {
             Self::Assume1 => {
-                if let VDataEnum::Tuple(v) = args[0].run(vars).data {
-                    v[0]
+                if let VDataEnum::Tuple(mut v) = args[0].run(vars).data {
+                    v.pop().unwrap()
                 } else {
                     panic!(
                         "ASSUMPTION FAILED: assume1 :: {}",
