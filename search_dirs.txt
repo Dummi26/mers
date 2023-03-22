@@ -1,0 +1,48 @@
+println("Which directory do you want to scan?")
+dir = read_line()
+println("How deep should I search?")
+depth = while {
+    depth = read_line().parse_int()
+    switch! depth {
+        [] {
+            println("depth wasn't an integer!")
+            []
+        }
+        int if depth.gtoe(0) {
+            // break from loop with value depth
+            [depth]
+        } else {
+            // depth < 0
+            println("depth was negative!")
+            []
+        }
+    }
+}
+
+"Searching in {0} with a maximum depth of {1}...".format(dir depth).println()
+
+fn find_all_files(dir string max_depth int) {
+    files = ["" ...]
+    &files.pop()
+    entries = dir.fs_list()
+    depth = 0
+    while {
+        new = ["" ...] // set type string
+        &new.pop()
+        for entry entries {
+            local_entries = entry.fs_list()
+            switch! local_entries {
+                [] &files.push(entry)
+                [string] for entry entry.fs_list() {
+                    &new.push(entry)
+                }
+            }
+        }
+        entries = new
+        depth = depth.add(1)
+        if depth.gt(max_depth) [files] else []
+    }
+}
+
+all_files = find_all_files(dir depth)
+for file all_files file.println()

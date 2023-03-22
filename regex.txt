@@ -1,0 +1,13 @@
+pot_dates = "2014-01-01 201-02-05 2022-09-05"
+
+for v pot_dates.regex("\\d{4}-\\d{2}-\\d{2}").0.assume1() v.println()
+
+reg = pot_dates.regex("\\t\\h\\is is not a regex")
+
+match reg {
+    reg.0 {
+        "regex matches:".println()
+        for reg reg reg.println()
+    }
+    true "not a valid regex!".println()
+}
