@@ -131,6 +131,8 @@ impl VSingleType {
                 types
             }
             Self::List(v) => v.types.clone(),
+            // NOTE: to make ints work in for loops
+            Self::Int => vec![Self::Int],
             _ => vec![],
         }
     }

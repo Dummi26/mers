@@ -93,9 +93,12 @@ fn parse_block_advanced(
             _ => (),
         }
         statements.push(parse_statement(file)?);
-        match file.get_char(file.get_char_index().saturating_sub(1)) {
+        match file.peek() {
             // Some('}') if treat_closed_block_bracket_as_closing_delimeter => break,
-            Some(')') if treat_closed_normal_bracket_as_closing_delimeter => break,
+            Some(')') if treat_closed_normal_bracket_as_closing_delimeter => {
+                file.next();
+                break;
+            }
             _ => (),
         }
         if single_statement && !statements.is_empty() {
