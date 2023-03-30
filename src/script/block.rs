@@ -6,7 +6,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use self::to_runnable::ToRunnableError;
+use crate::libs;
+
+use self::to_runnable::{ToRunnableError, GInfo};
 
 use super::{
     builtins::BuiltinFunction,
@@ -84,8 +86,8 @@ fn am<T>(i: T) -> Am<T> {
     Arc::new(Mutex::new(i))
 }
 
-pub fn to_runnable(f: SFunction) -> Result<RScript, ToRunnableError> {
-    to_runnable::to_runnable(f)
+pub fn to_runnable(f: SFunction, ginfo: GInfo) -> Result<RScript, ToRunnableError> {
+    to_runnable::to_runnable(f, ginfo)
 }
 
 pub mod to_runnable {
@@ -95,10 +97,10 @@ pub mod to_runnable {
         sync::Arc,
     };
 
-    use crate::script::{
+    use crate::{script::{
         val_data::VDataEnum,
         val_type::{VSingleType, VType},
-    };
+    }, libs};
 
     use super::{
         BuiltinFunction, RBlock, RFunction, RScript, RStatement, RStatementEnum, SBlock, SFunction,
@@ -151,8 +153,21 @@ pub mod to_runnable {
     }
 
     // Global, shared between all
-    struct GInfo {
+    pub struct GInfo {
         vars: usize,
+        libs: Arc<Vec<libs::Lib>>,
+        lib_fns: HashMap<String, (usize, usize)>,
+    }
+    impl GInfo {
+        pub fn new(libs: Arc<Vec<libs::Lib>>) -> Self {
+            let mut lib_fns = HashMap::new();
+            for (libid, lib) in libs.iter().enumerate() {
+                for (fnid, (name, ..)) in lib.registered_fns.iter().enumerate() {
+                    lib_fns.insert(name.to_string(), (libid, fnid));
+                }
+            }
+            Self { vars: 0, libs, lib_fns, }
+        }
     }
     // Local, used to keep local variables separated
     #[derive(Clone)]
@@ -161,7 +176,7 @@ pub mod to_runnable {
         fns: HashMap<String, Arc<RFunction>>,
     }
 
-    pub fn to_runnable(s: SFunction) -> Result<RScript, ToRunnableError> {
+    pub fn to_runnable(s: SFunction, mut ginfo: GInfo) -> Result<RScript, ToRunnableError> {
         if s.inputs.len() != 1 || s.inputs[0].0 != "args" {
             return Err(ToRunnableError::MainWrongInput);
         }
@@ -172,7 +187,6 @@ pub mod to_runnable {
                 })],
             })
         {}
-        let mut ginfo = GInfo { vars: 0 };
         let func = function(
             &s,
             &mut ginfo,
@@ -181,7 +195,7 @@ pub mod to_runnable {
                 fns: HashMap::new(),
             },
         )?;
-        Ok(RScript::new(func, ginfo.vars)?)
+        Ok(RScript::new(func, ginfo.vars, ginfo.libs)?)
     }
 
     // go over every possible known-type input for the given function, returning all possible RFunctions.
@@ -313,7 +327,22 @@ pub mod to_runnable {
                             todo!("ERR: Builtin function \"{v}\" with wrong args - this isn't a proper error yet, sorry.");
                         }
                     } else {
+                        // LIBRARY FUNCTION?
+                        if let Some((libid, fnid)) = ginfo.lib_fns.get(v) {
+                            let (_name, fn_in, fn_out) = &ginfo.libs[*libid].registered_fns[*fnid];
+                            if fn_in.len() == rargs.len() && fn_in.iter().zip(rargs.iter()).all(|(fn_in, arg)| arg.out().fits_in(fn_in).is_empty()) {
+                                RStatementEnum::LibFunction(*libid, *fnid, rargs, fn_out.clone())
+                            } else {
+                                // TODO! better error here
+                                return Err(if fn_in.len() == rargs.len() {
+                                    todo!("Err: Wrong args for LibFunction \"{v}\".");
+                                } else {
+                                    ToRunnableError::FunctionWrongArgCount(v.to_string(), fn_in.len(), rargs.len())
+                                });
+                            }
+                        } else {
                         return Err(ToRunnableError::UseOfUndefinedFunction(v.clone()));
+                        }
                     }
                 }
             }
@@ -538,10 +567,10 @@ pub struct RBlock {
     statements: Vec<RStatement>,
 }
 impl RBlock {
-    pub fn run(&self, vars: &Vec<Am<VData>>) -> VData {
+    pub fn run(&self, vars: &Vec<Am<VData>>, libs: &Arc<Vec<libs::Lib>>) -> VData {
         let mut last = None;
         for statement in &self.statements {
-            last = Some(statement.run(vars));
+            last = Some(statement.run(vars, libs));
         }
         if let Some(v) = last {
             v
@@ -568,8 +597,8 @@ pub struct RFunction {
     pub block: RBlock,
 }
 impl RFunction {
-    pub fn run(&self, vars: &Vec<Am<VData>>) -> VData {
-        self.block.run(vars)
+    pub fn run(&self, vars: &Vec<Am<VData>>, libs: &Arc<Vec<libs::Lib>>) -> VData {
+        self.block.run(vars, libs)
     }
     pub fn out(&self, input_types: &Vec<VSingleType>) -> VType {
         self.input_output_map
@@ -610,8 +639,8 @@ pub struct RStatement {
     statement: Box<RStatementEnum>,
 }
 impl RStatement {
-    pub fn run(&self, vars: &Vec<Am<VData>>) -> VData {
-        let out = self.statement.run(vars);
+    pub fn run(&self, vars: &Vec<Am<VData>>, libs: &Arc<Vec<libs::Lib>>) -> VData {
+        let out = self.statement.run(vars, libs);
         if let Some(v) = self.output_to {
             *vars[v].lock().unwrap() = out;
             VDataEnum::Tuple(vec![]).to()
@@ -637,6 +666,7 @@ pub enum RStatementEnum {
     Variable(usize, VType, bool), // Arc<Mutex<..>> here, because imagine variable in for loop that is used in a different thread -> we need multiple "same" variables
     FunctionCall(Arc<RFunction>, Vec<RStatement>),
     BuiltinFunction(BuiltinFunction, Vec<RStatement>),
+    LibFunction(usize, usize, Vec<RStatement>, VType),
     Block(RBlock),
     If(RStatement, RStatement, Option<RStatement>),
     While(RStatement),
@@ -646,13 +676,13 @@ pub enum RStatementEnum {
     IndexFixed(RStatement, usize),
 }
 impl RStatementEnum {
-    pub fn run(&self, vars: &Vec<Am<VData>>) -> VData {
+    pub fn run(&self, vars: &Vec<Am<VData>>, libs: &Arc<Vec<libs::Lib>>) -> VData {
         match self {
             Self::Value(v) => v.clone(),
             Self::Tuple(v) => {
                 let mut w = vec![];
                 for v in v {
-                    w.push(v.run(vars));
+                    w.push(v.run(vars, libs));
                 }
                 VDataEnum::Tuple(w).to()
             }
@@ -660,7 +690,7 @@ impl RStatementEnum {
                 let mut w = vec![];
                 let mut out = VType { types: vec![] };
                 for v in v {
-                    let val = v.run(vars);
+                    let val = v.run(vars, libs);
                     out = out | val.out();
                     w.push(val);
                 }
@@ -675,18 +705,20 @@ impl RStatementEnum {
             }
             Self::FunctionCall(func, args) => {
                 for (i, input) in func.inputs.iter().enumerate() {
-                    *vars[*input].lock().unwrap() = args[i].run(vars);
+                    *vars[*input].lock().unwrap() = args[i].run(vars, libs);
                 }
-                func.run(vars)
+                func.run(vars, libs)
             }
-            Self::Block(b) => b.run(vars),
+            Self::BuiltinFunction(v, args) => v.run(args, vars, libs),
+            Self::LibFunction(libid, fnid, args, _) => libs[*libid].run_fn(*fnid, &args.iter().map(|arg| arg.run(vars, libs)).collect()),
+            Self::Block(b) => b.run(vars, libs),
             Self::If(c, t, e) => {
-                if let VDataEnum::Bool(v) = c.run(vars).data {
+                if let VDataEnum::Bool(v) = c.run(vars, libs).data {
                     if v {
-                        t.run(vars)
+                        t.run(vars, libs)
                     } else {
                         if let Some(e) = e {
-                            e.run(vars)
+                            e.run(vars, libs)
                         } else {
                             VDataEnum::Tuple(vec![]).to()
                         }
@@ -697,7 +729,7 @@ impl RStatementEnum {
             }
             Self::While(c) => loop {
                 // While loops blocks can return a bool (false to break from the loop) or a 0-1 length tuple (0-length => continue, 1-length => break with value)
-                match c.run(vars).data {
+                match c.run(vars, libs).data {
                     VDataEnum::Bool(v) => {
                         if !v {
                             break VDataEnum::Tuple(vec![]).to();
@@ -709,11 +741,11 @@ impl RStatementEnum {
                 }
             },
             Self::For(v, c, b) => {
-                let c = c.run(vars);
+                let c = c.run(vars, libs);
                 let mut vars = vars.clone();
                 let mut in_loop = |c| {
                     vars[*v] = Arc::new(Mutex::new(c));
-                    b.run(&vars);
+                    b.run(&vars, libs);
                 };
 
                 match c.data {
@@ -736,14 +768,13 @@ impl RStatementEnum {
                 }
                 VDataEnum::Tuple(vec![]).to()
             }
-            Self::BuiltinFunction(v, args) => v.run(args, vars),
             Self::Switch(switch_on, cases) => {
-                let switch_on = switch_on.run(vars);
+                let switch_on = switch_on.run(vars, libs);
                 let switch_on_type = switch_on.out();
                 let mut out = VDataEnum::Tuple(vec![]).to();
                 for (case_type, case_action) in cases.iter() {
                     if switch_on_type.fits_in(case_type).is_empty() {
-                        out = case_action.run(vars);
+                        out = case_action.run(vars, libs);
                         break;
                     }
                 }
@@ -752,7 +783,7 @@ impl RStatementEnum {
             Self::Match(match_on, cases) => 'm: {
                 for (case_condition, case_action) in cases {
                     // [t] => Some(t), t => Some(t), [] => None
-                    if let Some(v) = match case_condition.run(vars).data {
+                    if let Some(v) = match case_condition.run(vars, libs).data {
                         VDataEnum::Tuple(mut tuple) => tuple.pop(),
                         VDataEnum::Bool(v) => if v { Some(VDataEnum::Bool(v).to()) } else { None },
                         other => Some(other.to()),
@@ -760,14 +791,14 @@ impl RStatementEnum {
                         let og = {
                             std::mem::replace(&mut *vars[*match_on].lock().unwrap(), v)
                         };
-                        let res = case_action.run(vars);
+                        let res = case_action.run(vars, libs);
                         *vars[*match_on].lock().unwrap() = og;
                         break 'm res;
                     }
                 }
                 VDataEnum::Tuple(vec![]).to()
             }
-            Self::IndexFixed(st, i) => st.run(vars).get(*i).unwrap(),
+            Self::IndexFixed(st, i) => st.run(vars, libs).get(*i).unwrap(),
         }
     }
     pub fn out(&self) -> VType {
@@ -796,6 +827,7 @@ impl RStatementEnum {
                 }
             }
             Self::FunctionCall(f, args) => f.out_vt(&args.iter().map(|v| v.out()).collect()),
+            Self::LibFunction(.., out) => out.clone(),
             Self::Block(b) => b.out(),
             Self::If(_, a, b) => {
                 if let Some(b) = b {
@@ -877,13 +909,14 @@ impl RStatementEnum {
 pub struct RScript {
     main: RFunction,
     vars: usize,
+    libs: Arc<Vec<libs::Lib>>,
 }
 impl RScript {
-    fn new(main: RFunction, vars: usize) -> Result<Self, ToRunnableError> {
+    fn new(main: RFunction, vars: usize, libs: Arc<Vec<libs::Lib>>) -> Result<Self, ToRunnableError> {
         if main.inputs.len() != 1 {
             return Err(ToRunnableError::MainWrongInput);
         }
-        Ok(Self { main, vars })
+        Ok(Self { main, vars, libs })
     }
     pub fn run(&self, args: Vec<String>) -> VData {
         let mut vars = Vec::with_capacity(self.vars);
@@ -897,7 +930,7 @@ impl RScript {
         for _i in 1..self.vars {
             vars.push(am(VDataEnum::Tuple(vec![]).to()));
         }
-        self.main.run(&vars)
+        self.main.run(&vars, &self.libs)
     }
 }
 

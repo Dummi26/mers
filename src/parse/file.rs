@@ -8,6 +8,7 @@ pub struct File {
     chars: Vec<(usize, char)>,
     pos: FilePosition,
 }
+#[derive(Clone, Copy)]
 pub struct FilePosition {
     current_char_index: usize,
     current_line: usize,
@@ -99,6 +100,17 @@ impl File {
             Some(v) => Some(v.1),
             None => None,
         }
+    }
+    pub fn next_line(&mut self) -> String {
+        let mut o = String::new();
+        for ch in self {
+            if ch == '\n' {
+                break;
+            } else {
+                o.push(ch);
+            }
+        }
+        o
     }
     pub fn peek(&self) -> Option<char> {
         match self.chars.get(self.pos.current_char_index) {

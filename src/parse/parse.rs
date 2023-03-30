@@ -1,10 +1,16 @@
-use crate::script::{
-    block::{
-        to_runnable, to_runnable::ToRunnableError, RScript, SBlock, SFunction, SStatement,
-        SStatementEnum,
+use std::{path::PathBuf, process::Command, sync::Arc};
+
+use crate::{
+    libs,
+    script::{
+        block::{
+            to_runnable::ToRunnableError,
+            to_runnable::{self, GInfo},
+            RScript, SBlock, SFunction, SStatement, SStatementEnum,
+        },
+        val_data::VDataEnum,
+        val_type::{VSingleType, VType},
     },
-    val_data::VDataEnum,
-    val_type::{VSingleType, VType},
 };
 
 use super::file::File;
@@ -28,6 +34,32 @@ impl From<ToRunnableError> for ScriptError {
 pub enum ParseError {}
 
 pub fn parse(file: &mut File) -> Result<RScript, ScriptError> {
+    let mut libs = vec![];
+    loop {
+        file.skip_whitespaces();
+        let pos = file.get_pos().clone();
+        let line = file.next_line();
+        if line.starts_with("lib ") {
+            let path_to_executable: PathBuf = line[4..].into();
+            let mut cmd = Command::new(&path_to_executable);
+            if let Some(parent) = path_to_executable.parent() {
+                cmd.current_dir(parent.clone());
+            }
+            match libs::Lib::launch(cmd) {
+                Ok(lib) => {
+                    libs.push(lib);
+                    eprintln!("Loaded library!");
+                }
+                Err(e) => panic!(
+                    "Unable to load library at {}: {e:?}",
+                    path_to_executable.to_string_lossy().as_ref(),
+                ),
+            }
+        } else {
+            file.set_pos(pos);
+            break;
+        }
+    }
     let func = SFunction::new(
         vec![(
             "args".to_string(),
@@ -36,10 +68,11 @@ pub fn parse(file: &mut File) -> Result<RScript, ScriptError> {
         parse_block_advanced(file, Some(false), true, true, false)?,
     );
     eprintln!();
+    #[cfg(debug_assertions)]
     eprintln!("Parsed: {func}");
     #[cfg(debug_assertions)]
     eprintln!("Parsed: {func:#?}");
-    let run = to_runnable(func)?;
+    let run = to_runnable::to_runnable(func, GInfo::new(Arc::new(libs)))?;
     #[cfg(debug_assertions)]
     eprintln!("Runnable: {run:#?}");
     Ok(run)
@@ -400,13 +433,16 @@ fn parse_function(file: &mut File) -> Result<SFunction, ParseError> {
     Ok(SFunction::new(args, parse_block(file)?))
 }
 
-fn parse_type(file: &mut File) -> Result<VType, ParseError> {
+pub(crate) fn parse_type(file: &mut File) -> Result<VType, ParseError> {
     match parse_type_adv(file, false) {
         Ok((v, _)) => Ok(v),
         Err(e) => Err(e),
     }
 }
-fn parse_type_adv(file: &mut File, in_fn_args: bool) -> Result<(VType, bool), ParseError> {
+pub(crate) fn parse_type_adv(
+    file: &mut File,
+    in_fn_args: bool,
+) -> Result<(VType, bool), ParseError> {
     let mut types = vec![];
     let mut closed_fn_args = false;
     loop {
