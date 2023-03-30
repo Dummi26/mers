@@ -728,45 +728,49 @@ impl RStatementEnum {
                 }
             }
             Self::While(c) => loop {
-                // While loops blocks can return a bool (false to break from the loop) or a 0-1 length tuple (0-length => continue, 1-length => break with value)
-                match c.run(vars, libs).data {
-                    VDataEnum::Bool(v) => {
-                        if !v {
-                            break VDataEnum::Tuple(vec![]).to();
-                        }
-                    }
-                    VDataEnum::Tuple(v) if v.len() == 0 => (),
-                    VDataEnum::Tuple(v) if v.len() == 1 => break v[0].clone(),
-                    _ => unreachable!(),
+                // While loops will break if the value matches.
+                if let Some(break_val) = c.run(vars, libs).data.matches() {
+                    break break_val;
                 }
             },
             Self::For(v, c, b) => {
+                // matching values also break with value from a for loop.
                 let c = c.run(vars, libs);
                 let mut vars = vars.clone();
                 let mut in_loop = |c| {
                     vars[*v] = Arc::new(Mutex::new(c));
-                    b.run(&vars, libs);
+                    b.run(&vars, libs)
                 };
 
+                let mut oval = VDataEnum::Tuple(vec![]).to();
                 match c.data {
                     VDataEnum::Int(v) => {
                         for i in 0..v {
-                            in_loop(VDataEnum::Int(i).to());
+                            if let Some(v) = in_loop(VDataEnum::Int(i).to()).data.matches() {
+                                oval = v;
+                                break;
+                            }
                         }
                     }
                     VDataEnum::String(v) => {
                         for ch in v.chars() {
-                            in_loop(VDataEnum::String(ch.to_string()).to())
+                            if let Some(v) = in_loop(VDataEnum::String(ch.to_string()).to()).data.matches() {
+                                oval = v;
+                                break;
+                            }
                         }
                     }
                     VDataEnum::Tuple(v) | VDataEnum::List(_, v) => {
                         for v in v {
-                            in_loop(v)
+                            if let Some(v) = in_loop(v).data.matches() {
+                                oval = v;
+                                break;
+                            }
                         }
                     }
                     _ => unreachable!(),
                 }
-                VDataEnum::Tuple(vec![]).to()
+                oval
             }
             Self::Switch(switch_on, cases) => {
                 let switch_on = switch_on.run(vars, libs);
@@ -782,12 +786,8 @@ impl RStatementEnum {
             }
             Self::Match(match_on, cases) => 'm: {
                 for (case_condition, case_action) in cases {
-                    // [t] => Some(t), t => Some(t), [] => None
-                    if let Some(v) = match case_condition.run(vars, libs).data {
-                        VDataEnum::Tuple(mut tuple) => tuple.pop(),
-                        VDataEnum::Bool(v) => if v { Some(VDataEnum::Bool(v).to()) } else { None },
-                        other => Some(other.to()),
-                    } {
+                    // [t] => Some(t), t => Some(t), [] | false => None
+                    if let Some(v) = case_condition.run(vars, libs).data.matches() {
                         let og = {
                             std::mem::replace(&mut *vars[*match_on].lock().unwrap(), v)
                         };
@@ -837,33 +837,10 @@ impl RStatementEnum {
                 }
             }
             Self::While(c) => {
-                let mut output_types = VType { types: vec![] };
-                for t in c.out().types {
-                    match t {
-                        VSingleType::Bool => {
-                            output_types = output_types | VSingleType::Tuple(vec![]).to();
-                        }
-                        VSingleType::Tuple(mut t) => {
-                            if !t.is_empty() {
-                                if t.len() != 1 {
-                                    unreachable!("while loop with tuple of length {}>1.", t.len());
-                                }
-                                output_types = output_types | t.pop().unwrap();
-                            }
-                        }
-                        _ => unreachable!(
-                            "while loop statement didn't return bool or 0-1 length tuple."
-                        ),
-                    }
-                }
-                output_types
+                c.out().matches().1
             }
             Self::For(_, _, b) => {
-                // returns the return value from the last iteration or nothing if there was no iteration
-                b.out()
-                    | VType {
-                        types: vec![VSingleType::Tuple(vec![])],
-                    }
+                VSingleType::Tuple(vec![]).to() | b.out().matches().1
             }
             Self::BuiltinFunction(f, args) => f.returns(args.iter().map(|rs| rs.out()).collect()),
             Self::Switch(switch_on, cases) => {

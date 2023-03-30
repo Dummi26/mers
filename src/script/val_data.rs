@@ -77,7 +77,54 @@ impl VDataEnum {
             Self::Reference(r) => r.lock().unwrap().get(i),
         }
     }
+    pub fn matches_ref_bool(&self) -> bool {
+        match self {
+            VDataEnum::Tuple(v) => !v.is_empty(),
+            VDataEnum::Bool(false) => false,
+            _ => true,
+        }
+    }
+    pub fn matches(self) -> Option<VData> {
+        match self {
+            VDataEnum::Tuple(mut tuple) => tuple.pop(),
+            VDataEnum::Bool(v) => {
+                if v {
+                    Some(VDataEnum::Bool(v).to())
+                } else {
+                    None
+                }
+            }
+            other => Some(other.to()),
+        }
+    }
 }
+impl VSingleType {
+    /// returns (can_fail_to_match, matches_as)
+    pub fn matches(&self) -> (bool, VType) {
+        match self {
+            Self::Tuple(v) => match v.first() {
+                Some(v) => (false, v.clone()),
+                None => (true, VType { types: vec![] }),
+            },
+            Self::Bool => (true, Self::Bool.to()),
+            v => (false, v.clone().to()),
+        }
+    }
+}
+impl VType {
+    /// returns (can_fail_to_match, matches_as)
+    pub fn matches(&self) -> (bool, VType) {
+        let mut can_fail = false;
+        let mut matches_as = VType { types: vec![] };
+        for t in self.types.iter() {
+            let (f, t) = t.matches();
+            can_fail |= f;
+            matches_as = matches_as | t;
+        }
+        (can_fail, matches_as)
+    }
+}
+
 #[derive(Clone)]
 pub struct VDataThread(Arc<Mutex<VDataThreadEnum>>);
 impl VDataThread {
