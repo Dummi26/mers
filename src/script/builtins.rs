@@ -391,7 +391,14 @@ impl BuiltinFunction {
             }
             Self::Pop | Self::Remove | Self::Get => {
                 if let Some(v) = input.first() {
-                    v.get_any().expect("cannot use get on this type")
+                    VType {
+                        types: vec![
+                            VSingleType::Tuple(vec![]),
+                            VSingleType::Tuple(vec![v
+                                .get_any()
+                                .expect("cannot use get on this type")]),
+                        ],
+                    }
                 } else {
                     unreachable!("get, pop or remove called without args")
                 }
@@ -1144,7 +1151,12 @@ impl BuiltinFunction {
                 if args.len() == 1 {
                     if let VDataEnum::Reference(v) = args[0].run(vars, libs).data {
                         if let VDataEnum::List(_, v) = &mut v.lock().unwrap().data {
-                            v.pop().unwrap_or_else(|| VDataEnum::Tuple(vec![]).to())
+                            if let Some(v) = v.pop() {
+                                VDataEnum::Tuple(vec![v])
+                            } else {
+                                VDataEnum::Tuple(vec![])
+                            }
+                            .to()
                         } else {
                             unreachable!("pop: not a list")
                         }
@@ -1162,7 +1174,8 @@ impl BuiltinFunction {
                     {
                         if let VDataEnum::List(_, v) = &mut v.lock().unwrap().data {
                             if v.len() > i as _ && i >= 0 {
-                                v.remove(i as _)
+                                let v = v.remove(i as _);
+                                VDataEnum::Tuple(vec![v]).to()
                             } else {
                                 VDataEnum::Tuple(vec![]).to()
                             }
