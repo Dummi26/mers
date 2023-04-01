@@ -155,7 +155,7 @@ Let's replace the if statement from before with a nice match statement!
 
 the syntax for a match statement is always `match <variable> { <match arms> }`.
 
-A match arm consists of a condition statement and an action statement. `input.eq("+")`, `input-eq("-")`, and `true` are condition statements.
+A match arm consists of a condition statement and an action statement. `input.eq("+")`, `input.eq("-")`, and `true` are condition statements.
 The match statement will go through all condition statements until one matches (in this case: returns `true`), then run the action statement.
 If we move the `true` match arm to the top, the other two arms will never be executed, even though they might also match.
 
