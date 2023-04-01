@@ -106,6 +106,7 @@ impl VDataEnum {
                     None
                 }
             }
+            VDataEnum::EnumVariant(..) => None,
             other => Some(other.to()),
         }
     }
@@ -119,6 +120,7 @@ impl VSingleType {
                 None => (true, VType { types: vec![] }),
             },
             Self::Bool => (true, Self::Bool.to()),
+            Self::EnumVariant(..) | Self::EnumVariantS(..) => (true, VType { types: vec![] }),
             v => (false, v.clone().to()),
         }
     }

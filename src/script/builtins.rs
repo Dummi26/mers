@@ -12,11 +12,16 @@ use super::{
     val_type::{VSingleType, VType},
 };
 
+const EV_ERR: usize = 0;
+// const EV_??? = 1;
+pub const EVS: [&'static str; 1] = ["Err"];
+
 #[derive(Clone, Debug)]
 pub enum BuiltinFunction {
     // core
     Assume1, // assume []/[t] is [t], return t. Optionally provide a reason as to why (2nd arg)
     NoEnum,
+    Matches,
     // print
     Print,
     Println,
@@ -26,7 +31,7 @@ pub enum BuiltinFunction {
     // format
     ToString,
     Format,
-    // match
+    // parse
     ParseInt,
     ParseFloat,
     // functions
@@ -79,6 +84,7 @@ impl BuiltinFunction {
         Some(match s {
             "assume1" => Self::Assume1,
             "noenum" => Self::NoEnum,
+            "matches" => Self::Matches,
             "print" => Self::Print,
             "println" => Self::Println,
             "debug" => Self::Debug,
@@ -141,14 +147,14 @@ impl BuiltinFunction {
                                 1 => len1 = true,
                                 _ => return false,
                             },
-                            _ => return false,
+                            _ => len1 = true,
                         }
                     }
                     if !len0 {
-                        eprintln!("Warn: calling assume1 on a value of type {}, which will always be a length-1 tuple.", input[0]);
+                        eprintln!("Warn: calling assume1 on a value of type {}, which will never be a length-0 tuple and therefore will not cannot fail.", input[0]);
                     }
                     if !len1 {
-                        eprintln!("Warn: calling assume1 on a value of type {}, which will never be a length-1 tuple!", input[0]);
+                        eprintln!("Warn: calling assume1 on a value of type {}, which will always be a length-0 tuple!", input[0]);
                     }
                     if input.len() >= 2 {
                         if input.len() == 2 {
@@ -164,6 +170,7 @@ impl BuiltinFunction {
                 }
             }
             Self::NoEnum => input.len() == 1,
+            Self::Matches => input.len() == 1,
             Self::Print | Self::Println => {
                 if input.len() == 1 {
                     input[0].fits_in(&VSingleType::String.to()).is_empty()
@@ -332,12 +339,13 @@ impl BuiltinFunction {
                                 out = out | &v[0];
                             }
                         }
-                        _ => unreachable!(),
+                        v => out = out | v.clone().to(),
                     }
                 }
                 out
             }
             Self::NoEnum => input[0].clone().noenum(),
+            Self::Matches => input[0].matches().1,
             // []
             Self::Print | Self::Println | Self::Debug | Self::Sleep => VType {
                 types: vec![VSingleType::Tuple(vec![])],
@@ -410,37 +418,40 @@ impl BuiltinFunction {
             Self::Exit => VType { types: vec![] }, // doesn't return
             Self::FsList => VType {
                 types: vec![
-                    VSingleType::Tuple(vec![]).into(),
-                    VSingleType::List(VSingleType::String.into()).into(),
+                    VSingleType::List(VSingleType::String.into()),
+                    VSingleType::EnumVariant(EV_ERR, VSingleType::String.to()),
                 ],
             },
             Self::FsRead => VType {
                 types: vec![
-                    VSingleType::Tuple(vec![]).into(),
-                    VSingleType::List(VSingleType::Int.into()).into(),
+                    VSingleType::List(VSingleType::Int.to()),
+                    VSingleType::EnumVariant(EV_ERR, VSingleType::String.to()),
                 ],
             },
             Self::FsWrite => VType {
                 types: vec![
                     VSingleType::Tuple(vec![]).into(),
-                    VSingleType::List(VSingleType::String.into()).into(),
+                    VSingleType::EnumVariant(EV_ERR, VSingleType::String.to()),
                 ],
             },
             Self::BytesToString => VType {
                 types: vec![
-                    VSingleType::String.into(),
-                    VSingleType::Tuple(vec![
-                        VSingleType::String.into(), // lossy string
-                        VSingleType::String.into(), // error message
-                    ])
-                    .into(),
+                    VSingleType::String,
+                    VSingleType::EnumVariant(
+                        EV_ERR,
+                        VSingleType::Tuple(vec![
+                            VSingleType::String.into(), // lossy string
+                            VSingleType::String.into(), // error message
+                        ])
+                        .to(),
+                    ),
                 ],
             },
             Self::StringToBytes => VSingleType::List(VSingleType::Int.into()).into(),
             Self::RunCommand => VType {
                 types: vec![
                     // error
-                    VSingleType::String.into(),
+                    VSingleType::EnumVariant(EV_ERR, VSingleType::String.to()),
                     // success: Option<ExitCode>, stdout, stderr
                     VSingleType::Tuple(vec![
                         VType {
@@ -454,7 +465,7 @@ impl BuiltinFunction {
             Self::RunCommandGetBytes => VType {
                 types: vec![
                     // error
-                    VSingleType::String.into(),
+                    VSingleType::EnumVariant(EV_ERR, VSingleType::String.to()),
                     // success: Option<ExitCode>, stdout, stderr
                     VSingleType::Tuple(vec![
                         VType {
@@ -502,18 +513,10 @@ impl BuiltinFunction {
             Self::Substring => VSingleType::String.into(),
             Self::Regex => VType {
                 types: vec![
-                    VSingleType::Tuple(vec![
-                        // does match
-                        VSingleType::Tuple(vec![VSingleType::List(VSingleType::String.to()).to()])
-                            .to(),
-                        // no error
-                    ]),
-                    VSingleType::Tuple(vec![
-                        // does not match
-                        VSingleType::Tuple(vec![]).to(),
-                        // error
-                        VSingleType::String.to(),
-                    ]),
+                    // [string ...]
+                    VSingleType::List(VSingleType::String.to()),
+                    // Err(string)
+                    VSingleType::EnumVariant(EV_ERR, VSingleType::String.to()),
                 ],
             },
         }
@@ -525,25 +528,32 @@ impl BuiltinFunction {
         libs: &Arc<Vec<libs::Lib>>,
     ) -> VData {
         match self {
-            Self::Assume1 => {
-                if let VDataEnum::Tuple(mut v) = args[0].run(vars, libs).data {
-                    v.pop().unwrap()
-                } else {
-                    panic!(
-                        "ASSUMPTION FAILED: assume1 :: {}",
-                        if args.len() > 1 {
-                            if let VDataEnum::String(v) = args[1].run(vars, libs).data {
-                                v
+            Self::Assume1 => match args[0].run(vars, libs).data {
+                VDataEnum::Tuple(mut v) => {
+                    if let Some(v) = v.pop() {
+                        v
+                    } else {
+                        panic!(
+                            "ASSUMPTION FAILED: assume1 :: {}",
+                            if args.len() > 1 {
+                                if let VDataEnum::String(v) = args[1].run(vars, libs).data {
+                                    v
+                                } else {
+                                    String::new()
+                                }
                             } else {
                                 String::new()
                             }
-                        } else {
-                            String::new()
-                        }
-                    );
+                        );
+                    }
                 }
-            }
+                v => v.to(),
+            },
             Self::NoEnum => args[0].run(vars, libs).noenum(),
+            Self::Matches => match args[0].run(vars, libs).data.matches() {
+                Some(v) => VDataEnum::Tuple(vec![v]).to(),
+                None => VDataEnum::Tuple(vec![]).to(),
+            },
             BuiltinFunction::Print => {
                 if let VDataEnum::String(arg) = args[0].run(vars, libs).data {
                     print!("{}", arg);
@@ -704,8 +714,8 @@ impl BuiltinFunction {
                         if args.len() > 1 {
                             todo!("fs_list advanced filters")
                         }
-                        if let Ok(entries) = std::fs::read_dir(path) {
-                            VDataEnum::List(
+                        match std::fs::read_dir(path) {
+                            Ok(entries) => VDataEnum::List(
                                 VSingleType::String.into(),
                                 entries
                                     .filter_map(|entry| {
@@ -722,9 +732,12 @@ impl BuiltinFunction {
                                     })
                                     .collect(),
                             )
-                            .to()
-                        } else {
-                            VDataEnum::Tuple(vec![]).to()
+                            .to(),
+                            Err(e) => VDataEnum::EnumVariant(
+                                EV_ERR,
+                                Box::new(VDataEnum::String(e.to_string()).to()),
+                            )
+                            .to(),
                         }
                     } else {
                         unreachable!("fs_list first arg not a string")
@@ -736,16 +749,19 @@ impl BuiltinFunction {
             Self::FsRead => {
                 if args.len() > 0 {
                     if let VDataEnum::String(path) = args[0].run(vars, libs).data {
-                        if let Ok(data) = std::fs::read(path) {
-                            VDataEnum::List(
+                        match std::fs::read(path) {
+                            Ok(data) => VDataEnum::List(
                                 VSingleType::Int.into(),
                                 data.into_iter()
                                     .map(|v| VDataEnum::Int(v as _).to())
                                     .collect(),
                             )
-                            .to()
-                        } else {
-                            VDataEnum::Tuple(vec![]).to()
+                            .to(),
+                            Err(e) => VDataEnum::EnumVariant(
+                                EV_ERR,
+                                Box::new(VDataEnum::String(e.to_string()).to()),
+                            )
+                            .to(),
                         }
                     } else {
                         unreachable!("fs_read first arg not a string")
@@ -766,7 +782,11 @@ impl BuiltinFunction {
                             }
                             match std::fs::write(file_path, bytes) {
                                 Ok(_) => VDataEnum::Tuple(vec![]).to(),
-                                Err(e) => VDataEnum::String(e.to_string()).to(),
+                                Err(e) => VDataEnum::EnumVariant(
+                                    EV_ERR,
+                                    Box::new(VDataEnum::String(e.to_string()).to()),
+                                )
+                                .to(),
                             }
                         } else {
                             unreachable!(
@@ -788,13 +808,20 @@ impl BuiltinFunction {
                                 Ok(v) => VDataEnum::String(v).to(),
                                 Err(e) => {
                                     let err = e.to_string();
-                                    VDataEnum::Tuple(vec![
-                                        VDataEnum::String(
-                                            String::from_utf8_lossy(&e.into_bytes()).into_owned(),
-                                        )
-                                        .to(),
-                                        VDataEnum::String(err).to(),
-                                    ])
+                                    VDataEnum::EnumVariant(
+                                        EV_ERR,
+                                        Box::new(
+                                            VDataEnum::Tuple(vec![
+                                                VDataEnum::String(
+                                                    String::from_utf8_lossy(&e.into_bytes())
+                                                        .into_owned(),
+                                                )
+                                                .to(),
+                                                VDataEnum::String(err).to(),
+                                            ])
+                                            .to(),
+                                        ),
+                                    )
                                     .to()
                                 }
                             }
@@ -876,7 +903,11 @@ impl BuiltinFunction {
                                 .to(),
                             ])
                             .to(),
-                            Err(e) => VDataEnum::String(e.to_string()).to(),
+                            Err(e) => VDataEnum::EnumVariant(
+                                EV_ERR,
+                                Box::new(VDataEnum::String(e.to_string()).to()),
+                            )
+                            .to(),
                         }
                     } else {
                         unreachable!("run_command not string arg")
@@ -1345,10 +1376,16 @@ impl BuiltinFunction {
                                 .to()])
                                 .to()
                             }
-                            Err(e) => VDataEnum::Tuple(vec![
-                                VDataEnum::Tuple(vec![]).to(), // no results
-                                VDataEnum::String(e.to_string()).to(),
-                            ])
+                            Err(e) => VDataEnum::EnumVariant(
+                                EV_ERR,
+                                Box::new(
+                                    VDataEnum::Tuple(vec![
+                                        VDataEnum::Tuple(vec![]).to(), // no results
+                                        VDataEnum::String(e.to_string()).to(),
+                                    ])
+                                    .to(),
+                                ),
+                            )
                             .to(),
                         }
                     } else {

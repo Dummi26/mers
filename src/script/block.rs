@@ -100,7 +100,7 @@ pub mod to_runnable {
 
     use crate::{script::{
         val_data::VDataEnum,
-        val_type::{VSingleType, VType},
+        val_type::{VSingleType, VType}, builtins,
     }, libs};
 
     use super::{
@@ -168,7 +168,7 @@ pub mod to_runnable {
                     lib_fns.insert(name.to_string(), (libid, fnid));
                 }
             }
-            Self { vars: 0, libs, lib_fns, enum_variants: HashMap::new() }
+            Self { vars: 0, libs, lib_fns, enum_variants: builtins::EVS.iter().enumerate().map(|(i, v)| (v.to_string(), i)).collect() }
         }
     }
     // Local, used to keep local variables separated
@@ -480,11 +480,30 @@ pub mod to_runnable {
                                 types_not_covered_req_error = true;
                                 types_not_covered = types_not_covered | {
                                     let mut v = val_type;
-                                    for t in v.types.iter_mut() {
-                                        if let VSingleType::EnumVariant(i, v) = t {
-                                            *t = VSingleType::EnumVariantS(ginfo.enum_variants.iter().find_map(|(st, us)| if *us == *i { Some(st.clone()) } else { None }).unwrap(), v.clone());
+                                    fn make_readable(v: &mut VType, ginfo: &GInfo) {
+                                        for t in v.types.iter_mut() {
+                                            match t {
+                                                VSingleType::EnumVariant(i, v) => {
+                                                    let mut v = v.clone();
+                                                    make_readable(&mut v, ginfo);
+                                                    *t = VSingleType::EnumVariantS(ginfo.enum_variants.iter().find_map(|(st, us)| if *us == *i { Some(st.clone()) } else { None }).unwrap(), v);
+                                                },
+                                                VSingleType::EnumVariantS(_, v) => make_readable(v, ginfo),
+                                                VSingleType::Tuple(v) => for t in v.iter_mut() {
+                                                    make_readable(t, ginfo)
+                                                }
+                                                VSingleType::List(t) => make_readable(t, ginfo),
+                                                VSingleType::Reference(v) => {
+                                                    let mut v = v.clone().to();
+                                                    make_readable(&mut v, ginfo);
+                                                    assert_eq!(v.types.len(), 1);
+                                                    *t = VSingleType::Reference(Box::new(v.types.remove(0)));
+                                                }
+                                                VSingleType::Bool | VSingleType::Int | VSingleType::Float | VSingleType::String | VSingleType::Function(..) | VSingleType::Thread(..) => (),
+                                            }
                                         }
                                     }
+                                    make_readable(&mut v, &ginfo);
                                     v
                                 };
                             }
@@ -1025,8 +1044,8 @@ impl Display for VSingleType {
             Self::Function(_) => write!(f, "FUNCTION"),
             Self::Thread(_) => write!(f, "THREAD"),
             Self::Reference(r) => write!(f, "&{r}"),
-            Self::EnumVariant(v, t) => write!(f, "{v}: {t}"),
-            Self::EnumVariantS(v, t) => write!(f, "{v}: {t}"),
+            Self::EnumVariant(v, t) => write!(f, "{v}({t})"),
+            Self::EnumVariantS(v, t) => write!(f, "{v}({t})"),
         }
     }
 }
@@ -1147,7 +1166,7 @@ impl Display for VDataEnum {
             Self::Function(v) => write!(f, "{v}"),
             Self::Thread(..) => write!(f, "THREAD"),
             Self::Reference(r) => write!(f, "{}", r.lock().unwrap()),
-            Self::EnumVariant(v, d) => write!(f, "{v}: {d}"),
+            Self::EnumVariant(v, d) => write!(f, "{v}({d})"),
         }
     }
 }

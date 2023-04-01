@@ -522,14 +522,19 @@ fn parse_single_type_adv(
                     }
                     match file.next() {
                         Some(ch) if ch.is_whitespace() => break,
-                        Some(':') => {
-                            break 'parse_single_type VSingleType::EnumVariantS(name, {
-                                let po = parse_type_adv(file, in_fn_args)?;
-                                if po.1 {
-                                    closed_bracket_in_fn_args = true;
-                                }
-                                po.0
-                            })
+                        Some('(') => {
+                            break 'parse_single_type if name.as_str() == "fn" {
+                                todo!("fn types");
+                            } else {
+                                VSingleType::EnumVariantS(name, {
+                                    let po = parse_type_adv(file, true)?;
+                                    if !po.1 {
+                                        eprintln!("enum type should be closed by ')', but apparently wasn't?");
+                                        assert_eq!(file.next(), Some(')'));
+                                    }
+                                    po.0
+                                })
+                            };
                         }
 
                         Some(')') if in_fn_args => {
