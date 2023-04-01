@@ -217,6 +217,12 @@ fn parse_statement_adv(
                 Some('=') => {
                     break parse_statement(file)?.output_to(start.trim().to_string());
                 }
+                Some(':') => {
+                    return Ok(SStatement::new(SStatementEnum::EnumVariant(
+                        start,
+                        parse_statement(file)?,
+                    )));
+                }
                 Some(ch) if ch.is_whitespace() || matches!(ch, '}' | ']' | ')' | '.') => {
                     file.skip_whitespaces();
                     if let Some('=') = file.peek() {
@@ -506,7 +512,7 @@ fn parse_single_type_adv(
                     VSingleType::Tuple(types)
                 }
             }
-            Some(ch) => {
+            Some(ch) => 'parse_single_type: {
                 let mut name = ch.to_string();
                 loop {
                     match file.peek() {
@@ -516,6 +522,16 @@ fn parse_single_type_adv(
                     }
                     match file.next() {
                         Some(ch) if ch.is_whitespace() => break,
+                        Some(':') => {
+                            break 'parse_single_type VSingleType::EnumVariantS(name, {
+                                let po = parse_type_adv(file, in_fn_args)?;
+                                if po.1 {
+                                    closed_bracket_in_fn_args = true;
+                                }
+                                po.0
+                            })
+                        }
+
                         Some(')') if in_fn_args => {
                             closed_bracket_in_fn_args = true;
                             break;

@@ -27,6 +27,7 @@ pub enum VDataEnum {
     Function(RFunction),
     Thread(VDataThread, VType),
     Reference(Arc<Mutex<VData>>),
+    EnumVariant(usize, Box<VData>),
 }
 
 impl VData {
@@ -46,10 +47,14 @@ impl VData {
             VDataEnum::Function(f) => VSingleType::Function(f.input_output_map.clone()),
             VDataEnum::Thread(_, o) => VSingleType::Thread(o.clone()),
             VDataEnum::Reference(r) => r.lock().unwrap().out_single(),
+            VDataEnum::EnumVariant(e, v) => VSingleType::EnumVariant(*e, v.out()),
         }
     }
     pub fn get(&self, i: usize) -> Option<Self> {
         self.data.get(i)
+    }
+    pub fn noenum(self) -> Self {
+        self.data.noenum()
     }
 }
 
@@ -61,6 +66,12 @@ impl VDataEnum {
 
 // get()
 impl VDataEnum {
+    pub fn noenum(self) -> VData {
+        match self {
+            Self::EnumVariant(_, v) => *v,
+            v => v.to(),
+        }
+    }
     pub fn get(&self, i: usize) -> Option<VData> {
         match self {
             Self::Bool(..)
@@ -75,6 +86,7 @@ impl VDataEnum {
             },
             Self::Tuple(v) | Self::List(_, v) => v.get(i).cloned(),
             Self::Reference(r) => r.lock().unwrap().get(i),
+            Self::EnumVariant(_, v) => v.get(i),
         }
     }
     pub fn matches_ref_bool(&self) -> bool {
@@ -154,9 +166,7 @@ impl VDataThread {
                 if v.is_finished() {
                     let m = std::mem::replace(
                         &mut *mg,
-                        VDataThreadEnum::Finished(VData {
-                            data: VDataEnum::Bool(false),
-                        }),
+                        VDataThreadEnum::Finished(VDataEnum::Bool(false).to()),
                     );
                     match m {
                         VDataThreadEnum::Running(v) => {

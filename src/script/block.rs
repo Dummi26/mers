@@ -72,6 +72,7 @@ pub enum SStatementEnum {
     Switch(String, Vec<(VType, SStatement)>, bool),
     Match(String, Vec<(SStatement, SStatement)>),
     IndexFixed(SStatement, usize),
+    EnumVariant(String, SStatement),
 }
 impl Into<SStatement> for SStatementEnum {
     fn into(self) -> SStatement {
@@ -157,6 +158,7 @@ pub mod to_runnable {
         vars: usize,
         libs: Arc<Vec<libs::Lib>>,
         lib_fns: HashMap<String, (usize, usize)>,
+        enum_variants: HashMap<String, usize>,
     }
     impl GInfo {
         pub fn new(libs: Arc<Vec<libs::Lib>>) -> Self {
@@ -166,7 +168,7 @@ pub mod to_runnable {
                     lib_fns.insert(name.to_string(), (libid, fnid));
                 }
             }
-            Self { vars: 0, libs, lib_fns, }
+            Self { vars: 0, libs, lib_fns, enum_variants: HashMap::new() }
         }
     }
     // Local, used to keep local variables separated
@@ -268,6 +270,35 @@ pub mod to_runnable {
         Ok(RBlock { statements })
     }
 
+    fn stypes(t: &mut VType, ginfo: &mut GInfo) {
+        for t in &mut t.types {
+            stype(t, ginfo);
+        }
+    }
+    fn stype(t: &mut VSingleType, ginfo: &mut GInfo) {
+        match t {
+            VSingleType::Tuple(v) => {
+                for t in v {
+                    stypes(t, ginfo);
+                }
+            },
+            VSingleType::EnumVariantS(e, v) => *t = VSingleType::EnumVariant({
+                if let Some(v) = ginfo.enum_variants.get(e) {
+                    *v
+                } else {
+                    let v = ginfo.enum_variants.len();
+                    ginfo.enum_variants.insert(e.clone(), v);
+                    v
+                }
+            },
+            {
+                stypes(v, ginfo);
+                v.clone()
+            }
+            ),
+            _ => (),
+        }
+    }
     fn statement(
         s: &SStatement,
         ginfo: &mut GInfo,
@@ -288,7 +319,8 @@ pub mod to_runnable {
             }
             SStatementEnum::Variable(v, is_ref) => {
                 if let Some(var) = linfo.vars.get(v) {
-                    RStatementEnum::Variable(var.0, var.1.clone(), *is_ref)
+                    RStatementEnum::Variable(var.0, {
+                        let mut v = var.1.clone(); stypes(&mut v, ginfo); v }, *is_ref)
                 } else {
                     return Err(ToRunnableError::UseOfUndefinedVariable(v.clone()));
                 }
@@ -423,8 +455,9 @@ pub mod to_runnable {
                     let mut ncases = Vec::with_capacity(cases.len());
                     let og_type = switch_on_v.1.clone(); // linfo.vars.get(switch_on).unwrap().1.clone();
                     for case in cases {
-                        linfo.vars.get_mut(switch_on).unwrap().1 = case.0.clone();
-                        ncases.push((case.0.clone(), statement(&case.1, ginfo, linfo)?));
+                        let case0 = { let mut v = case.0.clone(); stypes(&mut v, ginfo); v };
+                        linfo.vars.get_mut(switch_on).unwrap().1 = case0.clone();
+                        ncases.push((case0, statement(&case.1, ginfo, linfo)?));
                     }
                     linfo.vars.get_mut(switch_on).unwrap().1 = og_type;
 
@@ -438,12 +471,22 @@ pub mod to_runnable {
                             linf2.vars.get_mut(switch_on).unwrap().1 = val_type.clone();
                             'force: {
                                 for (case_type, _) in cases {
-                                    if val_type.fits_in(&case_type).is_empty() {
+                                    let mut ct = case_type.clone();
+                                    stypes(&mut ct, ginfo);
+                                    if val_type.fits_in(&ct).is_empty() {
                                         break 'force;
                                     }
                                 }
                                 types_not_covered_req_error = true;
-                                types_not_covered = types_not_covered | val_type;
+                                types_not_covered = types_not_covered | {
+                                    let mut v = val_type;
+                                    for t in v.types.iter_mut() {
+                                        if let VSingleType::EnumVariant(i, v) = t {
+                                            *t = VSingleType::EnumVariantS(ginfo.enum_variants.iter().find_map(|(st, us)| if *us == *i { Some(st.clone()) } else { None }).unwrap(), v.clone());
+                                        }
+                                    }
+                                    v
+                                };
                             }
                         }
                         if types_not_covered_req_error {
@@ -532,6 +575,15 @@ pub mod to_runnable {
                     return Err(ToRunnableError::NotIndexableFixed(st.out(), *i));
                 }
             }
+            SStatementEnum::EnumVariant(variant, s) => RStatementEnum::EnumVariant({
+                if let Some(v) = ginfo.enum_variants.get(variant) {
+                    *v
+                } else {
+                    let v =  ginfo.enum_variants.len();
+                    ginfo.enum_variants.insert(variant.clone(), v);
+                    v
+                }
+            }, statement(s, ginfo, linfo)?),
         }
         .to();
         if let Some(opt) = &s.output_to {
@@ -674,6 +726,7 @@ pub enum RStatementEnum {
     Switch(RStatement, Vec<(VType, RStatement)>),
     Match(usize, Vec<(RStatement, RStatement)>),
     IndexFixed(RStatement, usize),
+    EnumVariant(usize, RStatement)
 }
 impl RStatementEnum {
     pub fn run(&self, vars: &Vec<Am<VData>>, libs: &Arc<Vec<libs::Lib>>) -> VData {
@@ -799,6 +852,9 @@ impl RStatementEnum {
                 VDataEnum::Tuple(vec![]).to()
             }
             Self::IndexFixed(st, i) => st.run(vars, libs).get(*i).unwrap(),
+            Self::EnumVariant(e, v) => {
+                VDataEnum::EnumVariant(*e, Box::new(v.run(vars, libs))).to()
+            }
         }
     }
     pub fn out(&self) -> VType {
@@ -848,7 +904,7 @@ impl RStatementEnum {
                 let mut might_return_empty = switch_on.is_empty();
                 let mut out = VType { types: vec![] }; // if nothing is executed
                 for switch_on in switch_on {
-                    let switch_on: VType = switch_on.into();
+                    let switch_on = switch_on.to();
                     'search: {
                         for (on_type, case) in cases.iter() {
                             if switch_on.fits_in(&on_type).is_empty() {
@@ -872,6 +928,7 @@ impl RStatementEnum {
                 out
             }
             Self::IndexFixed(st, i) => st.out().get(*i).unwrap(),
+            Self::EnumVariant(e, v) => VSingleType::EnumVariant(*e, v.out()).to(),
         }
     }
     pub fn to(self) -> RStatement {
@@ -968,6 +1025,8 @@ impl Display for VSingleType {
             Self::Function(_) => write!(f, "FUNCTION"),
             Self::Thread(_) => write!(f, "THREAD"),
             Self::Reference(r) => write!(f, "&{r}"),
+            Self::EnumVariant(v, t) => write!(f, "{v}: {t}"),
+            Self::EnumVariantS(v, t) => write!(f, "{v}: {t}"),
         }
     }
 }
@@ -1047,6 +1106,7 @@ impl Display for SStatementEnum {
                 write!(f, "}}")
             }
             SStatementEnum::IndexFixed(st, i) => write!(f, "{st}.{i}"),
+            SStatementEnum::EnumVariant(e, s) => write!(f, "{e}: {s}"),
         }
     }
 }
@@ -1087,6 +1147,7 @@ impl Display for VDataEnum {
             Self::Function(v) => write!(f, "{v}"),
             Self::Thread(..) => write!(f, "THREAD"),
             Self::Reference(r) => write!(f, "{}", r.lock().unwrap()),
+            Self::EnumVariant(v, d) => write!(f, "{v}: {d}"),
         }
     }
 }

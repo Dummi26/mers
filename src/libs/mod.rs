@@ -175,6 +175,7 @@ fn data_to_bytes(data: &VData, stdin: &mut ChildStdin) {
         VDataEnum::Function(..) | VDataEnum::Reference(..) | VDataEnum::Thread(..) => {
             panic!("cannot use functions, references or threads in LibFunctions.")
         }
+        VDataEnum::EnumVariant(..) => todo!(),
     }
     stdin.flush().unwrap();
 }

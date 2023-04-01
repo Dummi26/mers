@@ -16,6 +16,7 @@ use super::{
 pub enum BuiltinFunction {
     // core
     Assume1, // assume []/[t] is [t], return t. Optionally provide a reason as to why (2nd arg)
+    NoEnum,
     // print
     Print,
     Println,
@@ -77,6 +78,7 @@ impl BuiltinFunction {
     pub fn get(s: &str) -> Option<Self> {
         Some(match s {
             "assume1" => Self::Assume1,
+            "noenum" => Self::NoEnum,
             "print" => Self::Print,
             "println" => Self::Println,
             "debug" => Self::Debug,
@@ -161,6 +163,7 @@ impl BuiltinFunction {
                     false
                 }
             }
+            Self::NoEnum => input.len() == 1,
             Self::Print | Self::Println => {
                 if input.len() == 1 {
                     input[0].fits_in(&VSingleType::String.to()).is_empty()
@@ -334,6 +337,7 @@ impl BuiltinFunction {
                 }
                 out
             }
+            Self::NoEnum => input[0].clone().noenum(),
             // []
             Self::Print | Self::Println | Self::Debug | Self::Sleep => VType {
                 types: vec![VSingleType::Tuple(vec![])],
@@ -539,6 +543,7 @@ impl BuiltinFunction {
                     );
                 }
             }
+            Self::NoEnum => args[0].run(vars, libs).noenum(),
             BuiltinFunction::Print => {
                 if let VDataEnum::String(arg) = args[0].run(vars, libs).data {
                     print!("{}", arg);

@@ -16,6 +16,8 @@ pub enum VSingleType {
     Function(Vec<(Vec<VSingleType>, VType)>),
     Thread(VType),
     Reference(Box<Self>),
+    EnumVariant(usize, VType),
+    EnumVariantS(String, VType),
 }
 
 impl VSingleType {
@@ -27,6 +29,7 @@ impl VSingleType {
             Self::Tuple(t) => t.get(i).cloned(),
             Self::List(t) => Some(t.clone()),
             Self::Reference(r) => r.get(i),
+            Self::EnumVariant(_, t) | Self::EnumVariantS(_, t) => t.get(i),
         }
     }
 }
@@ -48,6 +51,8 @@ impl VSingleType {
             Self::Tuple(t) => Some(t.iter().fold(VType { types: vec![] }, |a, b| a | b)),
             Self::List(t) => Some(t.clone()),
             Self::Reference(r) => r.get_any(),
+            Self::EnumVariant(_, t) => t.get_any(),
+            Self::EnumVariantS(..) => unreachable!(),
         }
     }
 }
@@ -84,6 +89,13 @@ impl VType {
     }
     pub fn contains(&self, t: &VSingleType) -> bool {
         self.types.contains(t)
+    }
+    pub fn noenum(self) -> Self {
+        let mut o = Self { types: vec![] };
+        for t in self.types {
+            o = o | t.noenum();
+        }
+        o
     }
 }
 impl BitOr for VType {
@@ -136,8 +148,21 @@ impl VSingleType {
             _ => vec![],
         }
     }
+    pub fn noenum(self) -> VType {
+        match self {
+            Self::EnumVariant(_, v) | Self::EnumVariantS(_, v) => v,
+            v => v.to(),
+        }
+    }
     pub fn fits_in(&self, rhs: &Self) -> bool {
         match (self, rhs) {
+            (Self::Reference(r), Self::Reference(b)) => r.fits_in(b),
+            (Self::Reference(_), _) | (_, Self::Reference(_)) => false,
+            (Self::EnumVariant(v1, t1), Self::EnumVariant(v2, t2)) => {
+                *v1 == *v2 && t1.fits_in(&t2).is_empty()
+            }
+            (Self::EnumVariant(..), _) | (_, Self::EnumVariant(..)) => false,
+            (Self::EnumVariantS(..), _) | (_, Self::EnumVariantS(..)) => unreachable!(),
             (Self::Bool, Self::Bool)
             | (Self::Int, Self::Int)
             | (Self::Float, Self::Float)
@@ -171,8 +196,6 @@ impl VSingleType {
             (Self::Function(..), _) => false,
             (Self::Thread(a), Self::Thread(b)) => a.fits_in(b).is_empty(),
             (Self::Thread(..), _) => false,
-            (Self::Reference(r), Self::Reference(b)) => r.fits_in(b),
-            (Self::Reference(_), _) => false,
         }
     }
 }
