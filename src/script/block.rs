@@ -415,28 +415,9 @@ pub mod to_runnable {
                     None => None,
                 },
             ),
-            SStatementEnum::While(c) => RStatementEnum::While({
-                let condition = statement(&c, ginfo, linfo)?;
-                let out = condition.out();
-                let out1 = out.fits_in(&VSingleType::Bool.into());
-                if out1.is_empty() {
-                    condition
-                } else {
-                    if out.types.is_empty() {
-                        return Err(ToRunnableError::InvalidTypeForWhileLoop(out));
-                    }
-                    for t in out.types.iter() {
-                        if let VSingleType::Tuple(v) = t {
-                            if v.len() > 1 {
-                                return Err(ToRunnableError::InvalidTypeForWhileLoop(out));
-                            }
-                        } else {
-                            return Err(ToRunnableError::InvalidTypeForWhileLoop(out));
-                        }
-                    }
-                    condition
-                }
-            }),
+            SStatementEnum::While(c) => RStatementEnum::While(
+                statement(&c, ginfo, linfo)?
+            ),
             SStatementEnum::For(v, c, b) => {
                 let mut linfo = linfo.clone();
                 let container = statement(&c, ginfo, &mut linfo)?;
@@ -908,7 +889,7 @@ impl RStatementEnum {
                 if let Some(b) = b {
                     a.out() | b.out()
                 } else {
-                    a.out()
+                    a.out() | VSingleType::Tuple(vec![]).to()
                 }
             }
             Self::While(c) => {

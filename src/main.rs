@@ -11,7 +11,7 @@ fn main() {
     .unwrap();
     println!(" - - - - -");
     let start = Instant::now();
-    let out = script.run(std::env::args().collect());
+    let out = script.run(std::env::args().skip(2).collect());
     let elapsed = start.elapsed();
     println!(" - - - - -");
     println!("Output ({}s)\n{out}", elapsed.as_secs_f64());

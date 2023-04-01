@@ -278,8 +278,17 @@ impl BuiltinFunction {
                     false
                 }
             }
-            Self::Add
-            | Self::Sub
+            Self::Add => {
+                input.len() == 2 && {
+                    let num = VType {
+                        types: vec![VSingleType::Int, VSingleType::Float],
+                    };
+                    let st = VSingleType::String.to();
+                    (input[0].fits_in(&num).is_empty() && input[1].fits_in(&num).is_empty())
+                        || (input[0].fits_in(&st).is_empty() && input[1].fits_in(&st).is_empty())
+                }
+            }
+            Self::Sub
             | Self::Mul
             | Self::Div
             | Self::Mod
@@ -485,7 +494,18 @@ impl BuiltinFunction {
             | Self::Min
             | Self::Max => {
                 if input.len() == 2 {
-                    match (
+                    let mut might_be_string = false;
+                    if let Self::Add = self {
+                        match (
+                            input[0].contains(&VSingleType::String),
+                            input[1].contains(&VSingleType::String),
+                        ) {
+                            (true, true) => might_be_string = true,
+                            (true, false) | (false, true) => unreachable!(),
+                            (false, false) => (),
+                        }
+                    }
+                    let o = match (
                         (
                             input[0].contains(&VSingleType::Int),
                             input[0].contains(&VSingleType::Float),
@@ -499,7 +519,13 @@ impl BuiltinFunction {
                         ((true, _), (true, _)) => VType {
                             types: vec![VSingleType::Int, VSingleType::Float],
                         },
+                        ((false, false), (false, false)) => VType { types: vec![] },
                         _ => VSingleType::Float.to(),
+                    };
+                    if might_be_string {
+                        o | VSingleType::String.to()
+                    } else {
+                        o
                     }
                 } else {
                     unreachable!("called add/sub/mul/div/mod/pow with args != 2")
@@ -919,6 +945,10 @@ impl BuiltinFunction {
             Self::Add => {
                 if args.len() == 2 {
                     match (args[0].run(vars, libs).data, args[1].run(vars, libs).data) {
+                        (VDataEnum::String(mut a), VDataEnum::String(b)) => {
+                            a.push_str(b.as_str());
+                            VDataEnum::String(a).to()
+                        }
                         (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a + b).to(),
                         (VDataEnum::Int(a), VDataEnum::Float(b)) => {
                             VDataEnum::Float(a as f64 + b).to()
@@ -927,7 +957,7 @@ impl BuiltinFunction {
                             VDataEnum::Float(a + b as f64).to()
                         }
                         (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Float(a + b).to(),
-                        _ => unreachable!("add: not a number"),
+                        _ => unreachable!("add: not a number/string"),
                     }
                 } else {
                     unreachable!("add: not 2 args")
@@ -1364,27 +1394,17 @@ impl BuiltinFunction {
                         (args[0].run(vars, libs).data, args[1].run(vars, libs).data)
                     {
                         match regex::Regex::new(regex.as_str()) {
-                            Ok(regex) => {
-                                VDataEnum::Tuple(vec![VDataEnum::Tuple(vec![VDataEnum::List(
-                                    VSingleType::String.to(),
-                                    regex
-                                        .find_iter(a.as_str())
-                                        .map(|v| VDataEnum::String(v.as_str().to_string()).to())
-                                        .collect(),
-                                )
-                                .to()])
-                                .to()])
-                                .to()
-                            }
+                            Ok(regex) => VDataEnum::List(
+                                VSingleType::String.to(),
+                                regex
+                                    .find_iter(a.as_str())
+                                    .map(|v| VDataEnum::String(v.as_str().to_string()).to())
+                                    .collect(),
+                            )
+                            .to(),
                             Err(e) => VDataEnum::EnumVariant(
                                 EV_ERR,
-                                Box::new(
-                                    VDataEnum::Tuple(vec![
-                                        VDataEnum::Tuple(vec![]).to(), // no results
-                                        VDataEnum::String(e.to_string()).to(),
-                                    ])
-                                    .to(),
-                                ),
+                                Box::new(VDataEnum::String(e.to_string()).to()),
                             )
                             .to(),
                         }

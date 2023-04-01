@@ -1,9 +1,0 @@
-x = if true enum_b: enum_a: "hello" else "world"
-x.debug()
-switch! x {
-    string {
-        println("no enum")
-        x.println()
-    }
-    enum_b(enum_a(string)) x.noenum().noenum().println()
-}
