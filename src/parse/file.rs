@@ -1,9 +1,11 @@
 use std::{
     fmt::Display,
     ops::{Index, Range, RangeFrom, RangeTo},
+    path::PathBuf,
 };
 
 pub struct File {
+    path: PathBuf,
     data: String,
     chars: Vec<(usize, char)>,
     pos: FilePosition,
@@ -25,7 +27,7 @@ impl Display for FilePosition {
 }
 
 impl File {
-    pub fn new(data: String) -> Self {
+    pub fn new(data: String, path: PathBuf) -> Self {
         let mut chs = data.chars();
         let mut data = String::with_capacity(data.len());
         loop {
@@ -63,6 +65,7 @@ impl File {
         }
         let chars = data.char_indices().collect();
         Self {
+            path,
             data,
             chars,
             pos: FilePosition {
@@ -79,6 +82,9 @@ impl File {
                 _ => break,
             }
         }
+    }
+    pub fn path(&self) -> &PathBuf {
+        &self.path
     }
     pub fn get_pos(&self) -> &FilePosition {
         &self.pos

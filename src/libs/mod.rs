@@ -1,5 +1,10 @@
+pub mod inlib;
+pub mod path;
+
 use std::{
+    collections::{HashMap, HashSet},
     io::{self, BufRead, BufReader, Read, Write},
+    path::PathBuf,
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
     sync::{Arc, Mutex},
 };
@@ -55,7 +60,10 @@ pub struct Lib {
     pub registered_fns: Vec<(String, Vec<VType>, VType)>,
 }
 impl Lib {
-    pub fn launch(mut exec: Command) -> Result<Self, LaunchError> {
+    pub fn launch(
+        mut exec: Command,
+        enum_variants: &mut HashMap<String, usize>,
+    ) -> Result<Self, LaunchError> {
         let mut handle = match exec
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -92,21 +100,32 @@ impl Lib {
                         let (name, args) = line[1..]
                             .split_once('(')
                             .expect("function signature didn't include the ( character.");
-                        let mut fn_signature = File::new(args.to_string());
+                        let mut fn_signature = File::new(args.to_string(), PathBuf::new());
                         let mut fn_in = vec![];
-                        loop {
-                            let t = parse::parse_type_adv(&mut fn_signature, true).unwrap();
-                            fn_in.push(t.0);
-                            if t.1 {
-                                break;
+                        fn_signature.skip_whitespaces();
+                        if let Some(')') = fn_signature.peek() {
+                            fn_signature.next();
+                        } else {
+                            loop {
+                                let mut t = parse::parse_type_adv(&mut fn_signature, true).unwrap();
+                                t.0.enum_variants(enum_variants);
+                                fn_in.push(t.0);
+                                if t.1 {
+                                    break;
+                                }
                             }
                         }
-                        let fn_out = parse::parse_type(&mut fn_signature).unwrap();
-                        eprintln!("Registering function \"{name}\" with args \"{}\" and return type \"{fn_out}\"", &fn_in.iter().fold(String::new(), |mut s, v| { s.push_str(format!(" {}", v).as_str()); s })[1..]);
+                        let mut fn_out = parse::parse_type(&mut fn_signature).unwrap();
+                        fn_out.enum_variants(enum_variants);
+                        eprintln!("Registering function \"{name}\" with args \"{}\" and return type \"{fn_out}\"", &fn_in.iter().fold(String::new(), |mut s, v| { s.push_str(format!(" {}", v).as_str()); s }).trim_start_matches(' '));
                         registered_fns.push((name.to_string(), fn_in, fn_out));
                     }
-                    _ => break,
+                    Some('x') => break,
+                    _ => todo!(),
                 }
+            }
+            for (enum_name, enum_id) in enum_variants.iter() {
+                writeln!(stdin, "Iset_enum_id {enum_name} {enum_id}").unwrap();
             }
             Ok(Self {
                 process: handle,
@@ -126,9 +145,9 @@ impl Lib {
         write!(stdin, "f").unwrap();
         stdin.write(&[fnid as _]).unwrap();
         for (_i, arg) in args.iter().enumerate() {
-            data_to_bytes(arg, &mut stdin);
+            data_to_bytes(arg, &mut *stdin);
         }
-        let o = data_from_bytes(&mut stdout).to();
+        let o = data_from_bytes(&mut *stdout).to();
         o
     }
 }
@@ -139,7 +158,7 @@ pub enum LaunchError {
     CouldNotSpawnProcess(io::Error),
 }
 
-trait DirectReader {
+pub trait DirectReader {
     fn line(&mut self) -> Result<String, io::Error>;
     fn one_byte(&mut self) -> Result<u8, io::Error>;
 }
@@ -159,31 +178,112 @@ where
     }
 }
 
-fn data_to_bytes(data: &VData, stdin: &mut ChildStdin) {
+pub fn data_to_bytes<T>(data: &VData, stdin: &mut T)
+where
+    T: Write,
+{
     match &data.data {
         VDataEnum::Bool(false) => write!(stdin, "b").unwrap(),
         VDataEnum::Bool(true) => write!(stdin, "B").unwrap(),
-        VDataEnum::Int(_) => todo!(),
-        VDataEnum::Float(_) => todo!("floats are not yet implemented for LibFunction calls."),
+        VDataEnum::Int(v) => {
+            let mut v = *v;
+            let mut b = [0u8; 8];
+            for i in (0..8).rev() {
+                b[i] = (v & 0xFF) as _;
+                v >>= 8;
+            }
+            write!(stdin, "1").unwrap();
+            stdin.write(&b).unwrap();
+        }
+        VDataEnum::Float(f) => {
+            writeln!(stdin, "6{f}").unwrap();
+        }
         VDataEnum::String(s) => {
             write!(stdin, "\"").unwrap();
             stdin.write(&(s.len() as u64).to_be_bytes()).unwrap();
             stdin.write(s.as_bytes()).unwrap();
         }
-        VDataEnum::Tuple(_) => todo!(),
-        VDataEnum::List(..) => todo!(),
+        VDataEnum::Tuple(v) => {
+            write!(stdin, "t").unwrap();
+            for v in v {
+                write!(stdin, "+").unwrap();
+                data_to_bytes(v, stdin);
+            }
+            writeln!(stdin).unwrap();
+        }
+        VDataEnum::List(_, v) => {
+            write!(stdin, "l").unwrap();
+            for v in v {
+                write!(stdin, "+").unwrap();
+                data_to_bytes(v, stdin);
+            }
+            writeln!(stdin).unwrap();
+        }
         VDataEnum::Function(..) | VDataEnum::Reference(..) | VDataEnum::Thread(..) => {
             panic!("cannot use functions, references or threads in LibFunctions.")
         }
-        VDataEnum::EnumVariant(..) => todo!(),
+        VDataEnum::EnumVariant(e, v) => {
+            stdin
+                .write(
+                    ['E' as u8]
+                        .into_iter()
+                        .chain((*e as u64).to_be_bytes().into_iter())
+                        .collect::<Vec<u8>>()
+                        .as_slice(),
+                )
+                .unwrap();
+            data_to_bytes(v.as_ref(), stdin);
+        }
     }
     stdin.flush().unwrap();
 }
-fn data_from_bytes(stdout: &mut BufReader<ChildStdout>) -> VDataEnum {
-    match stdout.one_byte().unwrap().into() {
+pub fn data_from_bytes<T>(stdout: &mut T) -> VDataEnum
+where
+    T: BufRead,
+{
+    let id_byte = stdout.one_byte().unwrap().into();
+    match id_byte {
         'b' => VDataEnum::Bool(false),
         'B' => VDataEnum::Bool(true),
-        '1' | '2' | '5' | '6' => todo!(),
+        '1' => {
+            let mut num = 0;
+            for _ in 0..8 {
+                num <<= 8;
+                num |= stdout.one_byte().unwrap() as isize;
+            }
+            VDataEnum::Int(num)
+        }
+        '2' => {
+            let mut buf = String::new();
+            stdout.read_line(&mut buf).unwrap();
+            VDataEnum::Int(buf.parse().unwrap())
+        }
+        '5' => {
+            let mut num = 0;
+            for _ in 0..8 {
+                num <<= 8;
+                num |= stdout.one_byte().unwrap() as u64;
+            }
+            VDataEnum::Float(f64::from_bits(num))
+        }
+        '6' => {
+            let mut buf = String::new();
+            stdout.read_line(&mut buf).unwrap();
+            VDataEnum::Float(buf.parse().unwrap())
+        }
+        't' | 'l' => {
+            let mut v = vec![];
+            loop {
+                if stdout.one_byte().unwrap() == '\n' as _ {
+                    break if id_byte == 't' {
+                        VDataEnum::Tuple(v)
+                    } else {
+                        VDataEnum::List(VType { types: vec![] }, v)
+                    };
+                }
+                v.push(data_from_bytes(stdout).to())
+            }
+        }
         '"' => {
             let mut len_bytes = 0u64;
             for _ in 0..8 {
@@ -196,6 +296,12 @@ fn data_from_bytes(stdout: &mut BufReader<ChildStdout>) -> VDataEnum {
             }
             VDataEnum::String(String::from_utf8_lossy(&buf).into_owned())
         }
-        _ => todo!(),
+        'E' => {
+            let mut u = [0u8; 8];
+            stdout.read_exact(&mut u).unwrap();
+            let u = u64::from_be_bytes(u) as _;
+            VDataEnum::EnumVariant(u, Box::new(data_from_bytes(stdout).to()))
+        }
+        other => todo!("data_from_bytes: found '{other}'."),
     }
 }

@@ -1,0 +1,51 @@
+lib gui.sh
+
+base = gui_init()
+column = base.gui_add(Column: [])
+
+text = column.gui_add(Text: "Welcome to MERS GUI!")
+
+button = column.gui_add(Button: "This is a button.")
+second_button = column.gui_add(Button: "This is a second button.")
+
+text_state = -2
+second_text = column.gui_add(Text: "press the button above to remove this text!")
+
+while {
+    for event gui_updates() {
+        switch! event {
+            ButtonPressed([int]) {
+                e = event.noenum()
+                match e {
+                    &e.eq(&button) println("First button pressed")
+                    &e.eq(&second_button) {
+                        // don't match on text_state because we need to change the original from inside the match statement
+                        state = text_state
+                        match state {
+                            // the first, third, fifth, ... time the button is pressed: remove the text
+                            text_state.mod(2).eq(0) {
+                                if text_state.eq(-2) {
+                                    // the first time the button is pressed
+                                    text_state = 0
+                                    set_title("keep pressing the button!")
+                                }
+                                second_text.gui_remove()
+                            }
+                            // the 2nd, 4th, 6th, ... time the button is pressed: add the text back
+                            text_state.eq(1) second_text = column.gui_add(Text: "i'm back!")
+                            text_state.eq(3) second_text = column.gui_add(Text: "you can't fully get rid of me!")
+                            true {
+                                second_text = column.gui_add(Text: "i always come back")
+                                // restart (set text_state to 0)
+                                text_state = -1
+                            }
+                        }
+                        text_state = text_state.add(1)
+                    }
+                    true println("A different button was pressed (unreachable)")
+                }
+            }
+        }
+    }
+    []
+}

@@ -1,12 +1,14 @@
 use std::time::Instant;
 
-pub(crate) mod libs;
-pub(crate) mod parse;
-pub(crate) mod script;
+pub mod libs;
+pub mod parse;
+pub mod script;
 
 fn main() {
+    let path = std::env::args().nth(1).unwrap();
     let script = parse::parse::parse(&mut parse::file::File::new(
-        std::fs::read_to_string(std::env::args().nth(1).unwrap()).unwrap(),
+        std::fs::read_to_string(&path).unwrap(),
+        path.into(),
     ))
     .unwrap();
     println!(" - - - - -");

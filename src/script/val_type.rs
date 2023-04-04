@@ -1,4 +1,4 @@
-use std::{fmt::Debug, ops::BitOr};
+use std::{collections::HashMap, fmt::Debug, ops::BitOr};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VType {
@@ -87,6 +87,11 @@ impl VType {
         }
         out
     }
+    pub fn enum_variants(&mut self, enum_variants: &mut HashMap<String, usize>) {
+        for t in &mut self.types {
+            t.enum_variants(enum_variants);
+        }
+    }
     pub fn contains(&self, t: &VSingleType) -> bool {
         self.types.contains(t)
     }
@@ -152,6 +157,39 @@ impl VSingleType {
         match self {
             Self::EnumVariant(_, v) | Self::EnumVariantS(_, v) => v,
             v => v.to(),
+        }
+    }
+    pub fn enum_variants(&mut self, enum_variants: &mut HashMap<String, usize>) {
+        match self {
+            Self::Bool | Self::Int | Self::Float | Self::String => (),
+            Self::Tuple(v) => {
+                for t in v {
+                    t.enum_variants(enum_variants);
+                }
+            }
+            Self::List(t) => t.enum_variants(enum_variants),
+            Self::Function(f) => {
+                for f in f {
+                    for t in &mut f.0 {
+                        t.enum_variants(enum_variants);
+                    }
+                    f.1.enum_variants(enum_variants);
+                }
+            }
+            Self::Thread(v) => v.enum_variants(enum_variants),
+            Self::Reference(v) => v.enum_variants(enum_variants),
+            Self::EnumVariant(_e, v) => v.enum_variants(enum_variants),
+            Self::EnumVariantS(e, v) => {
+                let e = if let Some(e) = enum_variants.get(e) {
+                    *e
+                } else {
+                    let v = enum_variants.len();
+                    enum_variants.insert(e.clone(), v);
+                    v
+                };
+                v.enum_variants(enum_variants);
+                *self = Self::EnumVariant(e, v.clone());
+            }
         }
     }
     pub fn fits_in(&self, rhs: &Self) -> bool {

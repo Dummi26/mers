@@ -265,19 +265,7 @@ impl BuiltinFunction {
                     false
                 }
             }
-            Self::Eq => {
-                if input.len() == 2 {
-                    let num = &VType {
-                        types: vec![VSingleType::Int, VSingleType::Float],
-                    };
-                    let string = &VSingleType::String.to();
-                    (input[0].fits_in(num).is_empty() && input[1].fits_in(num).is_empty())
-                        || (input[0].fits_in(string).is_empty()
-                            && input[1].fits_in(string).is_empty())
-                } else {
-                    false
-                }
-            }
+            Self::Eq => input.len() == 2,
             Self::Add => {
                 input.len() == 2 && {
                     let num = VType {
@@ -1059,20 +1047,7 @@ impl BuiltinFunction {
             }
             Self::Eq => {
                 if args.len() == 2 {
-                    match (args[0].run(vars, libs).data, args[1].run(vars, libs).data) {
-                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(a == b).to(),
-                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Bool(a as f64 == b).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Bool(a == b as f64).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Bool(a == b).to(),
-                        (VDataEnum::String(a), VDataEnum::String(b)) => {
-                            VDataEnum::Bool(a == b).to()
-                        }
-                        _ => unreachable!("eq: not a number"),
-                    }
+                    VDataEnum::Bool(args[0].run(vars, libs) == args[1].run(vars, libs)).to()
                 } else {
                     unreachable!("eq: not 2 args")
                 }

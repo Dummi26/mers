@@ -87,10 +87,6 @@ fn am<T>(i: T) -> Am<T> {
     Arc::new(Mutex::new(i))
 }
 
-pub fn to_runnable(f: SFunction, ginfo: GInfo) -> Result<RScript, ToRunnableError> {
-    to_runnable::to_runnable(f, ginfo)
-}
-
 pub mod to_runnable {
     use std::{
         collections::HashMap,
@@ -118,7 +114,6 @@ pub mod to_runnable {
             found: VType,
             problematic: Vec<VSingleType>,
         },
-        InvalidTypeForWhileLoop(VType),
         CaseForceButTypeNotCovered(VType),
         MatchConditionInvalidReturn(VType),
         NotIndexableFixed(VType, usize),
@@ -145,7 +140,6 @@ pub mod to_runnable {
                 } => {
                     write!(f, "Invalid type: Expected {expected:?} but found {found:?}, which includes {problematic:?}, which is not covered.")
                 }
-                Self::InvalidTypeForWhileLoop(v) => write!(f, "Invalid type: Expected bool or Tuples of length 0 or 1 as return types for the while loop, but found {v:?} instead."),
                 Self::CaseForceButTypeNotCovered(v) => write!(f, "Switch! statement, but not all types covered. Types to cover: {v}"),
                 Self::MatchConditionInvalidReturn(v) => write!(f, "match statement condition returned {v}, which is not necessarily a tuple of size 0 to 1."),
                 Self::NotIndexableFixed(t, i) => write!(f, "Cannot use fixed-index {i} on type {t}."),
@@ -161,14 +155,17 @@ pub mod to_runnable {
         enum_variants: HashMap<String, usize>,
     }
     impl GInfo {
-        pub fn new(libs: Arc<Vec<libs::Lib>>) -> Self {
+        pub fn default_enum_variants() -> HashMap<String, usize> {
+            builtins::EVS.iter().enumerate().map(|(i, v)| (v.to_string(), i)).collect()
+        }
+        pub fn new(libs: Arc<Vec<libs::Lib>>, enum_variants: HashMap<String, usize>) -> Self {
             let mut lib_fns = HashMap::new();
             for (libid, lib) in libs.iter().enumerate() {
                 for (fnid, (name, ..)) in lib.registered_fns.iter().enumerate() {
                     lib_fns.insert(name.to_string(), (libid, fnid));
                 }
             }
-            Self { vars: 0, libs, lib_fns, enum_variants: builtins::EVS.iter().enumerate().map(|(i, v)| (v.to_string(), i)).collect() }
+            Self { vars: 0, libs, lib_fns, enum_variants }
         }
     }
     // Local, used to keep local variables separated
@@ -182,13 +179,11 @@ pub mod to_runnable {
         if s.inputs.len() != 1 || s.inputs[0].0 != "args" {
             return Err(ToRunnableError::MainWrongInput);
         }
-        if s.inputs[0].1
-            != (VType {
-                types: vec![VSingleType::List(VType {
-                    types: vec![VSingleType::String],
-                })],
-            })
-        {}
+        assert_eq!(s.inputs[0].1,VType {
+            types: vec![VSingleType::List(VType {
+                types: vec![VSingleType::String],
+            })],
+        });
         let func = function(
             &s,
             &mut ginfo,

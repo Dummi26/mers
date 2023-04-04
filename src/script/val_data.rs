@@ -10,7 +10,7 @@ use super::{
     val_type::{VSingleType, VType},
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct VData {
     // parents: Vec<()>,
     pub data: VDataEnum,
@@ -28,6 +28,24 @@ pub enum VDataEnum {
     Thread(VDataThread, VType),
     Reference(Arc<Mutex<VData>>),
     EnumVariant(usize, Box<VData>),
+}
+impl PartialEq for VDataEnum {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Reference(a), Self::Reference(b)) => *a.lock().unwrap() == *b.lock().unwrap(),
+            (Self::Reference(a), b) => a.lock().unwrap().data == *b,
+            (a, Self::Reference(b)) => *a == b.lock().unwrap().data,
+            (Self::Bool(a), Self::Bool(b)) => *a == *b,
+            (Self::Int(a), Self::Int(b)) => *a == *b,
+            (Self::Float(a), Self::Float(b)) => *a == *b,
+            (Self::String(a), Self::String(b)) => *a == *b,
+            (Self::Tuple(a), Self::Tuple(b)) | (Self::List(_, a), Self::List(_, b)) => {
+                a.len() == b.len() && a.iter().zip(b.iter()).all(|(a, b)| a == b)
+            }
+            (Self::EnumVariant(a1, a2), Self::EnumVariant(b1, b2)) => *a1 == *b1 && *a2 == *b2,
+            _ => false,
+        }
+    }
 }
 
 impl VData {

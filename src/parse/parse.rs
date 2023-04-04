@@ -1,4 +1,4 @@
-use std::{path::PathBuf, process::Command, sync::Arc};
+use std::{process::Command, sync::Arc};
 
 use crate::{
     libs,
@@ -35,17 +35,21 @@ pub enum ParseError {}
 
 pub fn parse(file: &mut File) -> Result<RScript, ScriptError> {
     let mut libs = vec![];
+    let mut enum_variants = GInfo::default_enum_variants();
     loop {
         file.skip_whitespaces();
         let pos = file.get_pos().clone();
         let line = file.next_line();
         if line.starts_with("lib ") {
-            let path_to_executable: PathBuf = line[4..].into();
+            let path_to_executable = match libs::path::path_from_string(&line[4..], file.path()) {
+                Some(v) => v,
+                None => panic!("Couldn't find a path for the library with the path '{}'. Maybe set the MERS_LIB_DIR env variable?", &line[4..]),
+            };
             let mut cmd = Command::new(&path_to_executable);
             if let Some(parent) = path_to_executable.parent() {
                 cmd.current_dir(parent.clone());
             }
-            match libs::Lib::launch(cmd) {
+            match libs::Lib::launch(cmd, &mut enum_variants) {
                 Ok(lib) => {
                     libs.push(lib);
                     eprintln!("Loaded library!");
@@ -72,7 +76,7 @@ pub fn parse(file: &mut File) -> Result<RScript, ScriptError> {
     eprintln!("Parsed: {func}");
     #[cfg(debug_assertions)]
     eprintln!("Parsed: {func:#?}");
-    let run = to_runnable::to_runnable(func, GInfo::new(Arc::new(libs)))?;
+    let run = to_runnable::to_runnable(func, GInfo::new(Arc::new(libs), enum_variants))?;
     #[cfg(debug_assertions)]
     eprintln!("Runnable: {run:#?}");
     Ok(run)
@@ -463,10 +467,14 @@ pub(crate) fn parse_type_adv(
             Some('/') => {
                 file.next();
             }
-            Some(ch) => {
+            Some(')') => {
+                closed_fn_args = true;
+                file.next();
                 break;
             }
-            _ => break,
+            Some(_) => break,
+
+            None => break,
         }
     }
     Ok((VType { types }, closed_fn_args))
@@ -506,6 +514,13 @@ fn parse_single_type_adv(
                     }
                     types.push(parse_type(file)?);
                 }
+                if in_fn_args {
+                    file.skip_whitespaces();
+                    if let Some(')') = file.peek() {
+                        closed_bracket_in_fn_args = true;
+                        file.next();
+                    }
+                }
                 if types.len() == 1 {
                     VSingleType::List(types.pop().unwrap())
                 } else {
@@ -529,14 +544,13 @@ fn parse_single_type_adv(
                                 VSingleType::EnumVariantS(name, {
                                     let po = parse_type_adv(file, true)?;
                                     if !po.1 {
-                                        eprintln!("enum type should be closed by ')', but apparently wasn't?");
+                                        // eprintln!("enum type should be closed by ')', but apparently wasn't?");
                                         assert_eq!(file.next(), Some(')'));
                                     }
                                     po.0
                                 })
                             };
                         }
-
                         Some(')') if in_fn_args => {
                             closed_bracket_in_fn_args = true;
                             break;
@@ -550,7 +564,10 @@ fn parse_single_type_adv(
                     "int" => VSingleType::Int,
                     "float" => VSingleType::Float,
                     "string" => VSingleType::String,
-                    _ => todo!("Err: Invalid type: \"{}\"", name.trim()),
+                    _ => {
+                        eprintln!("in_fn_args: {in_fn_args}");
+                        todo!("Err: Invalid type: \"{}\"", name.trim())
+                    }
                 }
             }
             None => todo!("Err: EOF in type (1)"),
