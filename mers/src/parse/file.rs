@@ -75,6 +75,9 @@ impl File {
                 None => break,
             }
         }
+        if !data.ends_with('\n') {
+            data.push('\n');
+        }
         let chars = data.char_indices().collect();
         Self {
             path,
