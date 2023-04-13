@@ -337,6 +337,7 @@ A possible solution in mers looks like this:
         // 0
         // -50
         // 4*4*5 = 80
+        // 21
         // => expected sum: 5403
     }
     // calculates the score for a line of words. returns 1 for empty lines.
