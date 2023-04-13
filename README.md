@@ -43,6 +43,7 @@ for simplicity, i will assume you have the executable in your path and it is nam
 
 
 To run a program, just run `mers script.txt`. The file needs to be valid utf8.
+Alternatively, run `mers -e println("Hello, file-less world")`.
 If you compiled mers in debug mode, it will print a lot of debugging information.
 
 
