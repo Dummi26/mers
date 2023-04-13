@@ -2,6 +2,17 @@
 
 Mers is an experimental programming language inspired by high-level and scripting languages, but with error handling inspired by rust.
 
+## WARNING
+
+If you use libraries, be aware that they run as a seperate process that might not exit with mers!
+This means that, after running a script 40-50 times (which can happen more quickly than you might realize),
+you might find 40-50 random processes just running and possibly maxing our your cpu.
+So if you use libraries (recommendation: don't, the implementation is pretty bad anyway. just use any other language), make sure to kill those processes once you're done
+until I figure out how to make that happen automatically.
+(I believe the issue happens when closing the window from the GUI library, which crashes mers, leaving the http library process running)
+
+(other than that, the language is pretty usable, i promise...)
+
 ## Features
 
 ### Multiple Types

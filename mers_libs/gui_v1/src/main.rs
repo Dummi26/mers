@@ -1,14 +1,12 @@
 use std::{
-    collections::HashMap,
     io::{self, Read},
-    rc::Rc,
-    sync::{mpsc, Arc},
+    sync::mpsc,
     time::Duration,
 };
 
 use iced::{
     executor, time,
-    widget::{self, button, column, row, text},
+    widget::{button, column, row, text},
     Application, Command, Element, Renderer, Settings, Subscription, Theme,
 };
 use mers::{
@@ -94,7 +92,7 @@ fn main() {
         let mut layout = Layout::Row(vec![]);
         loop {
             run = match my_lib.run(run, &mut stdin, &mut stdout) {
-                MyLibTask::None(v) => v,
+                MyLibTask::None(v) | MyLibTask::FinishedInit(v) => v,
                 MyLibTask::RunFunction(mut f) => {
                     let return_value = match f.function {
                         0 => VDataEnum::List(VSingleType::Int.to(), vec![]).to(),
@@ -104,7 +102,7 @@ fn main() {
                                 match recv {
                                     MessageAdv::ButtonPressed(path) => v.push(
                                         VDataEnum::EnumVariant(
-                                            my_lib.get_enum("ButtonPressed"),
+                                            my_lib.get_enum("ButtonPressed").unwrap(),
                                             Box::new(
                                                 VDataEnum::List(VSingleType::Int.to(), path).to(),
                                             ),
@@ -190,10 +188,10 @@ fn main() {
 }
 
 fn layout_from_vdata(my_lib: &MyLib, d: VDataEnum) -> Layout {
-    let row = my_lib.get_enum("Row");
-    let col = my_lib.get_enum("Column");
-    let text = my_lib.get_enum("Text");
-    let button = my_lib.get_enum("Button");
+    let row = my_lib.get_enum("Row").unwrap();
+    let col = my_lib.get_enum("Column").unwrap();
+    let text = my_lib.get_enum("Text").unwrap();
+    let button = my_lib.get_enum("Button").unwrap();
     if let VDataEnum::EnumVariant(variant, inner_data) = d {
         if variant == row {
             Layout::Row(vec![])
@@ -257,7 +255,7 @@ impl Application for App {
                 recv: flags.0,
                 sender: flags.1,
                 buttons: vec![],
-                layout: Layout::Row(vec![]),
+                layout: Layout::Column(vec![]),
             },
             Command::none(),
         )
@@ -361,6 +359,7 @@ impl App {
         }
     }
     fn calc_layout_stats(&mut self) {
+        self.buttons.clear();
         Self::calc_layout_stats_rec(&self.layout, &mut vec![], &mut self.buttons)
     }
     fn calc_layout_stats_rec(

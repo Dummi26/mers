@@ -32,7 +32,8 @@ the identifying ascii chars:
         f a function: followed by the function signature, i.e. "my_func(string int/float [string]) string/[float int]"
         x end: indicates that you are done registering things
   I init 2
-    TODO! (currently nothing)
+    can send some tasks,
+    must end with a line saying 'init_finished'.
     reply should be a single line (only the newline char). If there is data before the newline char, it will be reported as an error and the script will not run.
   f call a function:
     followed by the function id byte (0 <= id < #funcs; function ids are assigned in ascending order as they were registered in the reply to "i"
@@ -124,9 +125,11 @@ impl Lib {
                     _ => todo!(),
                 }
             }
+            write!(stdin, "I").unwrap();
             for (enum_name, enum_id) in enum_variants.iter() {
-                writeln!(stdin, "Iset_enum_id {enum_name} {enum_id}").unwrap();
+                writeln!(stdin, "set_enum_id {enum_name} {enum_id}").unwrap();
             }
+            writeln!(stdin, "init_finished").unwrap();
             Ok(Self {
                 process: handle,
                 stdin: Arc::new(Mutex::new(stdin)),

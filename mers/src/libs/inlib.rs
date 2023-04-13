@@ -5,10 +5,7 @@ use std::{
 
 use crate::{
     libs::DirectReader,
-    script::{
-        val_data::{VData, VDataEnum},
-        val_type::VType,
-    },
+    script::{val_data::VData, val_type::VType},
 };
 
 use super::{data_from_bytes, data_to_bytes};
@@ -38,8 +35,8 @@ impl MyLib {
             MyLibTaskCompletion { _priv: () },
         )
     }
-    pub fn get_enum(&self, e: &str) -> usize {
-        *self.enum_variants.get(e).unwrap()
+    pub fn get_enum(&self, e: &str) -> Option<usize> {
+        self.enum_variants.get(e).map(|v| *v)
     }
     pub fn run<I, O>(
         &mut self,
@@ -84,19 +81,27 @@ impl MyLib {
             }
             'I' => {
                 let mut line = String::new();
-                stdin.read_line(&mut line).unwrap();
-                if let Some((task, args)) = line.split_once(' ') {
-                    match task {
-                        "set_enum_id" => {
-                            let (enum_name, enum_id) = args.split_once(' ').unwrap();
-                            let name = enum_name.trim().to_string();
-                            let id = enum_id.trim().parse().unwrap();
-                            self.enum_variants.insert(name.clone(), id);
+                loop {
+                    line.clear();
+                    stdin.read_line(&mut line).unwrap();
+                    if let Some((task, args)) = line.split_once(' ') {
+                        match task {
+                            "set_enum_id" => {
+                                let (enum_name, enum_id) = args.split_once(' ').unwrap();
+                                let name = enum_name.trim().to_string();
+                                let id = enum_id.trim().parse().unwrap();
+                                self.enum_variants.insert(name.clone(), id);
+                            }
+                            _ => todo!(),
                         }
-                        _ => todo!(),
+                    } else {
+                        match line.trim_end() {
+                            "init_finished" => break,
+                            _ => unreachable!(),
+                        }
                     }
                 }
-                None
+                Some(MyLibTask::FinishedInit(MyLibTaskCompletion { _priv: () }))
             }
             'f' => {
                 let fnid = stdin.one_byte().unwrap() as usize;
@@ -119,6 +124,7 @@ impl MyLib {
 
 pub enum MyLibTask {
     None(MyLibTaskCompletion),
+    FinishedInit(MyLibTaskCompletion),
     RunFunction(MyLibTaskRunFunction),
 }
 pub struct MyLibTaskRunFunction {

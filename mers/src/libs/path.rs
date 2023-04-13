@@ -10,7 +10,6 @@ pub fn path_from_string(path: &str, script_directory: &PathBuf) -> Option<PathBu
         .unwrap_or_else(|_| script_directory.clone())
         .parent()
     {
-        eprintln!("Parent: {:?}", p);
         let p = p.join(&path);
         if p.exists() {
             return Some(p);

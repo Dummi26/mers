@@ -1,0 +1,3 @@
+#!/bin/bash
+cd ./http_requests_v1
+cargo run --release

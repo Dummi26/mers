@@ -32,6 +32,18 @@ impl File {
         let mut data = String::with_capacity(data.len());
         loop {
             match chs.next() {
+                Some('\\') => match chs.next() {
+                    // backslash can escape these characters:
+                    Some('\n') => data.push('\\'),
+                    // backshash invalidates comments, so \// will just be //.
+                    Some('/') => data.push('/'),
+                    // backslash does nothing otherwise.
+                    Some(ch) => {
+                        data.push('\\');
+                        data.push(ch);
+                    }
+                    None => data.push('\\'),
+                },
                 Some('/') => match chs.next() {
                     Some('/') => loop {
                         match chs.next() {

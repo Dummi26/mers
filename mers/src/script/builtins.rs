@@ -20,6 +20,7 @@ pub const EVS: [&'static str; 1] = ["Err"];
 pub enum BuiltinFunction {
     // core
     Assume1, // assume []/[t] is [t], return t. Optionally provide a reason as to why (2nd arg)
+    AssumeNoEnum, // assume enum(*)/t is t.
     NoEnum,
     Matches,
     // print
@@ -83,6 +84,7 @@ impl BuiltinFunction {
     pub fn get(s: &str) -> Option<Self> {
         Some(match s {
             "assume1" => Self::Assume1,
+            "assume_no_enum" => Self::AssumeNoEnum,
             "noenum" => Self::NoEnum,
             "matches" => Self::Matches,
             "print" => Self::Print,
@@ -151,10 +153,41 @@ impl BuiltinFunction {
                         }
                     }
                     if !len0 {
-                        eprintln!("Warn: calling assume1 on a value of type {}, which will never be a length-0 tuple and therefore will not cannot fail.", input[0]);
+                        eprintln!("Warn: calling assume1 on a value of type {}, which will never be a length-0 tuple and therefore cannot fail.", input[0]);
                     }
                     if !len1 {
                         eprintln!("Warn: calling assume1 on a value of type {}, which will always be a length-0 tuple!", input[0]);
+                    }
+                    if input.len() >= 2 {
+                        if input.len() == 2 {
+                            input[1].fits_in(&VSingleType::String.to()).is_empty()
+                        } else {
+                            false
+                        }
+                    } else {
+                        true
+                    }
+                } else {
+                    false
+                }
+            }
+            Self::AssumeNoEnum => {
+                if input.len() >= 1 {
+                    let mut someenum = false;
+                    let mut noenum = false;
+                    for t in input[0].types.iter() {
+                        match t {
+                            VSingleType::EnumVariant(..) | VSingleType::EnumVariantS(..) => {
+                                someenum = true
+                            }
+                            _ => noenum = true,
+                        }
+                    }
+                    if !someenum {
+                        eprintln!("Warn: calling assume_no_enum on a value of type {}, which will never be an enum and therefore cannot fail.", input[0]);
+                    }
+                    if !noenum {
+                        eprintln!("Warn: calling assume_no_enum on a value of type {}, which will always be an enum!", input[0]);
                     }
                     if input.len() >= 2 {
                         if input.len() == 2 {
@@ -337,6 +370,16 @@ impl BuiltinFunction {
                             }
                         }
                         v => out = out | v.clone().to(),
+                    }
+                }
+                out
+            }
+            Self::AssumeNoEnum => {
+                let mut out = VType { types: vec![] };
+                for t in &input[0].types {
+                    match t {
+                        VSingleType::EnumVariant(..) | VSingleType::EnumVariantS(..) => (),
+                        t => out = out | t.clone().to(),
                     }
                 }
                 out
@@ -557,12 +600,31 @@ impl BuiltinFunction {
                                 }
                             } else {
                                 String::new()
-                            }
+                            },
                         );
                     }
                 }
                 v => v.to(),
             },
+            Self::AssumeNoEnum => {
+                let data = args[0].run(vars, libs);
+                match data.data {
+                    VDataEnum::EnumVariant(..) => panic!(
+                        "ASSUMPTION FAILED: assume_no_enum :: found {} :: {}",
+                        data,
+                        if args.len() > 1 {
+                            if let VDataEnum::String(v) = args[1].run(vars, libs).data {
+                                v
+                            } else {
+                                String::new()
+                            }
+                        } else {
+                            String::new()
+                        }
+                    ),
+                    d => d.to(),
+                }
+            }
             Self::NoEnum => args[0].run(vars, libs).noenum(),
             Self::Matches => match args[0].run(vars, libs).data.matches() {
                 Some(v) => VDataEnum::Tuple(vec![v]).to(),
@@ -1232,25 +1294,32 @@ impl BuiltinFunction {
             }
             Self::Get => {
                 if args.len() == 2 {
-                    if let (VDataEnum::Reference(v), VDataEnum::Int(i)) =
+                    if let (container, VDataEnum::Int(i)) =
                         (args[0].run(vars, libs).data, args[1].run(vars, libs).data)
                     {
-                        if let VDataEnum::List(_, v) | VDataEnum::Tuple(v) =
-                            &mut v.lock().unwrap().data
-                        {
-                            if i >= 0 {
-                                match v.get(i as usize) {
-                                    Some(v) => VDataEnum::Tuple(vec![v.clone()]).to(),
-                                    None => VDataEnum::Tuple(vec![]).to(),
+                        if i >= 0 {
+                            match match container {
+                                VDataEnum::Reference(v) => match &v.lock().unwrap().data {
+                                    VDataEnum::List(_, v) | VDataEnum::Tuple(v) => {
+                                        v.get(i as usize).map(|v| v.clone())
+                                    }
+                                    _ => unreachable!(
+                                        "get: reference to something other than list/tuple"
+                                    ),
+                                },
+                                VDataEnum::List(_, v) | VDataEnum::Tuple(v) => {
+                                    v.get(i as usize).map(|v| v.clone())
                                 }
-                            } else {
-                                VDataEnum::Tuple(vec![]).to()
+                                _ => unreachable!("get: not a reference/list/tuple"),
+                            } {
+                                Some(v) => VDataEnum::Tuple(vec![v]).to(),
+                                None => VDataEnum::Tuple(vec![]).to(),
                             }
                         } else {
-                            unreachable!("get: not a list/tuple")
+                            VDataEnum::Tuple(vec![]).to()
                         }
                     } else {
-                        unreachable!("get: not a reference and index")
+                        unreachable!("get: not a list/tuple/reference and index")
                     }
                 } else {
                     unreachable!("get: not 2 args")
@@ -1347,12 +1416,21 @@ impl BuiltinFunction {
                         };
                         let left = if left >= 0 { left as usize } else { 0 };
                         if let Some(len) = len {
-                            let len = if len >= 0 {
-                                len as usize
+                            if len >= 0 {
+                                VDataEnum::String(
+                                    a.chars()
+                                        .skip(left)
+                                        .take((len as usize).saturating_sub(left))
+                                        .collect(),
+                                )
+                                .to()
                             } else {
-                                todo!("negative len - shorthand for backwards? not sure yet...")
-                            };
-                            VDataEnum::String(a.chars().skip(left).take(len).collect()).to()
+                                // negative end index => max length
+                                VDataEnum::String(
+                                    a.chars().skip(left).take(len.abs() as usize).collect(),
+                                )
+                                .to()
+                            }
                         } else {
                             VDataEnum::String(a.chars().skip(left).collect()).to()
                         }

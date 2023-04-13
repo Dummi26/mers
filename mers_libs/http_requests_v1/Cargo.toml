@@ -1,5 +1,5 @@
 [package]
-name = "http_requests"
+name = "http_requests_v1"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 mers = { path = "../../mers/" }
+reqwest = { version = "0.11.16", features = ["blocking"] }
