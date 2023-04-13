@@ -209,7 +209,7 @@ You have to cover `[]/int` because the condition in the loop might not match for
 ### Let's read a file!
 
     file = fs_read(&args.get(0).assume1("please provided a text file to read!"))
-    switch! {}
+    switch! file {}
 
 Since `get()` can fail, it returns `[]/[t]` where t is the type of elements in the list. To avoid handling the `[]` case, the `assume1()` builtin takes a `[]/[t]` and returns `t`. If the value is `[]`, it will cause a crash.
 
