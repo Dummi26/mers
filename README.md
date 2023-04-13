@@ -275,15 +275,15 @@ Mers has the following builtin types:
   + list types are written as a single type enclosed in square brackets: [string]. TODO! this will likely change to [string ...] or something similar to allow 1-long tuples in function args.
   + list values are created by putting any number of statements in square brackets, prefixing the closing bracket with ...: ["hello" "mers" "world" ...].
 - functions
-  + function types are written as fn(args) out_type (TODO! implement this)
-  + function values are created using the (<first_arg_name> <first_arg_type> <second_arg_name> <second_arg_type>) <statement> syntax: anonymous_power_function = (a int b int) a.pow(b).
-  + to run anonymous functions, use the run() builtin: anonymous_power_function.run(4 2) evaluates to 16.
-  + note: functions are defined using the fn <name>(<args>) <statement> syntax and are different from anonymous functions because they aren't values and can be run directory: fn power_function(a int b int) a.pow(b) => power_function(4 2) => 16
+  + function types are written as `fn(args) out_type`. (TODO! implement this)
+  + function values are created using the `(first_arg_name first_arg_type second_arg_name second_arg_type) statement` syntax: `anonymous_power_function = (a int b int) a.pow(b)`.
+  + to run anonymous functions, use the run() builtin: `anonymous_power_function.run(4 2)` evaluates to `16`.
+  + note: functions are defined using the `fn name(args) statement` syntax and are different from anonymous functions because they aren't values and can be run directly: `fn power_function(a int b int) a.pow(b)` => `power_function(4 2)` => `16`
 - thread
-  + a special type returned by the thread builtin. It is similar to JavaScript promises and can be awaited to get the value once it has finished computing.
+  + a special type returned by the thread builtin. It is similar to JavaScript promises and can be awaited to get the value once it has finished computing. Reading the thread example is probably the best way to see how this works.
 - reference
-  + a mutable reference to a value. &<type> for the type and &<statement> for a reference value.
+  + a mutable reference to a value. `&type` for the type and `&statement` for a reference value (usually `&varname`).
 - enum
   + wraps any other value with a certain identifier.
-  + the type is written as <enum>(<type>): many builtins use Err(String) to report errors.
-  + to get a value, use <enum>: <statement>.
+  + the type is written as `enum(type)`: many builtins use `Err(String)` to report errors.
+  + to get a value, use `enum: statement`. `Err: "something went wrong"`

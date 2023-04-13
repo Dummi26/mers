@@ -1,0 +1,35 @@
+// this is true by default so the example doesn't finish too quickly or too slowly depending on your hardware.
+// you can set it to false and tweak the max value for a more authentic cpu-heavy workload.
+fake_delay = true
+
+// this will be shared between the two threads to report the progress in percent (0-100%).
+progress = 0
+
+// an anonymous function that sums all numbers from 0 to max.
+// it captures the progress variable and uses it to report its status to the main thread, which will periodically print the current progress.
+// once done, it returns a string with the sum of all numbers.
+calculator = (max int) {
+    sum = 0
+    for i max {
+        i = i.add(1)
+        sum = sum.add(i)
+        if fake_delay sleep(1)
+        progress = i.mul(100).div(max)
+    }
+    "the sum of all numbers from 0 to {0} is {1}!".format(max sum)
+}
+
+// start the thread. if fake_delay is true, calculate 1+2+3+4+5+6+7+8+9+10. if fake_delay is false, count up to some ridiculously large number.
+slow_calculation_thread = calculator.thread(if fake_delay 10 else 20000000)
+
+// every second, print the progress. once it reaches 100%, stop
+while {
+    sleep(1)
+    println("{0}%".format(progress))
+    progress.eq(100) // break from the loop
+}
+
+// use await() to get the result from the thread. if the thread is still running, this will block until the thread finishes.
+result = slow_calculation_thread.await()
+
+println("Thread finished, result: {0}".format(result))
