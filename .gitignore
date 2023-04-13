@@ -1,2 +1,4 @@
 /mers/target
+/mers/Cargo.lock
 /mers_libs/*/target
+/mers_libs/*/Cargo.lock
