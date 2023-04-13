@@ -10,4 +10,7 @@ name = "mers"
 path = "src/main.rs"
 
 [dependencies]
+edit = "0.1.4"
+notify = "5.1.0"
 regex = "1.7.2"
+static_assertions = "1.1.0"

@@ -33,9 +33,31 @@ impl From<ToRunnableError> for ScriptError {
 #[derive(Debug)]
 pub enum ParseError {}
 
+pub const PARSE_VERSION: u64 = 0;
+
+/// executes the 4 parse_steps in order: lib_paths => interpret => libs_load => compile
 pub fn parse(file: &mut File) -> Result<RScript, ScriptError> {
+    let mut ginfo = GInfo::default();
+    let libs = parse_step_lib_paths(file);
+    let func = parse_step_interpret(file)?;
+    ginfo.libs = Arc::new(parse_step_libs_load(libs, &mut ginfo));
+
+    eprintln!();
+    #[cfg(debug_assertions)]
+    eprintln!("Parsed: {func}");
+    #[cfg(debug_assertions)]
+    eprintln!("Parsed: {func:#?}");
+
+    let run = parse_step_compile(func, &mut ginfo)?;
+
+    #[cfg(debug_assertions)]
+    eprintln!("Runnable: {run:#?}");
+
+    Ok(run)
+}
+
+pub fn parse_step_lib_paths(file: &mut File) -> Vec<Command> {
     let mut libs = vec![];
-    let mut enum_variants = GInfo::default_enum_variants();
     loop {
         file.skip_whitespaces();
         let pos = file.get_pos().clone();
@@ -49,37 +71,43 @@ pub fn parse(file: &mut File) -> Result<RScript, ScriptError> {
             if let Some(parent) = path_to_executable.parent() {
                 cmd.current_dir(parent.clone());
             }
-            match libs::Lib::launch(cmd, &mut enum_variants) {
-                Ok(lib) => {
-                    libs.push(lib);
-                    eprintln!("Loaded library!");
-                }
-                Err(e) => panic!(
-                    "Unable to load library at {}: {e:?}",
-                    path_to_executable.to_string_lossy().as_ref(),
-                ),
-            }
+            libs.push(cmd);
         } else {
             file.set_pos(pos);
             break;
         }
     }
-    let func = SFunction::new(
+    libs
+}
+
+pub fn parse_step_interpret(file: &mut File) -> Result<SFunction, ParseError> {
+    Ok(SFunction::new(
         vec![(
             "args".to_string(),
             VSingleType::List(VSingleType::String.into()).into(),
         )],
         parse_block_advanced(file, Some(false), true, true, false)?,
-    );
-    eprintln!();
-    #[cfg(debug_assertions)]
-    eprintln!("Parsed: {func}");
-    #[cfg(debug_assertions)]
-    eprintln!("Parsed: {func:#?}");
-    let run = to_runnable::to_runnable(func, GInfo::new(Arc::new(libs), enum_variants))?;
-    #[cfg(debug_assertions)]
-    eprintln!("Runnable: {run:#?}");
-    Ok(run)
+    ))
+}
+
+pub fn parse_step_libs_load(lib_cmds: Vec<Command>, ginfo: &mut GInfo) -> Vec<libs::Lib> {
+    let mut libs = vec![];
+    for cmd in lib_cmds {
+        match libs::Lib::launch(cmd, &mut ginfo.enum_variants) {
+            Ok(lib) => {
+                libs.push(lib);
+            }
+            Err(e) => eprintln!("!! Unable to load library: {e:?} !!",),
+        }
+    }
+    libs
+}
+
+pub fn parse_step_compile(
+    main_func: SFunction,
+    ginfo: &mut GInfo,
+) -> Result<RScript, ToRunnableError> {
+    to_runnable::to_runnable(main_func, ginfo)
 }
 
 fn parse_block(file: &mut File) -> Result<SBlock, ParseError> {
@@ -503,8 +531,17 @@ fn parse_single_type_adv(
             // Tuple or Array
             Some('[') => {
                 let mut types = vec![];
+                let mut list = false;
                 loop {
                     file.skip_whitespaces();
+                    if file[file.get_char_index()..].starts_with("...]") {
+                        list = true;
+                        file.next();
+                        file.next();
+                        file.next();
+                        file.next();
+                        break;
+                    }
                     match file.peek() {
                         Some(']') => {
                             file.next();
@@ -521,7 +558,7 @@ fn parse_single_type_adv(
                         file.next();
                     }
                 }
-                if types.len() == 1 {
+                if list {
                     VSingleType::List(types.pop().unwrap())
                 } else {
                     VSingleType::Tuple(types)

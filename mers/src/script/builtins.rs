@@ -354,7 +354,16 @@ impl BuiltinFunction {
                 }
             }
             // TODO! finish this
-            _ => true,
+            Self::Pop | Self::Remove | Self::Get | Self::Len | Self::Substring => true,
+            Self::Contains | Self::StartsWith | Self::EndsWith | Self::Regex => {
+                input.len() == 2
+                    && input
+                        .iter()
+                        .all(|v| v.fits_in(&VSingleType::String.to()).is_empty())
+            }
+            Self::Trim => {
+                input.len() == 1 && input[0].fits_in(&VSingleType::String.to()).is_empty()
+            }
         }
     }
     /// for invalid inputs, may panic

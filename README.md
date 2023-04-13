@@ -32,23 +32,33 @@ To index this tuple, you can use `tuple.0` for the exit code and `tuple.1` and `
 
 The compiler checks your program. It will guarantee type-safety. If a variable has type `int/float/bool`, it cannot be used in the add() function, because you can't add bools.
 
-## Intro
+## building mers
 
-### mers cli
-
-to use mers, clone this repo and compile it using cargo. (if you don't have rustc and cargo, get it from https://rustup.rs/)
+to use mers, clone this repo and compile it using cargo. (if you don't have rustc and cargo, get it from https://rustup.rs/. the mers project is in the mers subdirectory, one level deeper than this readme.)
 
 for simplicity, i will assume you have the executable in your path and it is named mers. Since this probably isn't the case, just know that `mers` can be replaced with `cargo run --release` in all of the following commands.
 
+### running from a file
 
-
-To run a program, just run `mers script.txt`. The file needs to be valid utf8.
+To run a program, just run `mers your_file.txt`. The file needs to be valid utf8.
 Alternatively, run `mers -e println("Hello, file-less world")`.
 If you compiled mers in debug mode, it will print a lot of debugging information.
 
+### interactive mode
 
+Use `mers -i` to start interactive mode. mers will create a temporary file and open it in your default editor. Every time the file is saved, mers reloads and runs it, showing errors or the output.
+
+If your default editor is a CLI editor, it might hide mers' output. Run `mers -i+t` to start the editor in another terminal. This requires that $TERM is a terminal emulator that works with the `TERM -e command args` syntax (alacritty, konsole, ..., but not wezterm).
+
+### Output
 
 Somewhere in mers' output, you will see a line with five '-' characters: ` - - - - -`. This is where your program starts running. The second time you see this line is where your program finished. After this, You will see how long your program took to run and its output.
+
+## Intro
+
+Welcome to mers! This section explains the basics of the language via examples.
+Some basic knowledge of another programming language might be helpful,
+but no advanced knowledge is required (and if it is, that just means that my examples aren't good enough and need to be improved).
 
 ### Hello, World!
 
@@ -57,7 +67,7 @@ Since this is likely your first time using mers, let's write a hello world progr
     println("Hello, World!")
 
 If you're familiar with other programming languages, this is probably what you expected. Running it prints Hello, World! between the two five-dash-lines.
-The `"` character starts/ends a string literal. This creates a value of type `string` which is then passed to the `println()` function, which writes the string to the programs stdout.
+The `"` character starts/ends a string literal. This creates a value of type `String` which is then passed to the `println()` function, which writes the string to the programs standard output (stdout).
 
 ### Hello, World?
 
@@ -65,7 +75,7 @@ But what if we didn't print anything?
 
     "Hello, World?"
 
-Running this should show Hello, World? as the program's output. This is because the output of a code block in mers is always the output of its last statement. Since we only have one statement, its output is the entire program's output.
+Running this should show `Hello, World?` as the program's output. This is because the output of a code block in mers is always the output of its last statement. Since we only have one statement, its output is the entire program's output.
 
 ### Hello, Variable!
 
@@ -90,7 +100,8 @@ The builtin `read_line()` function reads a line from stdin. It can be used to ge
 
 ### Format
 
-`format()` is a builtin function that takes a string (called the format string) and any number of further arguments. The pattern `{n}` anywhere in the format string will be replaced with the n-th argument, not counting the format string.
+`format()` is a builtin function that is used to format text.
+It takes a string (called the format string) and any number of further arguments. The pattern `{n}` anywhere in the format string will be replaced with the n-th argument, not counting the format string.
 
     println("What is your name?")
     name = read_line()
@@ -98,22 +109,20 @@ The builtin `read_line()` function reads a line from stdin. It can be used to ge
 
 ### alternative syntax for the first argument
 
-If function(a b) is valid, you can also use a.function(b). This does exactly the same thing, because a.function(args) inserts a as the first argument, moving all other args back by one.
+If function(a b) is valid, you can also use a.function(b). They do exactly the same thing.
 This can make reading `println(format(...))` statements a lot more enjoyable:
 
     println("Hello, {0}! How was your day?".format(name))
 
-However, this can also be overused:
+This also works to chain multiple functions together:
 
     "Hello, {0}! How was your day?".format(name).println()
-
-I would consider this to be less readable because `println()`, which is the one and only thing this line was written to achieve, is now the last thing in the line. Readers need to read the entire line before realizing it's "just" a print statement. However, this is of course personal preference.
 
 ### A simple counter
 
 Let's build a counter app: We start at 0. If the user types '+', we increment the counter by one. If they type '-', we decrement it. If they type anything else, we print the current count in a status message.
 
-The first thing we will need for this is a loop:
+The first thing we will need for this is a loop to prevent the app from stopping after the first user input:
 
     while {
         println("...")
@@ -121,7 +130,15 @@ The first thing we will need for this is a loop:
 
 Running this should spam your terminal with '...'.
 
-Now let's add a counter variable and read user input:
+Now let's add a counter variable, read user input and print the status message.
+
+    counter = 0
+    while {
+        input = read_line()
+        println("The counter is currently at {0}. Type + or - to change it.".format(counter))
+    }
+
+We can then use `eq(a b)` to check if the input is equal to + or -, and then decide to increase or decrease counter:
 
     counter = 0
     while {
@@ -135,7 +152,7 @@ Now let's add a counter variable and read user input:
         }
     }
 
-mers actually doesn't have an else-if, the if statement is parsed as:
+mers actually doesn't have an else-if, the if statement is simply parsed as:
 
     if input.eq("+") {
         counter = counter.add(1)
@@ -153,7 +170,7 @@ In fact, `fn difference(a int/float b int/float) if a.gt(b) a.sub(b) else b.sub(
 
 ### Getting rid of the if-else-chain
 
-Let's replace the if statement from before with a nice match statement!
+Let's replace the if statement from before with a match statement!
 
     counter = 0
     while {
@@ -170,6 +187,8 @@ the syntax for a match statement is always `match <variable> { <match arms> }`.
 A match arm consists of a condition statement and an action statement. `input.eq("+")`, `input.eq("-")`, and `true` are condition statements.
 The match statement will go through all condition statements until one matches (in this case: returns `true`), then run the action statement.
 If we move the `true` match arm to the top, the other two arms will never be executed, even though they might also match.
+
+Match statements are a lot more powerful than if-else-statements, but this will be explained in a later example.
 
 ### Breaking from loops
 
@@ -250,7 +269,95 @@ We then print the string we read from the file (the `contents` variable).
 
 ### Advanced match statements
 
-(todo)
+Some constructs in mers use the concept of "Matching". The most obvious example of this is the `match` statement:
+
+    x = 10
+    match x {
+        x.eq(10) println("x was 10.")
+        true println("x was not 10.")
+    }
+
+Here, we check if x is equal to 10. If it is, we print "x was 10.". If not, we print "x was not 10.".
+So far, this is almost the same as an if statement.
+
+However, match statements have a superpower: They can change the value of the variable:
+
+    x = 10
+    match x {
+        x.eq(10) println("x is now {0}".format(x))
+        true println("x was not 10.")
+    }
+
+Instead of the expected "x is now 10", this actually prints "x is now true", because `x.eq(10)` returned `true`.
+In this case, this behavior isn't very useful. However, many builtin functions are designed with matching in mind.
+
+For example, `parse_int()` and `parse_float()` return `[]/int` and `[]/float`. `[]` will not match, but `int` and `float` will.
+
+We can use this to parse a list of strings into numbers: First, try to parse the string to an int. If that doesn't work, try a float. If that also doesn't work, print "not a number".
+
+Using a match statement, this is one way to implement it:
+
+    strings = ["87" "not a number" "25" "14.5" ...]
+    for x strings {
+        match x {
+            x.parse_int() println("int: {0} = 10 * {1} + {2}".format(x x.sub(x.mod(10)).div(10) x.mod(10)))
+            x.parse_float() println("float: {0} = {1} + {2}".format(x x.sub(x.mod(1)) x.mod(1)))
+            true println("not a number")
+        }
+    }
+
+
+Because the condition statement is just a normal expression, we can make it do pretty much anything. This means we can define our own functions and use those in the match statement
+to implement almost any functionality we want. All we need to know is that `[]` doesn't match and `[v]` does match with `v`, so if our function returns `["some text"]` and is used in a match statement,
+the variable that is being matched on will become `"some text"`.
+
+### Example: sum of all scores of the lines in a string
+
+This is the task:
+
+You are given a string. Each line in that string is either an int, one or more words (a-z only), or an empty line. Calculate the sum of all scores.
+
+- If a line contains an int, its score is just that int: "20" has a score of 20.
+- If a line contains words, its score is the product of the length of all words: "hello world" has a score of 5*5=25.
+- If a line is empty, its score is 0.
+
+A possible solution in mers looks like this:
+
+    // if there is at least one argument, treat each argument as one line of puzzle input. otherwise, use the default input.
+    input = if args.len().gt(0) {
+        input = ""
+        for arg args {
+            input = input.add(arg).add("\n")
+        }
+        input
+    } else {
+        "this is the default puzzle input\n312\n\n-50\nsome more words\n21"
+        // 4*2*3*7*6*5 = 5040
+        // 312
+        // 0
+        // -50
+        // 4*4*5 = 80
+        // => expected sum: 5403
+    }
+    // calculates the score for a line of words. returns 1 for empty lines.
+    fn word_line_score(line string) {
+        line_score = 1
+        // \S+ matches any number of non-whitespace characters => split at spaces
+        for x line.regex("\\S+").assume_no_enum("word-split regex is valid") {
+            line_score = line_score.mul(x.len())
+        }
+        line_score
+    }
+    sum = 0
+    // .+ matches all lines that aren't empty
+    for x input.regex(".+").assume_no_enum("line-split regex is valid") {
+        match x {
+            x.parse_int() sum = sum.add(x)
+            x.word_line_score() sum = sum.add(x)
+        }
+    }
+    sum
+
 
 ## Advanced Info / Docs
 

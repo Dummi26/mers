@@ -8,7 +8,7 @@ use std::{
 
 use crate::libs;
 
-use self::to_runnable::{ToRunnableError, GInfo};
+use self::to_runnable::{GInfo, ToRunnableError};
 
 use super::{
     builtins::BuiltinFunction,
@@ -94,10 +94,14 @@ pub mod to_runnable {
         sync::Arc,
     };
 
-    use crate::{script::{
-        val_data::VDataEnum,
-        val_type::{VSingleType, VType}, builtins,
-    }, libs};
+    use crate::{
+        libs,
+        script::{
+            builtins,
+            val_data::VDataEnum,
+            val_type::{VSingleType, VType},
+        },
+    };
 
     use super::{
         BuiltinFunction, RBlock, RFunction, RScript, RStatement, RStatementEnum, SBlock, SFunction,
@@ -150,13 +154,27 @@ pub mod to_runnable {
     // Global, shared between all
     pub struct GInfo {
         vars: usize,
-        libs: Arc<Vec<libs::Lib>>,
-        lib_fns: HashMap<String, (usize, usize)>,
-        enum_variants: HashMap<String, usize>,
+        pub libs: Arc<Vec<libs::Lib>>,
+        pub lib_fns: HashMap<String, (usize, usize)>,
+        pub enum_variants: HashMap<String, usize>,
+    }
+    impl Default for GInfo {
+        fn default() -> Self {
+            Self {
+                vars: 0,
+                libs: Arc::new(vec![]),
+                lib_fns: HashMap::new(),
+                enum_variants: Self::default_enum_variants(),
+            }
+        }
     }
     impl GInfo {
         pub fn default_enum_variants() -> HashMap<String, usize> {
-            builtins::EVS.iter().enumerate().map(|(i, v)| (v.to_string(), i)).collect()
+            builtins::EVS
+                .iter()
+                .enumerate()
+                .map(|(i, v)| (v.to_string(), i))
+                .collect()
         }
         pub fn new(libs: Arc<Vec<libs::Lib>>, enum_variants: HashMap<String, usize>) -> Self {
             let mut lib_fns = HashMap::new();
@@ -165,7 +183,12 @@ pub mod to_runnable {
                     lib_fns.insert(name.to_string(), (libid, fnid));
                 }
             }
-            Self { vars: 0, libs, lib_fns, enum_variants }
+            Self {
+                vars: 0,
+                libs,
+                lib_fns,
+                enum_variants,
+            }
         }
     }
     // Local, used to keep local variables separated
@@ -175,24 +198,27 @@ pub mod to_runnable {
         fns: HashMap<String, Arc<RFunction>>,
     }
 
-    pub fn to_runnable(s: SFunction, mut ginfo: GInfo) -> Result<RScript, ToRunnableError> {
+    pub fn to_runnable(s: SFunction, ginfo: &mut GInfo) -> Result<RScript, ToRunnableError> {
         if s.inputs.len() != 1 || s.inputs[0].0 != "args" {
             return Err(ToRunnableError::MainWrongInput);
         }
-        assert_eq!(s.inputs[0].1,VType {
-            types: vec![VSingleType::List(VType {
-                types: vec![VSingleType::String],
-            })],
-        });
+        assert_eq!(
+            s.inputs[0].1,
+            VType {
+                types: vec![VSingleType::List(VType {
+                    types: vec![VSingleType::String],
+                })],
+            }
+        );
         let func = function(
             &s,
-            &mut ginfo,
+            ginfo,
             LInfo {
                 vars: HashMap::new(),
                 fns: HashMap::new(),
             },
         )?;
-        Ok(RScript::new(func, ginfo.vars, ginfo.libs)?)
+        Ok(RScript::new(func, ginfo.vars, ginfo.libs.clone())?)
     }
 
     // go over every possible known-type input for the given function, returning all possible RFunctions.
@@ -276,21 +302,24 @@ pub mod to_runnable {
                 for t in v {
                     stypes(t, ginfo);
                 }
-            },
-            VSingleType::EnumVariantS(e, v) => *t = VSingleType::EnumVariant({
-                if let Some(v) = ginfo.enum_variants.get(e) {
-                    *v
-                } else {
-                    let v = ginfo.enum_variants.len();
-                    ginfo.enum_variants.insert(e.clone(), v);
-                    v
-                }
-            },
-            {
-                stypes(v, ginfo);
-                v.clone()
             }
-            ),
+            VSingleType::EnumVariantS(e, v) => {
+                *t = VSingleType::EnumVariant(
+                    {
+                        if let Some(v) = ginfo.enum_variants.get(e) {
+                            *v
+                        } else {
+                            let v = ginfo.enum_variants.len();
+                            ginfo.enum_variants.insert(e.clone(), v);
+                            v
+                        }
+                    },
+                    {
+                        stypes(v, ginfo);
+                        v.clone()
+                    },
+                )
+            }
             _ => (),
         }
     }
@@ -533,7 +562,6 @@ pub mod to_runnable {
                         } else {
                             eprintln!("WARN: Match condition with return type {} never returns a match and will be ignored entirely. Note: this also skips type-checking for the action part of this match arm because the success type is not known.", case_condition_out);
                         }
-                        
                     }
                     linfo.vars.get_mut(match_on).unwrap().1 = og_type;
 
@@ -721,7 +749,7 @@ pub enum RStatementEnum {
     Switch(RStatement, Vec<(VType, RStatement)>),
     Match(usize, Vec<(RStatement, RStatement)>),
     IndexFixed(RStatement, usize),
-    EnumVariant(usize, RStatement)
+    EnumVariant(usize, RStatement),
 }
 impl RStatementEnum {
     pub fn run(&self, vars: &Vec<Am<VData>>, libs: &Arc<Vec<libs::Lib>>) -> VData {
@@ -758,7 +786,9 @@ impl RStatementEnum {
                 func.run(vars, libs)
             }
             Self::BuiltinFunction(v, args) => v.run(args, vars, libs),
-            Self::LibFunction(libid, fnid, args, _) => libs[*libid].run_fn(*fnid, &args.iter().map(|arg| arg.run(vars, libs)).collect()),
+            Self::LibFunction(libid, fnid, args, _) => {
+                libs[*libid].run_fn(*fnid, &args.iter().map(|arg| arg.run(vars, libs)).collect())
+            }
             Self::Block(b) => b.run(vars, libs),
             Self::If(c, t, e) => {
                 if let VDataEnum::Bool(v) = c.run(vars, libs).data {
@@ -802,7 +832,10 @@ impl RStatementEnum {
                     }
                     VDataEnum::String(v) => {
                         for ch in v.chars() {
-                            if let Some(v) = in_loop(VDataEnum::String(ch.to_string()).to()).data.matches() {
+                            if let Some(v) = in_loop(VDataEnum::String(ch.to_string()).to())
+                                .data
+                                .matches()
+                            {
                                 oval = v;
                                 break;
                             }
@@ -836,9 +869,7 @@ impl RStatementEnum {
                 for (case_condition, case_action) in cases {
                     // [t] => Some(t), t => Some(t), [] | false => None
                     if let Some(v) = case_condition.run(vars, libs).data.matches() {
-                        let og = {
-                            std::mem::replace(&mut *vars[*match_on].lock().unwrap(), v)
-                        };
+                        let og = { std::mem::replace(&mut *vars[*match_on].lock().unwrap(), v) };
                         let res = case_action.run(vars, libs);
                         *vars[*match_on].lock().unwrap() = og;
                         break 'm res;
@@ -847,9 +878,7 @@ impl RStatementEnum {
                 VDataEnum::Tuple(vec![]).to()
             }
             Self::IndexFixed(st, i) => st.run(vars, libs).get(*i).unwrap(),
-            Self::EnumVariant(e, v) => {
-                VDataEnum::EnumVariant(*e, Box::new(v.run(vars, libs))).to()
-            }
+            Self::EnumVariant(e, v) => VDataEnum::EnumVariant(*e, Box::new(v.run(vars, libs))).to(),
         }
     }
     pub fn out(&self) -> VType {
@@ -887,12 +916,8 @@ impl RStatementEnum {
                     a.out() | VSingleType::Tuple(vec![]).to()
                 }
             }
-            Self::While(c) => {
-                c.out().matches().1
-            }
-            Self::For(_, _, b) => {
-                VSingleType::Tuple(vec![]).to() | b.out().matches().1
-            }
+            Self::While(c) => c.out().matches().1,
+            Self::For(_, _, b) => VSingleType::Tuple(vec![]).to() | b.out().matches().1,
             Self::BuiltinFunction(f, args) => f.returns(args.iter().map(|rs| rs.out()).collect()),
             Self::Switch(switch_on, cases) => {
                 let switch_on = switch_on.out().types;
@@ -941,7 +966,11 @@ pub struct RScript {
     libs: Arc<Vec<libs::Lib>>,
 }
 impl RScript {
-    fn new(main: RFunction, vars: usize, libs: Arc<Vec<libs::Lib>>) -> Result<Self, ToRunnableError> {
+    fn new(
+        main: RFunction,
+        vars: usize,
+        libs: Arc<Vec<libs::Lib>>,
+    ) -> Result<Self, ToRunnableError> {
         if main.inputs.len() != 1 {
             return Err(ToRunnableError::MainWrongInput);
         }
@@ -1016,7 +1045,7 @@ impl Display for VSingleType {
                 write!(f, "]")?;
                 Ok(())
             }
-            Self::List(t) => write!(f, "[{t}]"),
+            Self::List(t) => write!(f, "[{t} ...]"),
             Self::Function(_) => write!(f, "FUNCTION"),
             Self::Thread(_) => write!(f, "THREAD"),
             Self::Reference(r) => write!(f, "&{r}"),
