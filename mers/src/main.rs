@@ -1,4 +1,4 @@
-use std::{fs, sync::Arc, time::Instant};
+use std::{fs, time::Instant};
 
 use notify::Watcher as FsWatcher;
 
@@ -75,32 +75,22 @@ fn main() {
                                     if let Ok(event) = event {
                                         match &event.kind {
                                             notify::EventKind::Modify(notify::event::ModifyKind::Data(_)) => {
+                                                println!();
                                                 if let Ok(file_contents) = fs::read_to_string(&temp_file) {
                                                     let mut file = parse::file::File::new(file_contents, temp_file.clone());
-                                                        static_assertions::const_assert_eq!(parse::parse::PARSE_VERSION, 0);
-                                                        let mut ginfo = script::block::to_runnable::GInfo::default();
-                                                        let libs = parse::parse::parse_step_lib_paths(&mut file);
-                                                        match parse::parse::parse_step_interpret(&mut file) {
-                                                            Ok(func) => {
-                                                        let libs = parse::parse::parse_step_libs_load(libs, &mut ginfo);
-                                                                ginfo.libs = Arc::new(libs);
-                                                        match parse::parse::parse_step_compile(func, &mut ginfo) {
-                                                                    Ok(func) => {
-                                                                        println!();
-                                                                        println!(" - - - - -");
-                                                                        let output = func.run(vec![]);
-                                                                        println!(" - - - - -");
-                                                                        println!("{}", output);
-                                                                    }
-                                                                    Err(e) => eprintln!("Couldn't compile:\n{e:?}"),
-                                                                }
-                                                            }
-                                                            Err(e) =>eprintln!("Couldn't interpret:\n{e:?}"),
-                                                        }
-                                                } else {
-                                                        println!("can't read file at {:?}!", temp_file);
-                                                        std::process::exit(105);
+                                                    match parse::parse::parse(&mut file) {
+                                                        Ok(func) => {
+                                                            println!(" - - - - -");
+                                                            let output = func.run(vec![]);
+                                                            println!(" - - - - -");
+                                                            println!("{}", output);
+                                                        },
+                                                        Err(e) => println!("{}", e.with_file(&file)),
                                                     }
+                                                } else {
+                                                    println!("can't read file at {:?}!", temp_file);
+                                                    std::process::exit(105);
+                                                }
                                             }
                                             _ => (),
                                         }

@@ -8,20 +8,24 @@ pub struct File {
     path: PathBuf,
     data: String,
     chars: Vec<(usize, char)>,
+    // contains the byte indices of all newline characters
+    newlines: Vec<usize>,
     pos: FilePosition,
+    ppos: FilePosition,
 }
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct FilePosition {
-    current_char_index: usize,
-    current_line: usize,
-    current_column: usize,
+    pub current_char_index: usize,
+    pub current_line: usize,
+    pub current_column: usize,
 }
 impl Display for FilePosition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "line {}, col. {}",
-            self.current_line, self.current_column
+            self.current_line + 1,
+            self.current_column + 1
         )
     }
 }
@@ -78,16 +82,23 @@ impl File {
         if !data.ends_with('\n') {
             data.push('\n');
         }
-        let chars = data.char_indices().collect();
+        let chars: Vec<_> = data.char_indices().collect();
+        let newlines: Vec<_> = chars
+            .iter()
+            .filter_map(|v| if v.1 == '\n' { Some(v.0) } else { None })
+            .collect();
+        let pos = FilePosition {
+            current_char_index: 0,
+            current_line: 0,
+            current_column: 0,
+        };
         Self {
             path,
             data,
             chars,
-            pos: FilePosition {
-                current_char_index: 0,
-                current_line: 0,
-                current_column: 0,
-            },
+            newlines,
+            pos,
+            ppos: pos,
         }
     }
     pub fn skip_whitespaces(&mut self) {
@@ -104,23 +115,52 @@ impl File {
     pub fn get_pos(&self) -> &FilePosition {
         &self.pos
     }
+    pub fn get_ppos(&self) -> &FilePosition {
+        &self.pos
+    }
     pub fn set_pos(&mut self, pos: FilePosition) {
         self.pos = pos;
-    }
-    pub fn get_line(&self) -> usize {
-        self.pos.current_line
-    }
-    pub fn get_column(&self) -> usize {
-        self.pos.current_column
-    }
-    pub fn get_char_index(&self) -> usize {
-        self.pos.current_char_index
     }
     pub fn get_char(&self, index: usize) -> Option<char> {
         match self.chars.get(index) {
             Some(v) => Some(v.1),
             None => None,
         }
+    }
+    pub fn get_line(&self, line_nr: usize) -> Option<&str> {
+        if self.newlines.len() > line_nr {
+            Some(if line_nr == 0 {
+                &self.data[0..self.newlines[0]]
+            } else {
+                &self.data[self.newlines[line_nr - 1] + 1..self.newlines[line_nr]]
+            })
+        } else if self.newlines.len() == line_nr {
+            Some(if line_nr == 0 {
+                self.data.as_str()
+            } else {
+                &self.data[self.newlines[line_nr - 1] + 1..]
+            })
+        } else {
+            None
+        }
+    }
+    // returns the lines. both from and to are inclusive.
+    pub fn get_lines(&self, from: usize, to: usize) -> Option<&str> {
+        let start_index = if from == 0 {
+            0
+        } else if from <= self.newlines.len() {
+            self.newlines[from - 1] + 1
+        } else {
+            return None;
+        };
+        let end_index = if to == self.newlines.len() {
+            self.data.len()
+        } else if to < self.newlines.len() {
+            self.newlines[to]
+        } else {
+            return None;
+        };
+        Some(&self.data[start_index..end_index])
     }
     pub fn next_line(&mut self) -> String {
         let mut o = String::new();
@@ -144,6 +184,7 @@ impl File {
 impl Iterator for File {
     type Item = char;
     fn next(&mut self) -> Option<Self::Item> {
+        self.ppos = self.pos;
         let o = self.chars.get(self.pos.current_char_index);
         self.pos.current_char_index += 1;
         match o {

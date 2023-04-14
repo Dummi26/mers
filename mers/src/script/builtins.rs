@@ -797,7 +797,7 @@ impl BuiltinFunction {
                 if args.len() > 0 {
                     if let VDataEnum::String(path) = args[0].run(vars, libs).data {
                         if args.len() > 1 {
-                            todo!("fs_list advanced filters")
+                            eprintln!("NOT YET IMPLEMENTED (TODO!): fs_list advanced filters")
                         }
                         match std::fs::read_dir(path) {
                             Ok(entries) => VDataEnum::List(

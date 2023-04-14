@@ -174,6 +174,14 @@ pub enum LaunchError {
     NoStdio,
     CouldNotSpawnProcess(io::Error),
 }
+impl std::fmt::Display for LaunchError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoStdio => write!(f, "couldn't get stdio (stdin/stdout) from child process."),
+            Self::CouldNotSpawnProcess(e) => write!(f, "couldn't spawn child process: {e}."),
+        }
+    }
+}
 
 pub trait DirectReader {
     fn line(&mut self) -> Result<String, io::Error>;

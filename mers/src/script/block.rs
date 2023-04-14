@@ -121,6 +121,8 @@ pub mod to_runnable {
         CaseForceButTypeNotCovered(VType),
         MatchConditionInvalidReturn(VType),
         NotIndexableFixed(VType, usize),
+        WrongInputsForBuiltinFunction(BuiltinFunction, String, Vec<VType>),
+        WrongArgsForLibFunction(String, Vec<VType>),
     }
     impl Debug for ToRunnableError {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -147,6 +149,20 @@ pub mod to_runnable {
                 Self::CaseForceButTypeNotCovered(v) => write!(f, "Switch! statement, but not all types covered. Types to cover: {v}"),
                 Self::MatchConditionInvalidReturn(v) => write!(f, "match statement condition returned {v}, which is not necessarily a tuple of size 0 to 1."),
                 Self::NotIndexableFixed(t, i) => write!(f, "Cannot use fixed-index {i} on type {t}."),
+                Self::WrongInputsForBuiltinFunction(_builtin, builtin_name, args) => {
+                    write!(f, "Wrong arguments for builtin function {}:", builtin_name)?;
+                    for arg in args {
+                        write!(f, " {arg}")?;
+                    }
+                    write!(f, ".")
+                }
+                Self::WrongArgsForLibFunction(name, args) => {
+                    write!(f, "Wrong arguments for library function {}:", name)?;
+                    for arg in args {
+                        write!(f, " {arg}")?;
+                    }
+                    write!(f, ".")
+                }
             }
         }
     }
@@ -377,10 +393,11 @@ pub mod to_runnable {
                 } else {
                     // TODO: type-checking for builtins
                     if let Some(builtin) = BuiltinFunction::get(v) {
-                        if builtin.can_take(&rargs.iter().map(|v| v.out()).collect()) {
+                        let arg_types = rargs.iter().map(|v| v.out()).collect();
+                        if builtin.can_take(&arg_types) {
                             RStatementEnum::BuiltinFunction(builtin, rargs)
                         } else {
-                            todo!("ERR: Builtin function \"{v}\" with wrong args - this isn't a proper error yet, sorry.");
+                            return Err(ToRunnableError::WrongInputsForBuiltinFunction(builtin, v.to_string(), arg_types));
                         }
                     } else {
                         // LIBRARY FUNCTION?
@@ -391,7 +408,7 @@ pub mod to_runnable {
                             } else {
                                 // TODO! better error here
                                 return Err(if fn_in.len() == rargs.len() {
-                                    todo!("Err: Wrong args for LibFunction \"{v}\".");
+                                    ToRunnableError::WrongArgsForLibFunction(v.to_string(), rargs.iter().map(|v| v.out()).collect())
                                 } else {
                                     ToRunnableError::FunctionWrongArgCount(v.to_string(), fn_in.len(), rargs.len())
                                 });

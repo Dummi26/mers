@@ -17,12 +17,24 @@ use super::file::File;
 
 #[derive(Debug)]
 pub enum ScriptError {
+    CannotFindPathForLibrary(CannotFindPathForLibrary),
     ParseError(ParseError),
+    UnableToLoadLibrary(UnableToLoadLibrary),
     ToRunnableError(ToRunnableError),
+}
+impl From<CannotFindPathForLibrary> for ScriptError {
+    fn from(value: CannotFindPathForLibrary) -> Self {
+        Self::CannotFindPathForLibrary(value)
+    }
 }
 impl From<ParseError> for ScriptError {
     fn from(value: ParseError) -> Self {
         Self::ParseError(value)
+    }
+}
+impl From<UnableToLoadLibrary> for ScriptError {
+    fn from(value: UnableToLoadLibrary) -> Self {
+        Self::UnableToLoadLibrary(value)
     }
 }
 impl From<ToRunnableError> for ScriptError {
@@ -30,17 +42,43 @@ impl From<ToRunnableError> for ScriptError {
         Self::ToRunnableError(value)
     }
 }
-#[derive(Debug)]
-pub enum ParseError {}
+impl std::fmt::Display for ScriptError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::CannotFindPathForLibrary(e) => write!(f, "{e}"),
+            Self::ParseError(e) => write!(f, "failed while parsing: {e}"),
+            Self::UnableToLoadLibrary(e) => write!(f, "{e}"),
+            Self::ToRunnableError(e) => write!(f, "failed to compile: {e}"),
+        }
+    }
+}
+pub struct ScriptErrorWithFile<'a>(&'a ScriptError, &'a File);
+impl<'a> ScriptError {
+    pub fn with_file(&'a self, file: &'a File) -> ScriptErrorWithFile {
+        ScriptErrorWithFile(self, file)
+    }
+}
+impl<'a> std::fmt::Display for ScriptErrorWithFile<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.0 {
+            ScriptError::CannotFindPathForLibrary(e) => write!(f, "{e}"),
+            ScriptError::ParseError(e) => {
+                write!(f, "failed while parsing: {}", e.with_file(self.1))
+            }
+            ScriptError::UnableToLoadLibrary(e) => write!(f, "{e}"),
+            ScriptError::ToRunnableError(e) => write!(f, "failed to compile: {e}"),
+        }
+    }
+}
 
 pub const PARSE_VERSION: u64 = 0;
 
 /// executes the 4 parse_steps in order: lib_paths => interpret => libs_load => compile
 pub fn parse(file: &mut File) -> Result<RScript, ScriptError> {
     let mut ginfo = GInfo::default();
-    let libs = parse_step_lib_paths(file);
+    let libs = parse_step_lib_paths(file)?;
     let func = parse_step_interpret(file)?;
-    ginfo.libs = Arc::new(parse_step_libs_load(libs, &mut ginfo));
+    ginfo.libs = Arc::new(parse_step_libs_load(libs, &mut ginfo)?);
 
     eprintln!();
     #[cfg(debug_assertions)]
@@ -56,7 +94,15 @@ pub fn parse(file: &mut File) -> Result<RScript, ScriptError> {
     Ok(run)
 }
 
-pub fn parse_step_lib_paths(file: &mut File) -> Vec<Command> {
+#[derive(Debug)]
+pub struct CannotFindPathForLibrary(String);
+impl std::error::Error for CannotFindPathForLibrary {}
+impl std::fmt::Display for CannotFindPathForLibrary {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Couldn't find a path for the library with the path '{}'. Maybe set the MERS_LIB_DIR env variable?", self.0)
+    }
+}
+pub fn parse_step_lib_paths(file: &mut File) -> Result<Vec<Command>, CannotFindPathForLibrary> {
     let mut libs = vec![];
     loop {
         file.skip_whitespaces();
@@ -65,7 +111,7 @@ pub fn parse_step_lib_paths(file: &mut File) -> Vec<Command> {
         if line.starts_with("lib ") {
             let path_to_executable = match libs::path::path_from_string(&line[4..], file.path()) {
                 Some(v) => v,
-                None => panic!("Couldn't find a path for the library with the path '{}'. Maybe set the MERS_LIB_DIR env variable?", &line[4..]),
+                None => return Err(CannotFindPathForLibrary(line[4..].to_string())),
             };
             let mut cmd = Command::new(&path_to_executable);
             if let Some(parent) = path_to_executable.parent() {
@@ -77,7 +123,7 @@ pub fn parse_step_lib_paths(file: &mut File) -> Vec<Command> {
             break;
         }
     }
-    libs
+    Ok(libs)
 }
 
 pub fn parse_step_interpret(file: &mut File) -> Result<SFunction, ParseError> {
@@ -90,17 +136,28 @@ pub fn parse_step_interpret(file: &mut File) -> Result<SFunction, ParseError> {
     ))
 }
 
-pub fn parse_step_libs_load(lib_cmds: Vec<Command>, ginfo: &mut GInfo) -> Vec<libs::Lib> {
+#[derive(Debug)]
+pub struct UnableToLoadLibrary(String, crate::libs::LaunchError);
+impl std::fmt::Display for UnableToLoadLibrary {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Unable to load library {}: {}", self.0, self.1)
+    }
+}
+pub fn parse_step_libs_load(
+    lib_cmds: Vec<Command>,
+    ginfo: &mut GInfo,
+) -> Result<Vec<libs::Lib>, UnableToLoadLibrary> {
     let mut libs = vec![];
     for cmd in lib_cmds {
+        let cmd_path = cmd.get_program().to_string_lossy().into_owned();
         match libs::Lib::launch(cmd, &mut ginfo.enum_variants) {
             Ok(lib) => {
                 libs.push(lib);
             }
-            Err(e) => eprintln!("!! Unable to load library: {e:?} !!",),
+            Err(e) => return Err(UnableToLoadLibrary(cmd_path, e)),
         }
     }
-    libs
+    Ok(libs)
 }
 
 pub fn parse_step_compile(
@@ -108,6 +165,125 @@ pub fn parse_step_compile(
     ginfo: &mut GInfo,
 ) -> Result<RScript, ToRunnableError> {
     to_runnable::to_runnable(main_func, ginfo)
+}
+
+pub struct ParseErrorWithFile<'a>(&'a ParseError, &'a File);
+impl<'a> ParseError {
+    pub fn with_file(&'a self, file: &'a File) -> ParseErrorWithFile {
+        ParseErrorWithFile(self, file)
+    }
+}
+impl<'a> std::fmt::Display for ParseErrorWithFile<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt_custom(f, Some(self.1))
+    }
+}
+#[derive(Debug)]
+pub struct ParseError {
+    err: ParseErrors,
+    // the location of the error
+    location: super::file::FilePosition,
+    location_end: Option<super::file::FilePosition>,
+    context: Vec<(
+        String,
+        Option<(super::file::FilePosition, Option<super::file::FilePosition>)>,
+    )>,
+}
+impl ParseError {
+    pub fn fmt_custom(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        file: Option<&super::file::File>,
+    ) -> std::fmt::Result {
+        writeln!(f, "{}", self.err)?;
+        if let Some(location_end) = self.location_end {
+            writeln!(f, "  from {} to {}", self.location, location_end)?;
+            if let Some(file) = file {
+                if self.location.current_line == location_end.current_line {
+                    write!(
+                        f,
+                        "    {}\n    {}{} here",
+                        file.get_line(self.location.current_line).unwrap(),
+                        " ".repeat(self.location.current_column),
+                        "^".repeat(
+                            location_end
+                                .current_column
+                                .saturating_sub(self.location.current_column)
+                                .saturating_add(1)
+                        )
+                    )?;
+                }
+            }
+        } else {
+            writeln!(f, "  at {}", self.location)?;
+        }
+        for ctx in self.context.iter() {
+            writeln!(f, "  {}", ctx.0)?;
+            if let Some(pos) = &ctx.1 {
+                if let Some(end) = &pos.1 {
+                    writeln!(f, "    from {} to {}", pos.0, end)?;
+                } else {
+                    writeln!(f, "    at {}", pos.0)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.fmt_custom(f, None)
+    }
+}
+#[derive(Debug)]
+pub enum ParseErrors {
+    FoundClosingRoundBracketInSingleStatementBlockBeforeAnyStatement,
+    FoundClosingCurlyBracketInSingleStatementBlockBeforeAnyStatement,
+    FoundEofInBlockBeforeStatementOrClosingCurlyBracket,
+    FoundEofInString,
+    FoundEofInStatement,
+    FoundEofInFunctionArgName,
+    FoundEofInType,
+    FoundEofInsteadOfType,
+    InvalidType(String),
+    CannotUseFixedIndexingWithThisType(VType),
+    CannotWrapWithThisStatement(SStatementEnum),
+    ErrorParsingFunctionArgs(Box<ParseError>),
+}
+impl std::fmt::Display for ParseErrors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::FoundClosingRoundBracketInSingleStatementBlockBeforeAnyStatement => write!(
+                f,
+                "closing round bracket in single-statement block before any statement"
+            ),
+            Self::FoundClosingCurlyBracketInSingleStatementBlockBeforeAnyStatement => write!(
+                f,
+                "closing curly bracket in single-statement block before any statement."
+            ),
+            Self::FoundEofInBlockBeforeStatementOrClosingCurlyBracket => write!(
+                f,
+                "found EOF in block before any statement or closing curly bracket was found."
+            ),
+            Self::FoundEofInString => write!(f, "found EOF in string literal."),
+            Self::FoundEofInStatement => write!(f, "found EOF in statement."),
+            Self::FoundEofInFunctionArgName => {
+                write!(f, "found EOF in the name of the function's argument.")
+            }
+            Self::FoundEofInType => write!(f, "found EOF in type."),
+            Self::FoundEofInsteadOfType => write!(f, "expected type, found EOF instead."),
+            Self::InvalidType(name) => write!(f, "\"{name}\" is not a type."),
+            Self::CannotUseFixedIndexingWithThisType(t) => {
+                write!(f, "cannot use fixed-indexing with type {t}.")
+            }
+            Self::CannotWrapWithThisStatement(s) => {
+                write!(f, "cannot wrap with this kind of statement: {s}.")
+            }
+            Self::ErrorParsingFunctionArgs(parse_error) => {
+                write!(f, "error parsing function args: {}", parse_error.err)
+            }
+        }
+    }
 }
 
 fn parse_block(file: &mut File) -> Result<SBlock, ParseError> {
@@ -120,24 +296,33 @@ fn parse_block_advanced(
     treat_eof_as_closing_delimeter: bool,
     treat_closed_normal_bracket_as_closing_delimeter: bool,
 ) -> Result<SBlock, ParseError> {
-    let mut statements = vec![];
     file.skip_whitespaces();
+    // if true, parse exactly one statement. unless assume_single_statement.is_some(), this depends on whether the code block starts with { or not.
     let single_statement = if let Some(v) = assume_single_statement {
         v
     } else {
-        if let Some('{') = file.get_char(file.get_char_index()) {
+        if let Some('{') = file.get_char(file.get_pos().current_char_index) {
             file.next();
             false
         } else {
             true
         }
     };
+    let mut statements = vec![];
+    // each iteration of this loop parses one statement
     loop {
         file.skip_whitespaces();
-        match file.get_char(file.get_char_index()) {
+        let err_start_of_this_statement = *file.get_pos();
+        match file.get_char(file.get_pos().current_char_index) {
             Some(')') if treat_closed_normal_bracket_as_closing_delimeter => {
                 if single_statement {
-                    todo!("Err: closing function-arguments-delimeter in single-statement block before any statement (???fn with single-statement???)")
+                    return Err(ParseError {
+                        err:
+                            ParseErrors::FoundClosingRoundBracketInSingleStatementBlockBeforeAnyStatement,
+                        location: err_start_of_this_statement,
+                        location_end: Some(*file.get_pos()),
+                        context: vec![],
+                    });
                 } else {
                     file.next();
                     break;
@@ -145,7 +330,12 @@ fn parse_block_advanced(
             }
             Some('}') if treat_closed_block_bracket_as_closing_delimeter => {
                 if single_statement {
-                    todo!("Err: closing block-delimeter in single-statement block before any statement")
+                    return Err(ParseError {
+                        err: ParseErrors::FoundClosingCurlyBracketInSingleStatementBlockBeforeAnyStatement,
+                        location: err_start_of_this_statement,
+                        location_end: Some(*file.get_pos()),
+                        context: vec![]
+                    });
                 } else {
                     file.next();
                     break;
@@ -154,7 +344,14 @@ fn parse_block_advanced(
             None if treat_eof_as_closing_delimeter => {
                 break;
             }
-            None => todo!("eof in block before statement"),
+            None => {
+                return Err(ParseError {
+                    err: ParseErrors::FoundEofInBlockBeforeStatementOrClosingCurlyBracket,
+                    location: err_start_of_this_statement,
+                    location_end: Some(*file.get_pos()),
+                    context: vec![],
+                })
+            }
             _ => (),
         }
         statements.push(parse_statement(file)?);
@@ -181,7 +378,7 @@ fn parse_statement_adv(
     is_part_of_chain_already: bool,
 ) -> Result<SStatement, ParseError> {
     file.skip_whitespaces();
-    let mut start = String::new();
+    let err_start_of_statement = *file.get_pos();
     let out = match file.peek() {
         Some('{') => Some(SStatementEnum::Block(parse_block(file)?).into()),
         Some('[') => {
@@ -194,7 +391,7 @@ fn parse_statement_adv(
                     file.next();
                     break;
                 }
-                if file[file.get_char_index()..].starts_with("...]") {
+                if file[file.get_pos().current_char_index..].starts_with("...]") {
                     list = true;
                     file.next();
                     file.next();
@@ -231,7 +428,14 @@ fn parse_statement_adv(
                     }
                     Some('"') => break,
                     Some(ch) => buf.push(ch),
-                    None => todo!("Err: EOF in string"),
+                    None => {
+                        return Err(ParseError {
+                            err: ParseErrors::FoundEofInString,
+                            location: err_start_of_statement,
+                            location_end: Some(*file.get_pos()),
+                            context: vec![],
+                        })
+                    }
                 }
             }
             Some(SStatementEnum::Value(VDataEnum::String(buf).to()).into())
@@ -241,6 +445,7 @@ fn parse_statement_adv(
     let mut out = if let Some(out) = out {
         out
     } else {
+        let mut start = String::new();
         loop {
             match match file.peek() {
                 Some(ch) if matches!(ch, '}' | ']' | ')' | '.') => Some(ch),
@@ -272,7 +477,7 @@ fn parse_statement_adv(
                                         None => break,
                                     }
                                 }
-                                let func = parse_function(file)?;
+                                let func = parse_function(file, Some(err_start_of_statement))?;
                                 break SStatementEnum::FunctionDefinition(
                                     Some(fn_name.trim().to_string()),
                                     func,
@@ -285,7 +490,7 @@ fn parse_statement_adv(
                                 let then = parse_statement(file)?;
                                 let mut then_else = None;
                                 file.skip_whitespaces();
-                                let i = file.get_char_index();
+                                let i = file.get_pos().current_char_index;
                                 if file[i..].starts_with("else ") {
                                     while let Some('e' | 'l' | 's') = file.next() {}
                                     then_else = Some(parse_statement(file)?);
@@ -399,31 +604,58 @@ fn parse_statement_adv(
                     // parse_block_advanced: only treat ) as closing delimeter, don't use single-statement (missing {, so would be assumed otherwise)
                     let name = start.trim();
                     if name.is_empty() {
-                        break SStatementEnum::FunctionDefinition(None, parse_function(file)?)
-                            .into();
+                        break SStatementEnum::FunctionDefinition(
+                            None,
+                            parse_function(file, Some(err_start_of_statement))?,
+                        )
+                        .into();
                     } else {
                         break SStatementEnum::FunctionCall(
                             name.to_string(),
-                            parse_block_advanced(file, Some(false), false, false, true)?.statements,
+                            match parse_block_advanced(file, Some(false), false, false, true) {
+                                Ok(block) => block.statements,
+                                Err(e) => {
+                                    // NOTE: Alternatively, just add an entry to the original error's context.
+                                    return Err(ParseError {
+                                        err: ParseErrors::ErrorParsingFunctionArgs(Box::new(e)),
+                                        location: err_start_of_statement,
+                                        location_end: Some(*file.get_pos()),
+                                        context: vec![],
+                                    });
+                                }
+                            },
                         )
                         .into();
                     }
                 }
                 Some(ch) => start.push(ch),
-                None => todo!("EOF in statement"),
+                None => {
+                    return Err(ParseError {
+                        err: ParseErrors::FoundEofInStatement,
+                        location: err_start_of_statement,
+                        location_end: Some(*file.get_pos()),
+                        context: vec![],
+                    })
+                }
             }
         }
     };
+    let err_end_of_original_statement = *file.get_pos();
     file.skip_whitespaces();
-    if !file[file.get_char_index()..].starts_with("..") {
+    if !file[file.get_pos().current_char_index..].starts_with("..") {
         // dot chain syntax only works if there is only one dot
-        if let Some('.') = file.get_char(file.get_char_index()) {
+        if let Some('.') = file.get_char(file.get_pos().current_char_index) {
             // consume the dot (otherwise, a.b.c syntax will break in certain cases)
             file.next();
         }
         if !is_part_of_chain_already {
-            while let Some('.') = file.get_char(file.get_char_index().saturating_sub(1)) {
+            let mut chain_length = 0;
+            let mut err_end_of_prev = err_end_of_original_statement;
+            while let Some('.') = file.get_char(file.get_pos().current_char_index.saturating_sub(1))
+            {
+                let err_start_of_wrapper = *file.get_pos();
                 let wrapper = parse_statement_adv(file, true)?;
+                let err_end_of_wrapper = *file.get_pos();
                 out = match *wrapper.statement {
                     SStatementEnum::FunctionCall(func, args) => {
                         let args = [out].into_iter().chain(args.into_iter()).collect();
@@ -431,12 +663,64 @@ fn parse_statement_adv(
                     }
                     SStatementEnum::Value(vd) => match vd.data {
                         VDataEnum::Int(i) => SStatementEnum::IndexFixed(out, i as _).into(),
-                        _ => todo!("fixed-indexing not available with this type."),
+                        _ => {
+                            let mut context = vec![];
+                            if chain_length > 0 {
+                                context.push((
+                                    format!(
+                                        "this is the {} wrapping statement in a chain.",
+                                        match chain_length {
+                                            1 => format!("second"),
+                                            2 => format!("third"),
+                                            // NOTE: this technically breaks at 21, but I don't care.
+                                            len => format!("{}th", len + 1),
+                                        }
+                                    ),
+                                    None,
+                                ));
+                            }
+                            context.push((
+                                format!("the statement that was supposed to be wrapped"),
+                                Some((err_start_of_statement, Some(err_end_of_prev))),
+                            ));
+                            return Err(ParseError {
+                                err: ParseErrors::CannotUseFixedIndexingWithThisType(vd.out()),
+                                location: err_start_of_wrapper,
+                                location_end: Some(err_end_of_wrapper),
+                                context,
+                            });
+                        }
                     },
                     other => {
-                        todo!("Wrapping in this type isn't implemented (yet?). Type: {other:?}")
+                        let mut context = vec![];
+                        if chain_length > 0 {
+                            context.push((
+                                format!(
+                                    "this is the {} wrapping statement in a chain.",
+                                    match chain_length {
+                                        1 => format!("second"),
+                                        2 => format!("third"),
+                                        // NOTE: this technically breaks at 21, but I don't care.
+                                        len => format!("{}th", len + 1),
+                                    }
+                                ),
+                                None,
+                            ));
+                        }
+                        context.push((
+                            format!("the statement that was supposed to be wrapped"),
+                            Some((err_start_of_statement, Some(err_end_of_prev))),
+                        ));
+                        return Err(ParseError {
+                            err: ParseErrors::CannotWrapWithThisStatement(other),
+                            location: err_start_of_wrapper,
+                            location_end: Some(err_end_of_wrapper),
+                            context,
+                        });
                     }
-                }
+                };
+                err_end_of_prev = err_end_of_wrapper;
+                chain_length += 1;
             }
         }
     }
@@ -444,22 +728,39 @@ fn parse_statement_adv(
 }
 
 /// Assumes the function name and opening bracket have already been parsed. File should continue like "name type name type ...) <statement>"
-fn parse_function(file: &mut File) -> Result<SFunction, ParseError> {
+fn parse_function(
+    file: &mut File,
+    err_fn_start: Option<super::file::FilePosition>,
+) -> Result<SFunction, ParseError> {
+    file.skip_whitespaces();
     // find the arguments to the function
     let mut args = Vec::new();
-    file.skip_whitespaces();
     loop {
-        let mut arg_name = String::new();
-        match file.next() {
+        match file.peek() {
             Some(')') => break,
-            Some(ch) => arg_name.push(ch),
-            None => break,
+            _ => (),
         }
+        let mut arg_name = String::new();
         loop {
+            let err_fn_arg_name_start = *file.get_pos();
             match file.next() {
                 Some(ch) if ch.is_whitespace() => break,
                 Some(ch) => arg_name.push(ch),
-                None => todo!("Err: EOF in function"),
+                None => {
+                    return Err(ParseError {
+                        err: ParseErrors::FoundEofInFunctionArgName,
+                        location: err_fn_arg_name_start,
+                        location_end: Some(*file.get_pos()),
+                        context: vec![if let Some(err_fn_start) = err_fn_start {
+                            (
+                                format!("the function"),
+                                Some((err_fn_start, Some(*file.get_pos()))),
+                            )
+                        } else {
+                            (format!("not a real fn definition"), None)
+                        }],
+                    })
+                }
             }
         }
         let (t, brk) = parse_type_adv(file, true)?;
@@ -519,6 +820,7 @@ fn parse_single_type_adv(
 ) -> Result<(VSingleType, bool), ParseError> {
     file.skip_whitespaces();
     let mut closed_bracket_in_fn_args = false;
+    let err_start_of_single_type = *file.get_pos();
     Ok((
         match file.next() {
             Some('&') => {
@@ -534,7 +836,7 @@ fn parse_single_type_adv(
                 let mut list = false;
                 loop {
                     file.skip_whitespaces();
-                    if file[file.get_char_index()..].starts_with("...]") {
+                    if file[file.get_pos().current_char_index..].starts_with("...]") {
                         list = true;
                         file.next();
                         file.next();
@@ -570,10 +872,15 @@ fn parse_single_type_adv(
                     match file.peek() {
                         Some(']') => break,
                         Some('/') => break,
+                        Some(')') if in_fn_args => {
+                            file.next();
+                            closed_bracket_in_fn_args = true;
+                            break;
+                        }
+                        Some(ch) if ch.is_whitespace() => break,
                         _ => (),
                     }
                     match file.next() {
-                        Some(ch) if ch.is_whitespace() => break,
                         Some('(') => {
                             break 'parse_single_type if name.as_str() == "fn" {
                                 todo!("fn types");
@@ -588,12 +895,15 @@ fn parse_single_type_adv(
                                 })
                             };
                         }
-                        Some(')') if in_fn_args => {
-                            closed_bracket_in_fn_args = true;
-                            break;
-                        }
                         Some(ch) => name.push(ch),
-                        None => todo!("Err: EOF in type"),
+                        None => {
+                            return Err(ParseError {
+                                err: ParseErrors::FoundEofInType,
+                                location: err_start_of_single_type,
+                                location_end: Some(*file.get_pos()),
+                                context: vec![],
+                            });
+                        }
                     }
                 }
                 match name.trim().to_lowercase().as_str() {
@@ -602,12 +912,23 @@ fn parse_single_type_adv(
                     "float" => VSingleType::Float,
                     "string" => VSingleType::String,
                     _ => {
-                        eprintln!("in_fn_args: {in_fn_args}");
-                        todo!("Err: Invalid type: \"{}\"", name.trim())
+                        return Err(ParseError {
+                            err: ParseErrors::InvalidType(name.trim().to_string()),
+                            location: err_start_of_single_type,
+                            location_end: Some(*file.get_pos()),
+                            context: vec![],
+                        });
                     }
                 }
             }
-            None => todo!("Err: EOF in type (1)"),
+            None => {
+                return Err(ParseError {
+                    err: ParseErrors::FoundEofInsteadOfType,
+                    location: err_start_of_single_type,
+                    location_end: Some(*file.get_pos()),
+                    context: vec![],
+                })
+            }
         },
         closed_bracket_in_fn_args,
     ))
