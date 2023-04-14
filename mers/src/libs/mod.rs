@@ -2,7 +2,7 @@ pub mod inlib;
 pub mod path;
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     io::{self, BufRead, BufReader, Read, Write},
     path::PathBuf,
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
@@ -55,10 +55,23 @@ sending data: (all ints are encoded so that the most significant data is sent FI
 
 #[derive(Debug)]
 pub struct Lib {
+    name: String,
     process: Child,
     stdin: Arc<Mutex<ChildStdin>>,
     stdout: Arc<Mutex<BufReader<ChildStdout>>>,
     pub registered_fns: Vec<(String, Vec<VType>, VType)>,
+}
+impl Drop for Lib {
+    fn drop(&mut self) {
+        if self.process.try_wait().is_err() {
+            if let Err(e) = self.process.kill() {
+                eprint!(
+                    "Warn: tried to kill lib process for library \"{}\", but failed: {e:?}",
+                    self.name
+                );
+            }
+        }
+    }
 }
 impl Lib {
     pub fn launch(
@@ -131,6 +144,7 @@ impl Lib {
             }
             writeln!(stdin, "init_finished").unwrap();
             Ok(Self {
+                name: name.to_string(),
                 process: handle,
                 stdin: Arc::new(Mutex::new(stdin)),
                 stdout: Arc::new(Mutex::new(stdout)),

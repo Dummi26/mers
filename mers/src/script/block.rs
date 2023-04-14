@@ -8,7 +8,7 @@ use std::{
 
 use crate::libs;
 
-use self::to_runnable::{GInfo, ToRunnableError};
+use self::to_runnable::ToRunnableError;
 
 use super::{
     builtins::BuiltinFunction,

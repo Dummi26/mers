@@ -1,8 +1,4 @@
-use std::{
-    fs,
-    sync::{Arc, Mutex},
-    time::Instant,
-};
+use std::{fs, sync::Arc, time::Instant};
 
 use notify::Watcher as FsWatcher;
 
@@ -10,6 +6,8 @@ pub mod libs;
 pub mod parse;
 pub mod script;
 
+// necessary because the lib target in Cargo.toml also points here. TODO: update Cargo.toml to have a lib target that is separate from the bin one (=> doesn't point to main)
+#[allow(unused)]
 fn main() {
     let args: Vec<_> = std::env::args().skip(1).collect();
     let path = std::env::args().nth(1).unwrap();
