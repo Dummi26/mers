@@ -447,10 +447,14 @@ fn parse_statement_adv(
     } else {
         let mut start = String::new();
         loop {
-            match match file.peek() {
-                Some(ch) if matches!(ch, '}' | ']' | ')' | '.') => Some(ch),
+            fn is_delimeter(ch: char) -> bool {
+                matches!(ch, '}' | ']' | ')' | '.')
+            }
+            let nchar = match file.peek() {
+                Some(ch) if is_delimeter(ch) => Some(ch),
                 _ => file.next(),
-            } {
+            };
+            match nchar {
                 Some('=') => {
                     break parse_statement(file)?.output_to(start.trim().to_string());
                 }
@@ -460,7 +464,7 @@ fn parse_statement_adv(
                         parse_statement(file)?,
                     )));
                 }
-                Some(ch) if ch.is_whitespace() || matches!(ch, '}' | ']' | ')' | '.') => {
+                Some(ch) if ch.is_whitespace() || is_delimeter(ch) => {
                     file.skip_whitespaces();
                     if let Some('=') = file.peek() {
                         continue;
@@ -583,9 +587,28 @@ fn parse_statement_adv(
                                 // int, float, var
                                 break {
                                     if let Ok(v) = start.parse() {
-                                        SStatementEnum::Value(VDataEnum::Int(v).to()).into()
-                                    } else if let Ok(v) = start.replace(",", ".").parse() {
-                                        SStatementEnum::Value(VDataEnum::Float(v).to()).into()
+                                        if let Some('.') = nchar {
+                                            let pos = *file.get_pos();
+                                            file.next();
+                                            let mut pot_float = String::new();
+                                            for ch in &mut *file {
+                                                if ch.is_whitespace() || is_delimeter(ch) {
+                                                    break;
+                                                }
+                                                pot_float.push(ch);
+                                            }
+                                            if let Ok(v) = format!("{start}.{pot_float}").parse() {
+                                                SStatementEnum::Value(VDataEnum::Float(v).to())
+                                                    .into()
+                                            } else {
+                                                file.set_pos(pos);
+                                                SStatementEnum::Value(VDataEnum::Int(v).to()).into()
+                                            }
+                                        } else {
+                                            SStatementEnum::Value(VDataEnum::Int(v).to()).into()
+                                        }
+                                    // } else if let Ok(v) = start.parse() {
+                                    //     SStatementEnum::Value(VDataEnum::Float(v).to()).into()
                                     } else {
                                         if start.starts_with('&') {
                                             SStatementEnum::Variable(start[1..].to_string(), true)
