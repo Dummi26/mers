@@ -760,7 +760,10 @@ fn parse_function(
     let mut args = Vec::new();
     loop {
         match file.peek() {
-            Some(')') => break,
+            Some(')') => {
+                file.next();
+                break;
+            }
             _ => (),
         }
         let mut arg_name = String::new();
