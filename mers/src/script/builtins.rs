@@ -332,8 +332,13 @@ impl BuiltinFunction {
                 if input.len() == 2 {
                     // check if the element that should be inserted fits in the list's inner type
                     let (vec, el) = (&input[0], &input[1]);
-                    if let Some(t) = vec.get_any() {
-                        el.fits_in(&t).is_empty()
+                    // if vec.is_reference().is_some_and(|v| v) { // unstable
+                    if let Some(true) = vec.is_reference() {
+                        if let Some(t) = vec.get_any() {
+                            el.fits_in(&t).is_empty()
+                        } else {
+                            false
+                        }
                     } else {
                         false
                     }
@@ -344,8 +349,50 @@ impl BuiltinFunction {
             Self::Insert => {
                 if input.len() == 3 {
                     let (vec, el) = (&input[0], &input[1]);
-                    if let Some(t) = vec.get_any() {
-                        el.fits_in(&t).is_empty()
+                    if let Some(true) = vec.is_reference() {
+                        if let Some(t) = vec.get_any() {
+                            el.fits_in(&t).is_empty()
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+            Self::Pop => {
+                if input.len() == 1 {
+                    let vec = &input[0];
+                    if let Some(true) = vec.is_reference() {
+                        // TODO! this also returns true for tuples. what should we do for tuples? should pop return (first_val rest_of_tuple) and not take a reference?
+                        if let Some(_) = vec.get_any() {
+                            true
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+            Self::Remove => {
+                if input.len() == 2 {
+                    let (vec, index) = (&input[0], &input[1]);
+                    if let Some(true) = vec.is_reference() {
+                        // TODO! same issue as in pop
+                        if let Some(_) = vec.get_any() {
+                            if index.fits_in(&VSingleType::Int.to()).is_empty() {
+                                true
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        }
                     } else {
                         false
                     }
@@ -354,7 +401,26 @@ impl BuiltinFunction {
                 }
             }
             // TODO! finish this
-            Self::Pop | Self::Remove | Self::Get | Self::Len | Self::Substring => true,
+            Self::Get | Self::Len => true,
+            Self::Substring => {
+                if input.len() >= 2 && input.len() <= 3 {
+                    let (s, start) = (&input[0], &input[1]);
+                    let index_type = VSingleType::Int.to();
+                    if s.fits_in(&VSingleType::String.to()).is_empty()
+                        && start.fits_in(&index_type).is_empty()
+                    {
+                        if let Some(end) = input.get(2) {
+                            end.fits_in(&index_type).is_empty()
+                        } else {
+                            true
+                        }
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
             Self::Contains | Self::StartsWith | Self::EndsWith | Self::Regex => {
                 input.len() == 2
                     && input

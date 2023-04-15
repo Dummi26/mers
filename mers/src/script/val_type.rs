@@ -41,6 +41,24 @@ impl VType {
         }
         Some(out)
     }
+    // returns Some(true) or Some(false) if all types are references or not references. If it is mixed or types is empty, returns None.
+    pub fn is_reference(&self) -> Option<bool> {
+        let mut noref = false;
+        let mut reference = false;
+        for t in &self.types {
+            if t.is_reference() {
+                reference = true;
+            } else {
+                noref = true;
+            }
+        }
+        if noref != reference {
+            Some(reference)
+        } else {
+            // either empty (false == false) or mixed (true == true)
+            None
+        }
+    }
 }
 
 impl VSingleType {
@@ -53,6 +71,12 @@ impl VSingleType {
             Self::Reference(r) => r.get_any(),
             Self::EnumVariant(_, t) => t.get_any(),
             Self::EnumVariantS(..) => unreachable!(),
+        }
+    }
+    pub fn is_reference(&self) -> bool {
+        match self {
+            Self::Reference(_) => true,
+            _ => false,
         }
     }
 }
