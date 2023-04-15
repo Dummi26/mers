@@ -116,7 +116,7 @@ impl File {
         &self.pos
     }
     pub fn get_ppos(&self) -> &FilePosition {
-        &self.pos
+        &self.ppos
     }
     pub fn set_pos(&mut self, pos: FilePosition) {
         self.pos = pos;

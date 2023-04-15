@@ -593,6 +593,7 @@ fn parse_statement_adv(
                                             let mut pot_float = String::new();
                                             for ch in &mut *file {
                                                 if ch.is_whitespace() || is_delimeter(ch) {
+                                                    file.set_pos(*file.get_ppos());
                                                     break;
                                                 }
                                                 pot_float.push(ch);
@@ -758,41 +759,38 @@ fn parse_function(
     file.skip_whitespaces();
     // find the arguments to the function
     let mut args = Vec::new();
-    loop {
-        match file.peek() {
-            Some(')') => {
-                file.next();
-                break;
-            }
-            _ => (),
-        }
-        let mut arg_name = String::new();
+    if let Some(')') = file.peek() {
+        file.next();
+    } else {
         loop {
-            let err_fn_arg_name_start = *file.get_pos();
-            match file.next() {
-                Some(ch) if ch.is_whitespace() => break,
-                Some(ch) => arg_name.push(ch),
-                None => {
-                    return Err(ParseError {
-                        err: ParseErrors::FoundEofInFunctionArgName,
-                        location: err_fn_arg_name_start,
-                        location_end: Some(*file.get_pos()),
-                        context: vec![if let Some(err_fn_start) = err_fn_start {
-                            (
-                                format!("the function"),
-                                Some((err_fn_start, Some(*file.get_pos()))),
-                            )
-                        } else {
-                            (format!("not a real fn definition"), None)
-                        }],
-                    })
+            let mut arg_name = String::new();
+            loop {
+                let err_fn_arg_name_start = *file.get_pos();
+                match file.next() {
+                    Some(ch) if ch.is_whitespace() => break,
+                    Some(ch) => arg_name.push(ch),
+                    None => {
+                        return Err(ParseError {
+                            err: ParseErrors::FoundEofInFunctionArgName,
+                            location: err_fn_arg_name_start,
+                            location_end: Some(*file.get_pos()),
+                            context: vec![if let Some(err_fn_start) = err_fn_start {
+                                (
+                                    format!("the function"),
+                                    Some((err_fn_start, Some(*file.get_pos()))),
+                                )
+                            } else {
+                                (format!("not a real fn definition"), None)
+                            }],
+                        })
+                    }
                 }
             }
-        }
-        let (t, brk) = parse_type_adv(file, true)?;
-        args.push((arg_name, t));
-        if brk {
-            break;
+            let (t, brk) = parse_type_adv(file, true)?;
+            args.push((arg_name, t));
+            if brk {
+                break;
+            }
         }
     }
     Ok(SFunction::new(args, parse_block(file)?))
