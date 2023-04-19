@@ -391,7 +391,7 @@ Mers has the following builtin types:
 - thread
   + a special type returned by the thread builtin. It is similar to JavaScript promises and can be awaited to get the value once it has finished computing. Reading the thread example is probably the best way to see how this works.
 - reference
-  + a mutable reference to a value. `&type` for the type and `&statement` for a reference value (usually `&varname`).
+  + a mutable reference to a value. `&type` for the type and `&varname` for a reference value.
 - enum
   + wraps any other value with a certain identifier.
   + the type is written as `enum(type)`: many builtins use `Err(String)` to report errors.
