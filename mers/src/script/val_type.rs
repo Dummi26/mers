@@ -174,6 +174,21 @@ impl VSingleType {
             Self::List(v) => v.types.clone(),
             // NOTE: to make ints work in for loops
             Self::Int => vec![Self::Int],
+            // for iterators in for loops: the match of the function's returned value make up the inner type
+            Self::Function(f) => {
+                // function that takes no inputs
+                if let Some(out) = f.iter().find_map(|(args, out)| {
+                    if args.is_empty() {
+                        Some(out.clone())
+                    } else {
+                        None
+                    }
+                }) {
+                    out.types
+                } else {
+                    vec![]
+                }
+            }
             _ => vec![],
         }
     }

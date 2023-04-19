@@ -1,0 +1,21 @@
+fn map_string_to_int(list [string ...] func fn((string int))) {
+    // return a function that can be used as an iterator
+    () {
+        // this function will be called by the for loop
+        // whenever it wants to retrieve the next item in the collection.
+        // get the element
+        elem = &list.remove(0)
+        switch! elem {
+            // if the element was present, run the map function to convert it from a string to an int and return the result
+            [string] {
+                [func.run(elem.0)]
+            }
+            // if there are no more elements, return something that doesn't match.
+            [] []
+        }
+    }
+}
+
+for v ["1" "2" "5" "-10" ...].map_string_to_int((s string) s.parse_int().assume1("list contained strings that can't be parsed to an int!")) {
+    debug(v)
+}

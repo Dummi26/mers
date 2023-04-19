@@ -116,13 +116,14 @@ pub mod to_runnable {
         InvalidType {
             expected: VType,
             found: VType,
-            problematic: Vec<VSingleType>,
+            problematic: VType,
         },
         CaseForceButTypeNotCovered(VType),
         MatchConditionInvalidReturn(VType),
         NotIndexableFixed(VType, usize),
         WrongInputsForBuiltinFunction(BuiltinFunction, String, Vec<VType>),
         WrongArgsForLibFunction(String, Vec<VType>),
+        ForLoopContainerHasNoInnerTypes,
     }
     impl Debug for ToRunnableError {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -144,7 +145,7 @@ pub mod to_runnable {
                     found,
                     problematic,
                 } => {
-                    write!(f, "Invalid type: Expected {expected:?} but found {found:?}, which includes {problematic:?}, which is not covered.")
+                    write!(f, "Invalid type: Expected {expected} but found {found}, which includes {problematic}, which is not covered.")
                 }
                 Self::CaseForceButTypeNotCovered(v) => write!(f, "Switch! statement, but not all types covered. Types to cover: {v}"),
                 Self::MatchConditionInvalidReturn(v) => write!(f, "match statement condition returned {v}, which is not necessarily a tuple of size 0 to 1."),
@@ -162,6 +163,9 @@ pub mod to_runnable {
                         write!(f, " {arg}")?;
                     }
                     write!(f, ".")
+                }
+                Self::ForLoopContainerHasNoInnerTypes => {
+                    write!(f, "For loop: container had no inner types, cannot iterate.")
                 }
             }
         }
@@ -385,7 +389,7 @@ pub mod to_runnable {
                             return Err(ToRunnableError::InvalidType {
                                 expected: func.input_types[i].clone(),
                                 found: rarg,
-                                problematic: out,
+                                problematic: VType { types: out },
                             });
                         }
                     }
@@ -446,7 +450,7 @@ pub mod to_runnable {
                         return Err(ToRunnableError::InvalidType {
                             expected: VSingleType::Bool.into(),
                             found: condition.out(),
-                            problematic: out,
+                            problematic: VType { types: out },
                         });
                     }
                 },
@@ -462,9 +466,13 @@ pub mod to_runnable {
             SStatementEnum::For(v, c, b) => {
                 let mut linfo = linfo.clone();
                 let container = statement(&c, ginfo, &mut linfo)?;
+                let inner = container.out().inner_types();
+                if inner.types.is_empty() {
+                    return Err(ToRunnableError::ForLoopContainerHasNoInnerTypes);
+                }
                 linfo
                     .vars
-                    .insert(v.clone(), (ginfo.vars, container.out().inner_types()));
+                    .insert(v.clone(), (ginfo.vars, inner));
                 let for_loop_var = ginfo.vars;
                 ginfo.vars += 1;
                 let block = statement(&b, ginfo, &mut linfo)?;
@@ -832,7 +840,7 @@ impl RStatementEnum {
                 // matching values also break with value from a for loop.
                 let c = c.run(vars, libs);
                 let mut vars = vars.clone();
-                let mut in_loop = |c| {
+                let in_loop = |vars: &mut Vec<Arc<Mutex<VData>>>, c| {
                     vars[*v] = Arc::new(Mutex::new(c));
                     b.run(&vars, libs)
                 };
@@ -841,7 +849,9 @@ impl RStatementEnum {
                 match c.data {
                     VDataEnum::Int(v) => {
                         for i in 0..v {
-                            if let Some(v) = in_loop(VDataEnum::Int(i).to()).data.matches() {
+                            if let Some(v) =
+                                in_loop(&mut vars, VDataEnum::Int(i).to()).data.matches()
+                            {
                                 oval = v;
                                 break;
                             }
@@ -849,9 +859,10 @@ impl RStatementEnum {
                     }
                     VDataEnum::String(v) => {
                         for ch in v.chars() {
-                            if let Some(v) = in_loop(VDataEnum::String(ch.to_string()).to())
-                                .data
-                                .matches()
+                            if let Some(v) =
+                                in_loop(&mut vars, VDataEnum::String(ch.to_string()).to())
+                                    .data
+                                    .matches()
                             {
                                 oval = v;
                                 break;
@@ -860,12 +871,22 @@ impl RStatementEnum {
                     }
                     VDataEnum::Tuple(v) | VDataEnum::List(_, v) => {
                         for v in v {
-                            if let Some(v) = in_loop(v).data.matches() {
+                            if let Some(v) = in_loop(&mut vars, v).data.matches() {
                                 oval = v;
                                 break;
                             }
                         }
                     }
+                    VDataEnum::Function(f) => loop {
+                        if let Some(v) = f.run(&vars, libs).data.matches() {
+                            if let Some(v) = in_loop(&mut vars, v).data.matches() {
+                                oval = v;
+                                break;
+                            }
+                        } else {
+                            break;
+                        }
+                    },
                     _ => unreachable!(),
                 }
                 oval
@@ -1063,7 +1084,17 @@ impl Display for VSingleType {
                 Ok(())
             }
             Self::List(t) => write!(f, "[{t} ...]"),
-            Self::Function(_) => write!(f, "FUNCTION"),
+            Self::Function(t) => {
+                write!(f, "fn(")?;
+                for (t, o) in t {
+                    for t in t {
+                        write!(f, "{t} ")?;
+                    }
+                    write!(f, "{o}")?;
+                }
+                write!(f, ")")?;
+                Ok(())
+            }
             Self::Thread(_) => write!(f, "THREAD"),
             Self::Reference(r) => write!(f, "&{r}"),
             Self::EnumVariant(v, t) => write!(f, "{v}({t})"),

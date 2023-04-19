@@ -910,7 +910,76 @@ fn parse_single_type_adv(
                     match file.next() {
                         Some('(') => {
                             break 'parse_single_type if name.as_str() == "fn" {
-                                todo!("fn types");
+                                let mut fn_types = vec![];
+                                loop {
+                                    file.skip_whitespaces();
+                                    match file.next() {
+                                        Some('(') => {
+                                            let mut args = vec![];
+                                            loop {
+                                                let (t, fn_args_closed) =
+                                                    parse_type_adv(file, true)?;
+                                                args.push(t);
+                                                if fn_args_closed {
+                                                    break;
+                                                }
+                                            }
+                                            let out = if let Some(v) = args.pop() {
+                                                v
+                                            } else {
+                                                VSingleType::Tuple(vec![]).to()
+                                            };
+                                            fn get_all_single_types(
+                                                types: &mut Vec<VType>,
+                                            ) -> Vec<Vec<VSingleType>>
+                                            {
+                                                if types.is_empty() {
+                                                    vec![]
+                                                } else if types.len() == 1 {
+                                                    vec![types[0].types.clone()]
+                                                } else {
+                                                    let last = types.pop().unwrap();
+                                                    let o = get_all_single_types(types);
+                                                    let mut out = Vec::with_capacity(
+                                                        o.len() * last.types.len(),
+                                                    );
+                                                    for other in o {
+                                                        for t in &last.types {
+                                                            let mut vec = other.clone();
+                                                            vec.push(t.clone());
+                                                            out.push(vec);
+                                                        }
+                                                    }
+                                                    types.push(last);
+                                                    out
+                                                }
+                                            }
+                                            for t in get_all_single_types(&mut args) {
+                                                fn_types.push((t, out.clone()));
+                                            }
+                                        }
+                                        Some(')') => break,
+                                        Some(other) => {
+                                            eprintln!("Found char '{other}' in fn type when ')' or '(' was expected (will be treated as ')'). format is fn((input11 input12 output1) (input21 input22 output2))");
+                                            break;
+                                        }
+                                        None => {
+                                            return Err(ParseError {
+                                                err: ParseErrors::FoundEofInType,
+                                                location: err_start_of_single_type,
+                                                location_end: Some(*file.get_pos()),
+                                                context: vec![],
+                                            })
+                                        }
+                                    }
+                                }
+                                if in_fn_args {
+                                    if let Some(')') = file.peek() {
+                                        _ = file.next();
+                                        closed_bracket_in_fn_args = true;
+                                    }
+                                }
+                                VSingleType::Function(fn_types)
                             } else {
                                 VSingleType::EnumVariantS(name, {
                                     let po = parse_type_adv(file, true)?;

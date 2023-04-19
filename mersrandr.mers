@@ -1,0 +1,74 @@
+lib mers_libs/gui
+
+// GUI for xrandr, because arandr doesn't let me change the framerates.
+// [ WIP ]
+
+base = gui_init()
+
+set_title("MersRandr")
+
+randr_output = run_command("xrandr")
+
+switch! randr_output {
+    Err(string) {
+        println(randr_output.noenum())
+    }
+    [[]/int string string] {
+        lines = randr_output.1.regex(".*")
+        screen_name = ""
+        screen_resolutions = [["" ["" ...]] ...]
+        screens = [
+            [
+                screen_name
+                screen_resolutions
+            ]
+        ...]
+        &screen_resolutions.pop()
+        &screens.pop()
+        for line lines {
+            if line.starts_with("Screen ") {
+                // ignore
+            } else if line.starts_with("   ") {
+                // split at spaces (and ignore +*)
+                refresh_rates = line.regex("[^ +\\*]+").assume_no_enum()
+                resolution = &refresh_rates.remove(0).assume1()
+                print("{0} ::".format(resolution))
+                for rate refresh_rates {
+                    print(" \"{0}\"".format(rate))
+                }
+                &screen_resolutions.push([resolution refresh_rates])
+                println("")
+            } else {
+                index = line.index_of(" ")
+                switch! index {
+                    int {
+                        if not(screen_name.len().eq(0)) {
+                            &screens.push([screen_name screen_resolutions])
+                        }
+                        screen_resolutions = [ ...]
+                        screen_name = line.substring(0 index)
+                        println("> \"{0}\"".format(screen_name))
+                    }
+                    [] {}
+                }
+            }
+        }
+        if not(screen_name.len().eq(0)) {
+            &screens.push([screen_name screen_resolutions])
+        }
+        for screen screens {
+            println(screen.0)
+            gui_screen = base.gui_add(Row: [])
+            gui_name = gui_screen.gui_add(Text: screen.0)
+            for res screen.1 {
+                gui_resolution = gui_screen.gui_add(Button: res.0)
+                print("  ")
+                println(res.0)
+                for rate res.1 {
+                    print("    ")
+                    println(rate)
+                }
+            }
+        }
+    }
+}
