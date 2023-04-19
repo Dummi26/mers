@@ -152,6 +152,9 @@ pub fn parse_step_libs_load(
         let cmd_path = cmd.get_program().to_string_lossy().into_owned();
         match libs::Lib::launch(cmd, &mut ginfo.enum_variants) {
             Ok(lib) => {
+                for (i, (func, _, _)) in lib.registered_fns.iter().enumerate() {
+                    ginfo.lib_fns.insert(func.clone(), (libs.len(), i));
+                }
                 libs.push(lib);
             }
             Err(e) => return Err(UnableToLoadLibrary(cmd_path, e)),

@@ -55,7 +55,7 @@ fn get_db_contents() {
             for entry entries {
                 lines = entry.regex(".*")
                 switch! lines {
-                    [string] {
+                    [string ...] {
                         index_line = &lines.get(0).assume1()
                         index = index_line.substring(1 index_line.len().sub(1)).parse_int().assume1()
                         title = &lines.get(1).assume1().substring(1)
@@ -168,7 +168,7 @@ thread(() {
 while {
     for event gui_updates() {
         switch! event {
-            ButtonPressed([int]) {
+            ButtonPressed([int ...]) {
                 e = event.noenum()
                 println("Pressed button {0}".format(e.to_string()))
                 match e {

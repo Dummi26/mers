@@ -14,7 +14,7 @@ second_text = column.gui_add(Text: "press the button above to remove this text!"
 while {
     for event gui_updates() {
         switch! event {
-            ButtonPressed([int]) {
+            ButtonPressed([int ...]) {
                 e = event.noenum()
                 match e {
                     &e.eq(&button) println("First button pressed")

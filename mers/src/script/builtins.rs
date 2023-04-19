@@ -50,6 +50,10 @@ pub enum BuiltinFunction {
     // OS
     RunCommand,
     RunCommandGetBytes,
+    // Bool
+    Not,
+    And,
+    Or,
     // Math
     Add,
     Sub,
@@ -75,6 +79,7 @@ pub enum BuiltinFunction {
     Contains,
     StartsWith,
     EndsWith,
+    IndexOf,
     Trim,
     Substring,
     Regex,
@@ -108,6 +113,9 @@ impl BuiltinFunction {
             "string_to_bytes" => Self::StringToBytes,
             "run_command" => Self::RunCommand,
             "run_command_get_bytes" => Self::RunCommandGetBytes,
+            "not" => Self::Not,
+            "and" => Self::And,
+            "or" => Self::Or,
             "add" => Self::Add,
             "sub" => Self::Sub,
             "mul" => Self::Mul,
@@ -130,6 +138,7 @@ impl BuiltinFunction {
             "contains" => Self::Contains,
             "starts_with" => Self::StartsWith,
             "ends_with" => Self::EndsWith,
+            "index_of" => Self::IndexOf,
             "trim" => Self::Trim,
             "substring" => Self::Substring,
             "regex" => Self::Regex,
@@ -309,6 +318,13 @@ impl BuiltinFunction {
                         || (input[0].fits_in(&st).is_empty() && input[1].fits_in(&st).is_empty())
                 }
             }
+            Self::Not => input.len() == 1 && input[0].fits_in(&VSingleType::Bool.to()).is_empty(),
+            Self::And | Self::Or => {
+                input.len() == 2
+                    && input
+                        .iter()
+                        .all(|v| v.fits_in(&VSingleType::Bool.to()).is_empty())
+            }
             Self::Sub
             | Self::Mul
             | Self::Div
@@ -421,11 +437,25 @@ impl BuiltinFunction {
                     false
                 }
             }
+            // two strings
             Self::Contains | Self::StartsWith | Self::EndsWith | Self::Regex => {
                 input.len() == 2
                     && input
                         .iter()
                         .all(|v| v.fits_in(&VSingleType::String.to()).is_empty())
+            }
+            // two strings or &strings
+            Self::IndexOf => {
+                input.len() == 2
+                    && input.iter().all(|v| {
+                        v.fits_in(&VType {
+                            types: vec![
+                                VSingleType::String,
+                                VSingleType::Reference(Box::new(VSingleType::String)),
+                            ],
+                        })
+                        .is_empty()
+                    })
             }
             Self::Trim => {
                 input.len() == 1 && input[0].fits_in(&VSingleType::String.to()).is_empty()
@@ -591,6 +621,7 @@ impl BuiltinFunction {
                     ]),
                 ],
             },
+            Self::Not | Self::And | Self::Or => VSingleType::Bool.to(),
             Self::Add
             | Self::Sub
             | Self::Mul
@@ -641,6 +672,9 @@ impl BuiltinFunction {
             Self::Push | Self::Insert => VSingleType::Tuple(vec![]).into(),
             Self::Len => VSingleType::Int.into(),
             Self::Contains | Self::StartsWith | Self::EndsWith => VSingleType::Bool.into(),
+            Self::IndexOf => VType {
+                types: vec![VSingleType::Tuple(vec![]), VSingleType::Int],
+            },
             Self::Trim => VSingleType::String.into(),
             Self::Substring => VSingleType::String.into(),
             Self::Regex => VType {
@@ -1067,6 +1101,43 @@ impl BuiltinFunction {
                     unreachable!("run_command not 1 arg")
                 }
             }
+            Self::Not => {
+                if let VDataEnum::Bool(v) = args[0].run(vars, libs).data {
+                    VDataEnum::Bool(!v).to()
+                } else {
+                    unreachable!()
+                }
+            }
+            Self::And => {
+                if let VDataEnum::Bool(a) = args[0].run(vars, libs).data {
+                    if a == false {
+                        VDataEnum::Bool(false).to()
+                    } else {
+                        if let VDataEnum::Bool(b) = args[1].run(vars, libs).data {
+                            VDataEnum::Bool(b).to()
+                        } else {
+                            unreachable!()
+                        }
+                    }
+                } else {
+                    unreachable!()
+                }
+            }
+            Self::Or => {
+                if let VDataEnum::Bool(a) = args[0].run(vars, libs).data {
+                    if a == true {
+                        VDataEnum::Bool(true).to()
+                    } else {
+                        if let VDataEnum::Bool(b) = args[1].run(vars, libs).data {
+                            VDataEnum::Bool(b).to()
+                        } else {
+                            unreachable!()
+                        }
+                    }
+                } else {
+                    unreachable!()
+                }
+            }
             Self::Add => {
                 if args.len() == 2 {
                     match (args[0].run(vars, libs).data, args[1].run(vars, libs).data) {
@@ -1453,6 +1524,61 @@ impl BuiltinFunction {
                         }
                     } else {
                         unreachable!()
+                    }
+                } else {
+                    unreachable!()
+                }
+            }
+            Self::IndexOf => {
+                if args.len() == 2 {
+                    let find_in = args[0].run(vars, libs);
+                    let pat = args[1].run(vars, libs);
+                    fn find(find_in: &String, pat: &String) -> VData {
+                        if let Some(found_byte_index) = find_in.find(pat) {
+                            if let Some(char_index) = find_in.char_indices().enumerate().find_map(
+                                |(char_index, (byte_index, _char))| {
+                                    if byte_index == found_byte_index {
+                                        Some(char_index)
+                                    } else {
+                                        None
+                                    }
+                                },
+                            ) {
+                                VDataEnum::Int(char_index as _).to()
+                            } else {
+                                VDataEnum::Tuple(vec![]).to()
+                            }
+                        } else {
+                            VDataEnum::Tuple(vec![]).to()
+                        }
+                    }
+                    match (find_in.data, pat.data) {
+                        (VDataEnum::String(a), VDataEnum::String(b)) => find(&a, &b),
+                        (VDataEnum::String(a), VDataEnum::Reference(b)) => {
+                            match &b.lock().unwrap().data {
+                                VDataEnum::String(b) => find(&a, b),
+                                _ => unreachable!(),
+                            }
+                        }
+                        (VDataEnum::Reference(a), VDataEnum::String(b)) => {
+                            match &a.lock().unwrap().data {
+                                VDataEnum::String(a) => find(a, &b),
+                                _ => unreachable!(),
+                            }
+                        }
+                        (VDataEnum::Reference(a), VDataEnum::Reference(b)) => {
+                            if Arc::ptr_eq(&a, &b) {
+                                // point to the same string
+                                // (this is required because a.lock() would cause b.lock() to wait indefinitely if you pass a two references to the same string here)
+                                VDataEnum::Int(0).to()
+                            } else {
+                                match (&a.lock().unwrap().data, &b.lock().unwrap().data) {
+                                    (VDataEnum::String(a), VDataEnum::String(b)) => find(a, b),
+                                    _ => unreachable!(),
+                                }
+                            }
+                        }
+                        _ => unreachable!(),
                     }
                 } else {
                     unreachable!()
