@@ -236,7 +236,7 @@ Since `get()` can fail, it returns `[]/[t]` where t is the type of elements in t
 We get the first argument passed to our program and read it from disk using fs_read. To run this: `mers script.txt test_file.txt`.
 
 `switch` is used to distinguish between multiple possible types. `switch!` will cause a compiler error unless *all* types are covered.
-This is useful to see what type the compiler thinks a variable has: In this case `[int]/Err(string)`.
+This is useful to see what type the compiler thinks a variable has: In this case `[int ...]/Err(string)`.
 
 Err(string) is a string value in an Err enum. Builtin functions use the Err enum to indicate errors because there is no concrete Error type.
 
@@ -244,7 +244,7 @@ After handling all errors, this is the code I came up with:
 
     file = fs_read(&args.get(0).assume1("please provided a text file to read!"))
     switch! file {
-        [int] {
+        [int ...] {
             file_as_string = bytes_to_string(file)
             contents = switch! file_as_string {
                 string file_as_string
@@ -381,10 +381,10 @@ Mers has the following builtin types:
   + the tuple type is written as any number of types separated by whitespace(s), enclosed in square brackets: [int string].
   + tuple values are created by putting any number of statements in square brackets: ["hello" "world" 12 -0.2 false].
 - list
-  + list types are written as a single type enclosed in square brackets: [string]. TODO! this will likely change to [string ...] or something similar to allow 1-long tuples in function args.
+  + list types are written as a single type enclosed in square brackets with 3 dots before the closing bracket: [string ...].
   + list values are created by putting any number of statements in square brackets, prefixing the closing bracket with ...: ["hello" "mers" "world" ...].
 - functions
-  + function types are written as `fn(args) out_type`. (TODO! implement this)
+  + function types are written as `fn((in1_1 in1_2 in1_3 out1) (in2_1 in2_2 out2))`.
   + function values are created using the `(first_arg_name first_arg_type second_arg_name second_arg_type) statement` syntax: `anonymous_power_function = (a int b int) a.pow(b)`.
   + to run anonymous functions, use the run() builtin: `anonymous_power_function.run(4 2)` evaluates to `16`.
   + note: functions are defined using the `fn name(args) statement` syntax and are different from anonymous functions because they aren't values and can be run directly: `fn power_function(a int b int) a.pow(b)` => `power_function(4 2)` => `16`
@@ -395,4 +395,4 @@ Mers has the following builtin types:
 - enum
   + wraps any other value with a certain identifier.
   + the type is written as `enum(type)`: many builtins use `Err(String)` to report errors.
-  + to get a value, use `enum: statement`. `Err: "something went wrong"`
+  + to get a value, use `enum: statement`: `Err: "something went wrong"`
