@@ -32,6 +32,11 @@ impl Display for FilePosition {
 
 impl File {
     pub fn new(data: String, path: PathBuf) -> Self {
+        let data = if data.starts_with("#!") {
+            &data[data.lines().next().unwrap().len()..].trim_start()
+        } else {
+            data.trim_start()
+        };
         let mut chs = data.chars();
         let mut data = String::with_capacity(data.len());
         loop {
