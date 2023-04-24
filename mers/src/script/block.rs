@@ -655,8 +655,6 @@ pub mod to_runnable {
         if let Some(force_opt) = &s.force_output_type {
             let real_output_type = statement.out();
             let problematic_types = real_output_type.fits_in(force_opt);
-            eprintln!("Real: {real_output_type}");
-            eprintln!("Prob: {problematic_types:?}");
             if problematic_types.is_empty() {
                 statement.force_output_type = Some(force_opt.clone());
             } else {
