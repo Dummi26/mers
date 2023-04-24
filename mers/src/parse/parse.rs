@@ -459,7 +459,9 @@ fn parse_statement_adv(
             };
             match nchar {
                 Some('=') => {
-                    break parse_statement(file)?.output_to(start.trim().to_string());
+                    let start = start.trim();
+                    let derefs = start.chars().take_while(|c| *c == '*').count();
+                    break parse_statement(file)?.output_to(start[derefs..].to_owned(), derefs);
                 }
                 Some(':') => {
                     return Ok(SStatement::new(SStatementEnum::EnumVariant(
@@ -671,7 +673,7 @@ fn parse_statement_adv(
     file.skip_whitespaces();
     if !file[file.get_pos().current_char_index..].starts_with("..") {
         // dot chain syntax only works if there is only one dot
-        if let Some('.') = file.get_char(file.get_pos().current_char_index) {
+        if let Some('.') = file.peek() {
             // consume the dot (otherwise, a.b.c syntax will break in certain cases)
             file.next();
         }

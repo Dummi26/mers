@@ -41,7 +41,7 @@ impl SFunction {
 
 #[derive(Debug)]
 pub struct SStatement {
-    pub output_to: Option<String>,
+    pub output_to: Option<(String, usize)>,
     pub statement: Box<SStatementEnum>,
 }
 impl SStatement {
@@ -51,8 +51,8 @@ impl SStatement {
             statement: Box::new(statement),
         }
     }
-    pub fn output_to(mut self, var: String) -> Self {
-        self.output_to = Some(var);
+    pub fn output_to(mut self, var: String, derefs: usize) -> Self {
+        self.output_to = Some((var, derefs));
         self
     }
 }
@@ -112,6 +112,8 @@ pub mod to_runnable {
         MainWrongInput,
         UseOfUndefinedVariable(String),
         UseOfUndefinedFunction(String),
+        CannotDeclareVariableWithDereference(String),
+        CannotDereferenceTypeNTimes(VType, usize, VType),
         FunctionWrongArgCount(String, usize, usize),
         InvalidType {
             expected: VType,
@@ -139,6 +141,10 @@ pub mod to_runnable {
                 ),
                 Self::UseOfUndefinedVariable(v) => write!(f, "Cannot use variable \"{v}\" as it isn't defined (yet?)."),
                 Self::UseOfUndefinedFunction(v) => write!(f, "Cannot use function \"{v}\" as it isn't defined (yet?)."),
+                Self::CannotDeclareVariableWithDereference(v) => write!(f, "Cannot declare a variable and dereference it (variable '{v}')."),
+                Self::CannotDereferenceTypeNTimes(og_type, derefs_wanted, last_valid_type) => write!(f, 
+                    "Cannot dereference type {og_type} {derefs_wanted} times (stopped at {last_valid_type})."
+                ),
                 Self::FunctionWrongArgCount(v, a, b) => write!(f, "Tried to call function \"{v}\", which takes {a} arguments, with {b} arguments instead."),
                 Self::InvalidType {
                     expected,
@@ -634,25 +640,45 @@ pub mod to_runnable {
             }, statement(s, ginfo, linfo)?),
         }
         .to();
-        if let Some(opt) = &s.output_to {
-            if let Some(var) = linfo.vars.get(opt) {
+        if let Some((opt, derefs)) = &s.output_to {
+            if let Some((var_id, var_out)) = linfo.vars.get(opt) {
                 let out = statement.out();
-                let var_id = var.0;
-                let var_out = &var.1;
-                let inv_types = out.fits_in(&var_out);
+                let mut var_derefd = var_out.clone();
+                for _ in 0..*derefs {
+                    var_derefd = if let Some(v) = var_derefd.dereference() {
+                        v
+                    } else {
+                        return Err(ToRunnableError::CannotDereferenceTypeNTimes(var_out.clone(), *derefs, var_derefd));
+                    }
+                }
+                let inv_types = out.fits_in(&var_derefd);
                 if !inv_types.is_empty() {
                     eprintln!("Warn: shadowing variable {opt} because statement's output type {out} does not fit in the original variable's {var_out}. This might become an error in the future, or it might stop shadowing the variiable entirely - for stable scripts, avoid this by giving the variable a different name.");
+                    if *derefs != 0 {
+                        return Err(ToRunnableError::CannotDeclareVariableWithDereference(
+                            opt.clone(),
+                        ));
+                    }
                     linfo.vars.insert(opt.clone(), (ginfo.vars, out));
-                    statement.output_to = Some(ginfo.vars);
+                    statement.output_to = Some((ginfo.vars, 0));
                     ginfo.vars += 1;
                 } else {
-                    statement.output_to = Some(var_id);
+                    // mutate existing variable
+                    statement.output_to = Some((*var_id, *derefs));
                 }
             } else {
+                let mut out = statement.out();
+                for _ in 0..*derefs {
+                    out = if let Some(v) = out.dereference() {
+                        v
+                    } else {
+                        return Err(ToRunnableError::CannotDereferenceTypeNTimes(statement.out(), *derefs, out));
+                    }
+                }
                 linfo
                     .vars
-                    .insert(opt.clone(), (ginfo.vars, statement.out()));
-                statement.output_to = Some(ginfo.vars);
+                    .insert(opt.clone(), (ginfo.vars, out));
+                statement.output_to = Some((ginfo.vars, *derefs));
                 ginfo.vars += 1;
             }
         }
@@ -735,14 +761,23 @@ impl RFunction {
 
 #[derive(Clone, Debug)]
 pub struct RStatement {
-    output_to: Option<usize>,
+    output_to: Option<(usize, usize)>,
     statement: Box<RStatementEnum>,
 }
 impl RStatement {
     pub fn run(&self, vars: &Vec<Am<VData>>, libs: &Arc<Vec<libs::Lib>>) -> VData {
         let out = self.statement.run(vars, libs);
-        if let Some(v) = self.output_to {
-            *vars[v].lock().unwrap() = out;
+        if let Some((v, derefs)) = self.output_to {
+            let mut val = vars[v].clone();
+            for _ in 0..derefs {
+                let v = if let VDataEnum::Reference(v) = &val.lock().unwrap().data {
+                    v.clone()
+                } else {
+                    unreachable!("dereferencing something that isn't a reference in assignment")
+                };
+                val = v;
+            }
+            *val.lock().unwrap() = out;
             VDataEnum::Tuple(vec![]).to()
         } else {
             out
@@ -1105,7 +1140,7 @@ impl Display for VSingleType {
 impl Display for SStatement {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Some(to) = self.output_to.as_ref() {
-            write!(f, "{} = ", to.as_str())?;
+            write!(f, "{}{} = ", "*".repeat(to.1), to.0.as_str())?;
         }
         write!(f, "{}", self.statement)
     }

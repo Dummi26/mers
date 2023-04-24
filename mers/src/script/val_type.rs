@@ -34,6 +34,9 @@ impl VSingleType {
     }
 }
 impl VType {
+    pub fn empty() -> Self {
+        Self { types: vec![] }
+    }
     pub fn get(&self, i: usize) -> Option<VType> {
         let mut out = VType { types: vec![] };
         for t in &self.types {
@@ -59,6 +62,13 @@ impl VType {
             None
         }
     }
+    pub fn dereference(&self) -> Option<Self> {
+        let mut out = Self::empty();
+        for t in self.types.iter() {
+            out = out | t.deref()?.to();
+        }
+        Some(out)
+    }
 }
 
 impl VSingleType {
@@ -77,6 +87,13 @@ impl VSingleType {
         match self {
             Self::Reference(_) => true,
             _ => false,
+        }
+    }
+    pub fn deref(&self) -> Option<VSingleType> {
+        if let Self::Reference(v) = self {
+            Some(*v.clone())
+        } else {
+            None
         }
     }
 }
