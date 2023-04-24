@@ -43,16 +43,23 @@ impl SFunction {
 pub struct SStatement {
     pub output_to: Option<(String, usize)>,
     pub statement: Box<SStatementEnum>,
+    pub force_output_type: Option<VType>,
 }
 impl SStatement {
     pub fn new(statement: SStatementEnum) -> Self {
         Self {
             output_to: None,
             statement: Box::new(statement),
+            force_output_type: None,
         }
     }
     pub fn output_to(mut self, var: String, derefs: usize) -> Self {
         self.output_to = Some((var, derefs));
+        self
+    }
+    // forces the statement's output to fit in a certain type.
+    pub fn force_output_type(mut self, force_output_type: Option<VType>) -> Self {
+        self.force_output_type = force_output_type;
         self
     }
 }
@@ -126,6 +133,7 @@ pub mod to_runnable {
         WrongInputsForBuiltinFunction(BuiltinFunction, String, Vec<VType>),
         WrongArgsForLibFunction(String, Vec<VType>),
         ForLoopContainerHasNoInnerTypes,
+        StatementRequiresOutputTypeToBeAButItActuallyOutputsBWhichDoesNotFitInA(VType, VType, VType),
     }
     impl Debug for ToRunnableError {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -173,6 +181,9 @@ pub mod to_runnable {
                 Self::ForLoopContainerHasNoInnerTypes => {
                     write!(f, "For loop: container had no inner types, cannot iterate.")
                 }
+                Self::StatementRequiresOutputTypeToBeAButItActuallyOutputsBWhichDoesNotFitInA(required, real, problematic) => write!(f,
+                    "the statement requires its output type to be {required}, but its real output type is {real}, which doesn not fit in the required type because of the problematic types {problematic}."
+                ),
             }
         }
     }
@@ -640,6 +651,18 @@ pub mod to_runnable {
             }, statement(s, ginfo, linfo)?),
         }
         .to();
+        // if force_output_type is set, verify that the real output type actually fits in the forced one.
+        if let Some(force_opt) = &s.force_output_type {
+            let real_output_type = statement.out();
+            let problematic_types = real_output_type.fits_in(force_opt);
+            eprintln!("Real: {real_output_type}");
+            eprintln!("Prob: {problematic_types:?}");
+            if problematic_types.is_empty() {
+                statement.force_output_type = Some(force_opt.clone());
+            } else {
+                return Err(ToRunnableError::StatementRequiresOutputTypeToBeAButItActuallyOutputsBWhichDoesNotFitInA(force_opt.clone(), real_output_type, VType { types: problematic_types }))
+            }
+        }
         if let Some((opt, derefs)) = &s.output_to {
             if let Some((var_id, var_out)) = linfo.vars.get(opt) {
                 let out = statement.out();
@@ -681,8 +704,7 @@ pub mod to_runnable {
                 statement.output_to = Some((ginfo.vars, *derefs));
                 ginfo.vars += 1;
             }
-        }
-        Ok(statement)
+        }        Ok(statement)
     }
 }
 
@@ -763,6 +785,7 @@ impl RFunction {
 pub struct RStatement {
     output_to: Option<(usize, usize)>,
     statement: Box<RStatementEnum>,
+    force_output_type: Option<VType>,
 }
 impl RStatement {
     pub fn run(&self, vars: &Vec<Am<VData>>, libs: &Arc<Vec<libs::Lib>>) -> VData {
@@ -784,10 +807,14 @@ impl RStatement {
         }
     }
     pub fn out(&self) -> VType {
+        // `a = b` evaluates to []
         if self.output_to.is_some() {
             return VType {
                 types: vec![VSingleType::Tuple(vec![])],
             };
+        }
+        if let Some(t) = &self.force_output_type {
+            return t.clone();
         }
         self.statement.out()
     }
@@ -1028,6 +1055,7 @@ impl RStatementEnum {
         RStatement {
             output_to: None,
             statement: Box::new(self),
+            force_output_type: None,
         }
     }
 }
@@ -1245,7 +1273,7 @@ impl Display for VDataEnum {
                     }
                 }
                 match self {
-                    Self::List(..) => write!(f, "...")?,
+                    Self::List(..) => write!(f, " ...")?,
                     _ => (),
                 }
                 write!(f, "]")?;

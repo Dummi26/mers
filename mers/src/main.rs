@@ -10,8 +10,16 @@ pub mod script;
 #[allow(unused)]
 fn main() {
     let args: Vec<_> = std::env::args().skip(1).collect();
+    #[cfg(debug_assertions)]
+    let args = if args.len() == 0 {
+        let mut args = args;
+        args.push("../script.mers".to_owned());
+        args
+    } else {
+        args
+    };
     let path = std::env::args().nth(1).unwrap();
-    let script = parse::parse::parse(&mut match args.len() {
+    let mut file = match args.len() {
         0 => {
             println!("Please provide some arguments, such as the path to a file or \"-e <code>\".");
             std::process::exit(100);
@@ -43,16 +51,16 @@ fn main() {
                     } else {
                         if let Some(prev_char) = prev_char {
                             match prev_char {
-                                'i' => {
-                                    match ch {
-                                        't' => interactive_use_new_terminal = true,
-                                        _ => eprintln!("Ignoring i+{ch}. (unknown adv char)"),
-                                    }
-                                }
+                                'i' => match ch {
+                                    't' => interactive_use_new_terminal = true,
+                                    _ => eprintln!("Ignoring i+{ch}. (unknown adv char)"),
+                                },
                                 _ => (),
                             }
                         } else {
-                            eprintln!("Ignoring advanced args because there was no previous argument.");
+                            eprintln!(
+                                "Ignoring advanced args because there was no previous argument."
+                            );
                         }
                         advanced = false;
                     }
@@ -64,39 +72,58 @@ fn main() {
                     let (contents, path) = match interactive {
                         1 => {
                             // basic: open file and watch for fs changes
-                            let temp_file_edit = edit::Builder::new().suffix(".mers").tempfile().unwrap();
+                            let temp_file_edit =
+                                edit::Builder::new().suffix(".mers").tempfile().unwrap();
                             let temp_file = temp_file_edit.path();
                             eprintln!("Using temporary file at {temp_file:?}. Save the file to update the output here.");
                             if let Ok(_) = std::fs::write(&temp_file, []) {
                                 if let Ok(mut watcher) = {
                                     let temp_file = temp_file.to_path_buf();
                                     // the file watcher
-                                    notify::recommended_watcher(move |event: Result<notify::Event, notify::Error>| {
-                                    if let Ok(event) = event {
-                                        match &event.kind {
-                                            notify::EventKind::Modify(notify::event::ModifyKind::Data(_)) => {
-                                                println!();
-                                                if let Ok(file_contents) = fs::read_to_string(&temp_file) {
-                                                    let mut file = parse::file::File::new(file_contents, temp_file.clone());
-                                                    match parse::parse::parse(&mut file) {
-                                                        Ok(func) => {
-                                                            println!(" - - - - -");
-                                                            let output = func.run(vec![]);
-                                                            println!(" - - - - -");
-                                                            println!("{}", output);
-                                                        },
-                                                        Err(e) => println!("{}", e.with_file(&file)),
+                                    notify::recommended_watcher(
+                                        move |event: Result<notify::Event, notify::Error>| {
+                                            if let Ok(event) = event {
+                                                match &event.kind {
+                                                    notify::EventKind::Modify(
+                                                        notify::event::ModifyKind::Data(_),
+                                                    ) => {
+                                                        println!();
+                                                        if let Ok(file_contents) =
+                                                            fs::read_to_string(&temp_file)
+                                                        {
+                                                            let mut file = parse::file::File::new(
+                                                                file_contents,
+                                                                temp_file.clone(),
+                                                            );
+                                                            match parse::parse::parse(&mut file) {
+                                                                Ok(func) => {
+                                                                    println!(" - - - - -");
+                                                                    let output = func.run(vec![]);
+                                                                    println!(" - - - - -");
+                                                                    println!("{}", output);
+                                                                }
+                                                                Err(e) => println!(
+                                                                    "{}",
+                                                                    e.with_file(&file)
+                                                                ),
+                                                            }
+                                                        } else {
+                                                            println!(
+                                                                "can't read file at {:?}!",
+                                                                temp_file
+                                                            );
+                                                            std::process::exit(105);
+                                                        }
                                                     }
-                                                } else {
-                                                    println!("can't read file at {:?}!", temp_file);
-                                                    std::process::exit(105);
+                                                    _ => (),
                                                 }
                                             }
-                                            _ => (),
-                                        }
-                                    }
-                                })} {
-                                    if let Ok(_) = watcher.watch(&temp_file, notify::RecursiveMode::NonRecursive) {
+                                        },
+                                    )
+                                } {
+                                    if let Ok(_) = watcher
+                                        .watch(&temp_file, notify::RecursiveMode::NonRecursive)
+                                    {
                                         if interactive_use_new_terminal {
                                             if let Ok(term) = std::env::var("TERM") {
                                                 let editor = edit::get_editor().unwrap();
@@ -111,12 +138,15 @@ fn main() {
                                                     .unwrap();
                                             }
                                         } else {
-                                        edit::edit_file(temp_file_edit.path()).unwrap();
+                                            edit::edit_file(temp_file_edit.path()).unwrap();
                                         }
                                         temp_file_edit.close().unwrap();
                                         std::process::exit(0);
                                     } else {
-                                        println!("Cannot watch the file at \"{:?}\" for hot-reload.", temp_file);
+                                        println!(
+                                            "Cannot watch the file at \"{:?}\" for hot-reload.",
+                                            temp_file
+                                        );
                                         std::process::exit(104);
                                     }
                                 } else {
@@ -131,12 +161,8 @@ fn main() {
                         }
                         _ => (String::new(), String::new()),
                     };
-                    parse::file::File::new(
-                        contents,
-                        path.into()
-                    )
-                }
-                else if execute {
+                    parse::file::File::new(contents, path.into())
+                } else if execute {
                     parse::file::File::new(
                         args.iter().skip(1).fold(String::new(), |mut s, v| {
                             if !s.is_empty() {
@@ -155,12 +181,19 @@ fn main() {
                 parse::file::File::new(std::fs::read_to_string(&args[0]).unwrap(), path.into())
             }
         }
-    })
-    .unwrap();
-    println!(" - - - - -");
-    let start = Instant::now();
-    let out = script.run(std::env::args().skip(2).collect());
-    let elapsed = start.elapsed();
-    println!(" - - - - -");
-    println!("Output ({}s)\n{out}", elapsed.as_secs_f64());
+    };
+    match parse::parse::parse(&mut file) {
+        Ok(script) => {
+            println!(" - - - - -");
+            let start = Instant::now();
+            let out = script.run(std::env::args().skip(2).collect());
+            let elapsed = start.elapsed();
+            println!(" - - - - -");
+            println!("Output ({}s)\n{out}", elapsed.as_secs_f64());
+        }
+        Err(e) => {
+            println!("Couldn't compile:\n{e}");
+            std::process::exit(99);
+        }
+    }
 }

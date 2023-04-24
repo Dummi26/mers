@@ -240,6 +240,7 @@ impl std::fmt::Display for ParseError {
 }
 #[derive(Debug)]
 pub enum ParseErrors {
+    StatementCannotStartWith(char),
     FoundClosingRoundBracketInSingleStatementBlockBeforeAnyStatement,
     FoundClosingCurlyBracketInSingleStatementBlockBeforeAnyStatement,
     FoundEofInBlockBeforeStatementOrClosingCurlyBracket,
@@ -256,6 +257,9 @@ pub enum ParseErrors {
 impl std::fmt::Display for ParseErrors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::StatementCannotStartWith(ch) => {
+                write!(f, "statements cannot start with the {ch} character.",)
+            }
             Self::FoundClosingRoundBracketInSingleStatementBlockBeforeAnyStatement => write!(
                 f,
                 "closing round bracket in single-statement block before any statement"
@@ -451,18 +455,13 @@ fn parse_statement_adv(
         let mut start = String::new();
         loop {
             fn is_delimeter(ch: char) -> bool {
-                matches!(ch, '}' | ']' | ')' | '.')
+                matches!(ch, '}' | ']' | ')' | '.' | '=')
             }
             let nchar = match file.peek() {
                 Some(ch) if is_delimeter(ch) => Some(ch),
                 _ => file.next(),
             };
             match nchar {
-                Some('=') => {
-                    let start = start.trim();
-                    let derefs = start.chars().take_while(|c| *c == '*').count();
-                    break parse_statement(file)?.output_to(start[derefs..].to_owned(), derefs);
-                }
                 Some(':') => {
                     return Ok(SStatement::new(SStatementEnum::EnumVariant(
                         start,
@@ -470,162 +469,215 @@ fn parse_statement_adv(
                     )));
                 }
                 Some(ch) if ch.is_whitespace() || is_delimeter(ch) => {
+                    if start.trim().is_empty() {
+                        return Err(ParseError {
+                            err: ParseErrors::StatementCannotStartWith(ch),
+                            location: *file.get_pos(),
+                            location_end: None,
+                            context: vec![],
+                        });
+                    }
+                    file.skip_whitespaces();
+                    // var = statement
+                    if let Some('=') = file.peek() {
+                        file.next();
+                        let err_equals_sign = *file.get_pos();
+                        let start = start.trim();
+                        let derefs = start.chars().take_while(|c| *c == '*').count();
+                        break match parse_statement(file) {
+                            Ok(v) => v,
+                            Err(mut e) => {
+                                e.context.push((
+                                    format!(
+                                        "statement was supposed to be assigned to variable {start}"
+                                    ),
+                                    Some((err_start_of_statement, Some(err_equals_sign))),
+                                ));
+                                return Err(e);
+                            }
+                        }
+                        .output_to(start[derefs..].to_owned(), derefs);
+                    }
+                    // var type = statement
+                    let file_pos_before_pot_type = *file.get_pos();
+                    let parsed_type = parse_type(file);
                     file.skip_whitespaces();
                     if let Some('=') = file.peek() {
-                        continue;
-                    } else {
+                        file.next();
+                        let err_equals_sign = *file.get_pos();
                         let start = start.trim();
-                        match start {
-                            "fn" => {
-                                file.skip_whitespaces();
-                                let mut fn_name = String::new();
-                                loop {
-                                    match file.next() {
-                                        Some('(') => break,
-                                        Some(ch) => fn_name.push(ch),
-                                        None => break,
-                                    }
-                                }
-                                let func = parse_function(file, Some(err_start_of_statement))?;
-                                break SStatementEnum::FunctionDefinition(
-                                    Some(fn_name.trim().to_string()),
-                                    func,
-                                )
-                                .into();
+                        let derefs = start.chars().take_while(|c| *c == '*').count();
+                        break match parse_statement(file) {
+                            Ok(v) => v,
+                            Err(mut e) => {
+                                e.context.push((
+                                    format!(
+                                        "statement was supposed to be assigned to variable {start}"
+                                    ),
+                                    Some((err_start_of_statement, Some(err_equals_sign))),
+                                ));
+                                return Err(e);
                             }
-                            "if" => {
-                                // TODO: Else
-                                let condition = parse_statement(file)?;
-                                let then = parse_statement(file)?;
-                                let mut then_else = None;
-                                file.skip_whitespaces();
-                                let i = file.get_pos().current_char_index;
-                                if file[i..].starts_with("else ") {
-                                    while let Some('e' | 'l' | 's') = file.next() {}
-                                    then_else = Some(parse_statement(file)?);
+                        }
+                        .output_to(start[derefs..].to_owned(), derefs)
+                        .force_output_type(Some(match parsed_type {
+                                Ok(v) => v,
+                                Err(mut e) => {
+                                    e.context.push((
+                                        format!("interpreted this as an assignment to a variable with the format <var> <var_type> = <statement>"), Some((err_start_of_statement, Some(err_equals_sign)))
+                                    ));
+                                    return Err(e);
                                 }
-                                break SStatementEnum::If(condition, then, then_else).into();
+                            }));
+                    }
+                    // nevermind, not var type = statement
+                    file.set_pos(file_pos_before_pot_type);
+                    // parse normal statement
+                    let start = start.trim();
+                    match start {
+                        "fn" => {
+                            file.skip_whitespaces();
+                            let mut fn_name = String::new();
+                            loop {
+                                match file.next() {
+                                    Some('(') => break,
+                                    Some(ch) => fn_name.push(ch),
+                                    None => break,
+                                }
                             }
-                            "for" => {
-                                break SStatementEnum::For(
-                                    {
-                                        file.skip_whitespaces();
-                                        let mut buf = String::new();
-                                        loop {
-                                            if let Some(ch) = file.next() {
-                                                if ch.is_whitespace() {
-                                                    break;
-                                                }
-                                                buf.push(ch);
-                                            } else {
+                            let func = parse_function(file, Some(err_start_of_statement))?;
+                            break SStatementEnum::FunctionDefinition(
+                                Some(fn_name.trim().to_string()),
+                                func,
+                            )
+                            .into();
+                        }
+                        "if" => {
+                            // TODO: Else
+                            let condition = parse_statement(file)?;
+                            let then = parse_statement(file)?;
+                            let mut then_else = None;
+                            file.skip_whitespaces();
+                            let i = file.get_pos().current_char_index;
+                            if file[i..].starts_with("else ") {
+                                while let Some('e' | 'l' | 's') = file.next() {}
+                                then_else = Some(parse_statement(file)?);
+                            }
+                            break SStatementEnum::If(condition, then, then_else).into();
+                        }
+                        "for" => {
+                            break SStatementEnum::For(
+                                {
+                                    file.skip_whitespaces();
+                                    let mut buf = String::new();
+                                    loop {
+                                        if let Some(ch) = file.next() {
+                                            if ch.is_whitespace() {
                                                 break;
                                             }
-                                        }
-                                        buf
-                                    },
-                                    parse_statement(file)?,
-                                    parse_statement(file)?,
-                                )
-                                .into()
-                            }
-                            "while" => {
-                                break SStatementEnum::While(parse_statement(file)?).into();
-                            }
-                            "switch" | "switch!" => {
-                                let force = start.ends_with("!");
-                                let mut switch_on_what = String::new();
-                                loop {
-                                    match file.next() {
-                                        None => break,
-                                        Some(ch) if ch.is_whitespace() => break,
-                                        Some(ch) => switch_on_what.push(ch),
-                                    }
-                                }
-                                file.skip_whitespaces();
-                                if let Some('{') = file.next() {
-                                } else {
-                                    eprintln!("switch statements should be followed by {{ (because they must be closed by }}). This might lead to errors when parsing, although it isn't fatal.");
-                                }
-                                let mut cases = vec![];
-                                loop {
-                                    file.skip_whitespaces();
-                                    if let Some('}') = file.peek() {
-                                        file.next();
-                                        break;
-                                    }
-                                    cases.push((parse_type(file)?, parse_statement(file)?));
-                                }
-                                break SStatementEnum::Switch(switch_on_what, cases, force).into();
-                            }
-                            "match" => {
-                                let mut match_what = String::new();
-                                loop {
-                                    match file.next() {
-                                        None => break,
-                                        Some(ch) if ch.is_whitespace() => break,
-                                        Some(ch) => match_what.push(ch),
-                                    }
-                                }
-                                file.skip_whitespaces();
-                                if let Some('{') = file.next() {
-                                } else {
-                                    eprintln!("match statements should be followed by {{ (because they must be closed by }}). This might lead to errors when parsing, although it isn't fatal.");
-                                }
-                                let mut cases = vec![];
-                                loop {
-                                    file.skip_whitespaces();
-                                    if let Some('}') = file.peek() {
-                                        file.next();
-                                        break;
-                                    }
-                                    cases.push((parse_statement(file)?, parse_statement(file)?));
-                                }
-                                break SStatementEnum::Match(match_what, cases).into();
-                            }
-                            "true" => {
-                                break SStatementEnum::Value(VDataEnum::Bool(true).to()).into()
-                            }
-                            "false" => {
-                                break SStatementEnum::Value(VDataEnum::Bool(false).to()).into()
-                            }
-                            _ => {
-                                // int, float, var
-                                break {
-                                    if let Ok(v) = start.parse() {
-                                        if let Some('.') = nchar {
-                                            let pos = *file.get_pos();
-                                            file.next();
-                                            let mut pot_float = String::new();
-                                            for ch in &mut *file {
-                                                if ch.is_whitespace() || is_delimeter(ch) {
-                                                    file.set_pos(*file.get_ppos());
-                                                    break;
-                                                }
-                                                pot_float.push(ch);
-                                            }
-                                            if let Ok(v) = format!("{start}.{pot_float}").parse() {
-                                                SStatementEnum::Value(VDataEnum::Float(v).to())
-                                                    .into()
-                                            } else {
-                                                file.set_pos(pos);
-                                                SStatementEnum::Value(VDataEnum::Int(v).to()).into()
-                                            }
+                                            buf.push(ch);
                                         } else {
+                                            break;
+                                        }
+                                    }
+                                    buf
+                                },
+                                parse_statement(file)?,
+                                parse_statement(file)?,
+                            )
+                            .into()
+                        }
+                        "while" => {
+                            break SStatementEnum::While(parse_statement(file)?).into();
+                        }
+                        "switch" | "switch!" => {
+                            let force = start.ends_with("!");
+                            let mut switch_on_what = String::new();
+                            loop {
+                                match file.next() {
+                                    None => break,
+                                    Some(ch) if ch.is_whitespace() => break,
+                                    Some(ch) => switch_on_what.push(ch),
+                                }
+                            }
+                            file.skip_whitespaces();
+                            if let Some('{') = file.next() {
+                            } else {
+                                eprintln!("switch statements should be followed by {{ (because they must be closed by }}). This might lead to errors when parsing, although it isn't fatal.");
+                            }
+                            let mut cases = vec![];
+                            loop {
+                                file.skip_whitespaces();
+                                if let Some('}') = file.peek() {
+                                    file.next();
+                                    break;
+                                }
+                                cases.push((parse_type(file)?, parse_statement(file)?));
+                            }
+                            break SStatementEnum::Switch(switch_on_what, cases, force).into();
+                        }
+                        "match" => {
+                            let mut match_what = String::new();
+                            loop {
+                                match file.next() {
+                                    None => break,
+                                    Some(ch) if ch.is_whitespace() => break,
+                                    Some(ch) => match_what.push(ch),
+                                }
+                            }
+                            file.skip_whitespaces();
+                            if let Some('{') = file.next() {
+                            } else {
+                                eprintln!("match statements should be followed by {{ (because they must be closed by }}). This might lead to errors when parsing, although it isn't fatal.");
+                            }
+                            let mut cases = vec![];
+                            loop {
+                                file.skip_whitespaces();
+                                if let Some('}') = file.peek() {
+                                    file.next();
+                                    break;
+                                }
+                                cases.push((parse_statement(file)?, parse_statement(file)?));
+                            }
+                            break SStatementEnum::Match(match_what, cases).into();
+                        }
+                        "true" => break SStatementEnum::Value(VDataEnum::Bool(true).to()).into(),
+                        "false" => break SStatementEnum::Value(VDataEnum::Bool(false).to()).into(),
+                        _ => {
+                            // int, float, var
+                            break {
+                                if let Ok(v) = start.parse() {
+                                    if let Some('.') = nchar {
+                                        let pos = *file.get_pos();
+                                        file.next();
+                                        let mut pot_float = String::new();
+                                        for ch in &mut *file {
+                                            if ch.is_whitespace() || is_delimeter(ch) {
+                                                file.set_pos(*file.get_ppos());
+                                                break;
+                                            }
+                                            pot_float.push(ch);
+                                        }
+                                        if let Ok(v) = format!("{start}.{pot_float}").parse() {
+                                            SStatementEnum::Value(VDataEnum::Float(v).to()).into()
+                                        } else {
+                                            file.set_pos(pos);
                                             SStatementEnum::Value(VDataEnum::Int(v).to()).into()
                                         }
-                                    // } else if let Ok(v) = start.parse() {
-                                    //     SStatementEnum::Value(VDataEnum::Float(v).to()).into()
                                     } else {
-                                        if start.starts_with('&') {
-                                            SStatementEnum::Variable(start[1..].to_string(), true)
-                                                .into()
-                                        } else {
-                                            SStatementEnum::Variable(start.to_string(), false)
-                                                .into()
-                                        }
+                                        SStatementEnum::Value(VDataEnum::Int(v).to()).into()
                                     }
-                                };
-                            }
+                                // } else if let Ok(v) = start.parse() {
+                                //     SStatementEnum::Value(VDataEnum::Float(v).to()).into()
+                                } else {
+                                    if start.starts_with('&') {
+                                        SStatementEnum::Variable(start[1..].to_string(), true)
+                                            .into()
+                                    } else {
+                                        SStatementEnum::Variable(start.to_string(), false).into()
+                                    }
+                                }
+                            };
                         }
                     }
                 }
