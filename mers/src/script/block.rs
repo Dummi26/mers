@@ -1,5 +1,6 @@
 // A code block is any section of code. It contains its own local variables and functions, as well as a list of statements.
 // Types starting with S are directly parsed from Strings and unchecked. Types starting with T are type-checked templates for R-types. Types starting with R are runnable. S are converted to T after parsing is done, and T are converted to R whenever they need to run.
+// There currently are no T-Types, but we might need them in the future.
 
 use std::{
     fmt::Display,
@@ -133,7 +134,11 @@ pub mod to_runnable {
         WrongInputsForBuiltinFunction(BuiltinFunction, String, Vec<VType>),
         WrongArgsForLibFunction(String, Vec<VType>),
         ForLoopContainerHasNoInnerTypes,
-        StatementRequiresOutputTypeToBeAButItActuallyOutputsBWhichDoesNotFitInA(VType, VType, VType),
+        StatementRequiresOutputTypeToBeAButItActuallyOutputsBWhichDoesNotFitInA(
+            VType,
+            VType,
+            VType,
+        ),
     }
     impl Debug for ToRunnableError {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -150,7 +155,7 @@ pub mod to_runnable {
                 Self::UseOfUndefinedVariable(v) => write!(f, "Cannot use variable \"{v}\" as it isn't defined (yet?)."),
                 Self::UseOfUndefinedFunction(v) => write!(f, "Cannot use function \"{v}\" as it isn't defined (yet?)."),
                 Self::CannotDeclareVariableWithDereference(v) => write!(f, "Cannot declare a variable and dereference it (variable '{v}')."),
-                Self::CannotDereferenceTypeNTimes(og_type, derefs_wanted, last_valid_type) => write!(f, 
+                Self::CannotDereferenceTypeNTimes(og_type, derefs_wanted, last_valid_type) => write!(f,
                     "Cannot dereference type {og_type} {derefs_wanted} times (stopped at {last_valid_type})."
                 ),
                 Self::FunctionWrongArgCount(v, a, b) => write!(f, "Tried to call function \"{v}\", which takes {a} arguments, with {b} arguments instead."),
@@ -658,7 +663,7 @@ pub mod to_runnable {
             if problematic_types.is_empty() {
                 statement.force_output_type = Some(force_opt.clone());
             } else {
-                return Err(ToRunnableError::StatementRequiresOutputTypeToBeAButItActuallyOutputsBWhichDoesNotFitInA(force_opt.clone(), real_output_type, VType { types: problematic_types }))
+                return Err(ToRunnableError::StatementRequiresOutputTypeToBeAButItActuallyOutputsBWhichDoesNotFitInA(force_opt.clone(), real_output_type, VType { types: problematic_types }));
             }
         }
         if let Some((opt, derefs)) = &s.output_to {
@@ -669,7 +674,11 @@ pub mod to_runnable {
                     var_derefd = if let Some(v) = var_derefd.dereference() {
                         v
                     } else {
-                        return Err(ToRunnableError::CannotDereferenceTypeNTimes(var_out.clone(), *derefs, var_derefd));
+                        return Err(ToRunnableError::CannotDereferenceTypeNTimes(
+                            var_out.clone(),
+                            *derefs,
+                            var_derefd,
+                        ));
                     }
                 }
                 let inv_types = out.fits_in(&var_derefd);
@@ -693,16 +702,19 @@ pub mod to_runnable {
                     out = if let Some(v) = out.dereference() {
                         v
                     } else {
-                        return Err(ToRunnableError::CannotDereferenceTypeNTimes(statement.out(), *derefs, out));
+                        return Err(ToRunnableError::CannotDereferenceTypeNTimes(
+                            statement.out(),
+                            *derefs,
+                            out,
+                        ));
                     }
                 }
-                linfo
-                    .vars
-                    .insert(opt.clone(), (ginfo.vars, out));
+                linfo.vars.insert(opt.clone(), (ginfo.vars, out));
                 statement.output_to = Some((ginfo.vars, *derefs));
                 ginfo.vars += 1;
             }
-        }        Ok(statement)
+        }
+        Ok(statement)
     }
 }
 

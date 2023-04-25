@@ -1,8 +1,6 @@
 use std::{
     fmt::Debug,
     sync::{Arc, Mutex},
-    thread::JoinHandle,
-    time::Duration,
 };
 
 use super::{
@@ -25,7 +23,7 @@ pub enum VDataEnum {
     Tuple(Vec<VData>),
     List(VType, Vec<VData>),
     Function(RFunction),
-    Thread(VDataThread, VType),
+    Thread(thread::VDataThread, VType),
     Reference(Arc<Mutex<VData>>),
     EnumVariant(usize, Box<VData>),
 }
@@ -157,64 +155,75 @@ impl VType {
     }
 }
 
-#[derive(Clone)]
-pub struct VDataThread(Arc<Mutex<VDataThreadEnum>>);
-impl VDataThread {
-    pub fn try_get(&self) -> Option<VData> {
-        match &*self.lock() {
-            VDataThreadEnum::Running(_) => None,
-            VDataThreadEnum::Finished(v) => Some(v.clone()),
-        }
-    }
-    pub fn get(&self) -> VData {
-        let dur = Duration::from_millis(100);
-        loop {
+pub mod thread {
+    use std::{
+        fmt::Debug,
+        sync::{Arc, Mutex},
+        thread::JoinHandle,
+        time::Duration,
+    };
+
+    use super::{VData, VDataEnum};
+
+    #[derive(Clone)]
+    pub struct VDataThread(Arc<Mutex<VDataThreadEnum>>);
+    impl VDataThread {
+        pub fn try_get(&self) -> Option<VData> {
             match &*self.lock() {
-                VDataThreadEnum::Running(v) => {
-                    while !v.is_finished() {
-                        std::thread::sleep(dur);
-                    }
-                }
-                VDataThreadEnum::Finished(v) => return v.clone(),
+                VDataThreadEnum::Running(_) => None,
+                VDataThreadEnum::Finished(v) => Some(v.clone()),
             }
         }
-    }
-    pub fn lock(&self) -> std::sync::MutexGuard<VDataThreadEnum> {
-        let mut mg = self.0.lock().unwrap();
-        match &*mg {
-            VDataThreadEnum::Running(v) => {
-                if v.is_finished() {
-                    let m = std::mem::replace(
-                        &mut *mg,
-                        VDataThreadEnum::Finished(VDataEnum::Bool(false).to()),
-                    );
-                    match m {
-                        VDataThreadEnum::Running(v) => {
-                            *mg = VDataThreadEnum::Finished(v.join().unwrap())
+        pub fn get(&self) -> VData {
+            let dur = Duration::from_millis(100);
+            loop {
+                match &*self.lock() {
+                    VDataThreadEnum::Running(v) => {
+                        while !v.is_finished() {
+                            std::thread::sleep(dur);
                         }
-                        _ => unreachable!(),
                     }
+                    VDataThreadEnum::Finished(v) => return v.clone(),
                 }
             }
-            _ => (),
         }
-        mg
-    }
-}
-impl Debug for VDataThread {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &*self.lock() {
-            VDataThreadEnum::Running(_) => write!(f, "(thread running)"),
-            VDataThreadEnum::Finished(v) => write!(f, "(thread finished: {v})"),
+        pub fn lock(&self) -> std::sync::MutexGuard<VDataThreadEnum> {
+            let mut mg = self.0.lock().unwrap();
+            match &*mg {
+                VDataThreadEnum::Running(v) => {
+                    if v.is_finished() {
+                        let m = std::mem::replace(
+                            &mut *mg,
+                            VDataThreadEnum::Finished(VDataEnum::Bool(false).to()),
+                        );
+                        match m {
+                            VDataThreadEnum::Running(v) => {
+                                *mg = VDataThreadEnum::Finished(v.join().unwrap())
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                }
+                _ => (),
+            }
+            mg
         }
     }
-}
-pub enum VDataThreadEnum {
-    Running(JoinHandle<VData>),
-    Finished(VData),
-}
-impl VDataThreadEnum {
-    pub fn to(self) -> VDataThread {
-        VDataThread(Arc::new(Mutex::new(self)))
+    impl Debug for VDataThread {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match &*self.lock() {
+                VDataThreadEnum::Running(_) => write!(f, "(thread running)"),
+                VDataThreadEnum::Finished(v) => write!(f, "(thread finished: {v})"),
+            }
+        }
+    }
+    pub enum VDataThreadEnum {
+        Running(JoinHandle<VData>),
+        Finished(VData),
+    }
+    impl VDataThreadEnum {
+        pub fn to(self) -> VDataThread {
+            VDataThread(Arc::new(Mutex::new(self)))
+        }
     }
 }

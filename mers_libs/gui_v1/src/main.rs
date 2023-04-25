@@ -9,13 +9,8 @@ use iced::{
     widget::{button, column, row, text},
     Application, Command, Element, Renderer, Settings, Subscription, Theme,
 };
-use mers::{
-    libs::inlib::{MyLib, MyLibTask},
-    script::{
-        val_data::{VData, VDataEnum},
-        val_type::{VSingleType, VType},
-    },
-};
+
+use mers_libs::{MyLib, MyLibTask, VData, VDataEnum, VSingleType, VType};
 
 /*
 
@@ -264,7 +259,6 @@ impl Application for App {
         format!("{}", self.title)
     }
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
-        let mut commands = vec![];
         match message {
             Message::Tick => {
                 let mut changed_layout = false;
@@ -303,7 +297,7 @@ impl Application for App {
                 ))
                 .unwrap(),
         }
-        Command::batch(commands)
+        Command::none()
     }
     fn subscription(&self) -> Subscription<Message> {
         time::every(Duration::from_millis(10)).map(|_| Message::Tick)

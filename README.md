@@ -44,6 +44,10 @@ To run a program, just run `mers your_file.txt`. The file needs to be valid utf8
 Alternatively, run `mers -e println("Hello, file-less world")`.
 If you compiled mers in debug mode, it will print a lot of debugging information.
 
+### tutor
+
+Use `mers -t` to start the tutor, which will give you an interactive tour of the language.
+
 ### interactive mode
 
 Use `mers -i` to start interactive mode. mers will create a temporary file and open it in your default editor. Every time the file is saved, mers reloads and runs it, showing errors or the output.

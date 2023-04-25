@@ -1,10 +1,4 @@
-use mers::{
-    libs::inlib::{MyLib, MyLibTask},
-    script::{
-        val_data::VDataEnum,
-        val_type::{VSingleType, VType},
-    },
-};
+use mers_libs::{MyLib, MyLibTask, VDataEnum, VSingleType, VType};
 
 fn main() {
     let (mut my_lib, mut run) = MyLib::new(

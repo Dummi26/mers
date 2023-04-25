@@ -8,7 +8,7 @@ use crate::libs;
 
 use super::{
     block::RStatement,
-    val_data::{VData, VDataEnum, VDataThreadEnum},
+    val_data::{thread::VDataThreadEnum, VData, VDataEnum},
     val_type::{VSingleType, VType},
 };
 
@@ -236,10 +236,21 @@ impl BuiltinFunction {
             Self::Run | Self::Thread => {
                 if input.len() >= 1 {
                     input[0].types.iter().all(|v| {
+                        // all possible types of the input function must be function types
                         if let VSingleType::Function(v) = v {
-                            if v.iter().any(|(i, _)| i.len() == input.len() - 1) {
+                            // and all those functions must take as many inputs as were supplied to run() or thread() minus one (the function itself).
+                            if v.iter()
+                                .all(|(fn_in, _fn_out)| fn_in.len() == input.len() - 1)
+                            {
                                 eprintln!("Warn: Function inputs aren't type checked yet!)");
-                                // TODO!
+                                // all functions have the correct length, now check their types:
+                                // this is more difficult than it seems, because if a function covers all input types on the first and second argument, that doesn't necessarily mean that it covers all possible cases:
+                                // say out function is of type fn((int string []) (string int) []).
+                                // this covers int/string for the first two arguments, but the function actually can't handle two ints or two strings as arguments, it requires exactly one int and one string.
+                                // the most obvious implementation here would be a recursive function that goes over each type in the first argument, then calls itself recursively to check the second element and so on,
+                                // but this would likely become slower than it should for complex functions.
+                                // because of this, we just trust the programmer not to provide wrong arguments to run() and thread() for now,
+                                // until a better solution is found.
                                 true
                             } else {
                                 false

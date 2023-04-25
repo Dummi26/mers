@@ -1,13 +1,16 @@
+#![allow(unused)]
+#![allow(dead_code)]
+
 use std::{fs, time::Instant};
 
 use notify::Watcher as FsWatcher;
 
-pub mod libs;
-pub mod parse;
-pub mod script;
+mod interactive_mode;
+mod libs;
+mod parse;
+mod script;
+mod tutor;
 
-// necessary because the lib target in Cargo.toml also points here. TODO: update Cargo.toml to have a lib target that is separate from the bin one (=> doesn't point to main)
-#[allow(unused)]
 fn main() {
     let args: Vec<_> = std::env::args().skip(1).collect();
     #[cfg(debug_assertions)]
@@ -27,9 +30,11 @@ fn main() {
         _ => {
             if args[0].trim_start().starts_with("-") {
                 let mut execute = false;
+                let mut print_version = false;
                 let mut verbose = 0;
                 let mut interactive = 0;
                 let mut interactive_use_new_terminal = false;
+                let mut teachme = false;
                 let mut prev_char = None;
                 let mut advanced = false;
                 for ch in args[0][1..].chars() {
@@ -41,7 +46,9 @@ fn main() {
                         match ch {
                             'e' => execute = true,
                             'v' => verbose += 1,
+                            'V' => print_version = true,
                             'i' => interactive += 1,
+                            't' => teachme = true,
                             ch => {
                                 eprintln!("Ignoring -{ch}. (unknown char)");
                                 continue;
@@ -65,103 +72,29 @@ fn main() {
                         advanced = false;
                     }
                 }
+                if print_version {
+                    println!(
+                        "mers {}",
+                        option_env!("CARGO_PKG_VERSION")
+                            .unwrap_or("[[ version unknown: no CARGO_PKG_VERSION ]]")
+                    );
+                    return;
+                }
+                if teachme {
+                    tutor::start(false);
+                    return;
+                }
                 if verbose != 0 {
                     eprintln!("info: set verbosity level to {verbose}. this doesn't do anything yet. [TODO!]");
                 }
                 if interactive >= 0 {
-                    let (contents, path) = match interactive {
-                        1 => {
+                    match interactive {
+                        _ => {
                             // basic: open file and watch for fs changes
-                            let temp_file_edit =
-                                edit::Builder::new().suffix(".mers").tempfile().unwrap();
-                            let temp_file = temp_file_edit.path();
-                            eprintln!("Using temporary file at {temp_file:?}. Save the file to update the output here.");
-                            if let Ok(_) = std::fs::write(&temp_file, []) {
-                                if let Ok(mut watcher) = {
-                                    let temp_file = temp_file.to_path_buf();
-                                    // the file watcher
-                                    notify::recommended_watcher(
-                                        move |event: Result<notify::Event, notify::Error>| {
-                                            if let Ok(event) = event {
-                                                match &event.kind {
-                                                    notify::EventKind::Modify(
-                                                        notify::event::ModifyKind::Data(_),
-                                                    ) => {
-                                                        println!();
-                                                        if let Ok(file_contents) =
-                                                            fs::read_to_string(&temp_file)
-                                                        {
-                                                            let mut file = parse::file::File::new(
-                                                                file_contents,
-                                                                temp_file.clone(),
-                                                            );
-                                                            match parse::parse::parse(&mut file) {
-                                                                Ok(func) => {
-                                                                    println!(" - - - - -");
-                                                                    let output = func.run(vec![]);
-                                                                    println!(" - - - - -");
-                                                                    println!("{}", output);
-                                                                }
-                                                                Err(e) => println!(
-                                                                    "{}",
-                                                                    e.with_file(&file)
-                                                                ),
-                                                            }
-                                                        } else {
-                                                            println!(
-                                                                "can't read file at {:?}!",
-                                                                temp_file
-                                                            );
-                                                            std::process::exit(105);
-                                                        }
-                                                    }
-                                                    _ => (),
-                                                }
-                                            }
-                                        },
-                                    )
-                                } {
-                                    if let Ok(_) = watcher
-                                        .watch(&temp_file, notify::RecursiveMode::NonRecursive)
-                                    {
-                                        if interactive_use_new_terminal {
-                                            if let Ok(term) = std::env::var("TERM") {
-                                                let editor = edit::get_editor().unwrap();
-                                                eprintln!("launching \"{term} -e {editor:?} {temp_file:?}...");
-                                                std::process::Command::new(term)
-                                                    .arg("-e")
-                                                    .arg(&editor)
-                                                    .arg(temp_file)
-                                                    .spawn()
-                                                    .unwrap()
-                                                    .wait()
-                                                    .unwrap();
-                                            }
-                                        } else {
-                                            edit::edit_file(temp_file_edit.path()).unwrap();
-                                        }
-                                        temp_file_edit.close().unwrap();
-                                        std::process::exit(0);
-                                    } else {
-                                        println!(
-                                            "Cannot watch the file at \"{:?}\" for hot-reload.",
-                                            temp_file
-                                        );
-                                        std::process::exit(104);
-                                    }
-                                } else {
-                                    println!("Cannot use filesystem watcher for hot-reload.");
-                                    // TODO: don't exit here?
-                                    std::process::exit(103);
-                                }
-                            } else {
-                                println!("could not write file \"{:?}\".", temp_file);
-                                std::process::exit(102);
-                            }
+                            interactive_mode::fs_watcher::playground(interactive_use_new_terminal)
                         }
-                        _ => (String::new(), String::new()),
                     };
-                    parse::file::File::new(contents, path.into())
+                    return;
                 } else if execute {
                     parse::file::File::new(
                         args.iter().skip(1).fold(String::new(), |mut s, v| {

@@ -455,7 +455,7 @@ fn parse_statement_adv(
         let mut start = String::new();
         loop {
             fn is_delimeter(ch: char) -> bool {
-                matches!(ch, '}' | ']' | ')' | '.' | '=')
+                matches!(ch, '}' | ']' | ')' | '.')
             }
             let nchar = match file.peek() {
                 Some(ch) if is_delimeter(ch) => Some(ch),
@@ -463,6 +463,40 @@ fn parse_statement_adv(
             };
             match nchar {
                 Some(':') => {
+                    if let Some(':') = file.peek() {
+                        _ = file.next();
+                        let file_pos_before_pot_type = *file.get_pos();
+                        let parsed_type = parse_type(file);
+                        file.skip_whitespaces();
+                        if let Some('=') = file.next() {
+                            let err_equals_sign = *file.get_pos();
+                            let start = start.trim();
+                            let derefs = start.chars().take_while(|c| *c == '*').count();
+                            match parse_statement(file) {
+                                Ok(v) => break v
+                                    .output_to(start[derefs..].to_owned(), derefs)
+                                    .force_output_type(Some(match parsed_type {
+                                        Ok(v) => v,
+                                        Err(mut e) => {
+                                            e.context.push((
+                                                format!("interpreted this as an assignment to a variable with the format <var>::<var_type> = <statement>"), Some((err_start_of_statement, Some(err_equals_sign)))
+                                            ));
+                                            return Err(e);
+                                        }
+                                    })),
+                                Err(mut e) => {
+                                    e.context.push((
+                                        format!(
+                                            "statement was supposed to be assigned to variable {start}"
+                                        ),
+                                        Some((err_start_of_statement, Some(err_equals_sign))),
+                                    ));
+                                    return Err(e);
+                                }
+                            }
+                        }
+                        file.set_pos(file_pos_before_pot_type);
+                    }
                     return Ok(SStatement::new(SStatementEnum::EnumVariant(
                         start,
                         parse_statement(file)?,
@@ -484,8 +518,8 @@ fn parse_statement_adv(
                         let err_equals_sign = *file.get_pos();
                         let start = start.trim();
                         let derefs = start.chars().take_while(|c| *c == '*').count();
-                        break match parse_statement(file) {
-                            Ok(v) => v,
+                        match parse_statement(file) {
+                            Ok(v) => break v.output_to(start[derefs..].to_owned(), derefs),
                             Err(mut e) => {
                                 e.context.push((
                                     format!(
@@ -495,43 +529,8 @@ fn parse_statement_adv(
                                 ));
                                 return Err(e);
                             }
-                        }
-                        .output_to(start[derefs..].to_owned(), derefs);
+                        };
                     }
-                    // var type = statement
-                    let file_pos_before_pot_type = *file.get_pos();
-                    let parsed_type = parse_type(file);
-                    file.skip_whitespaces();
-                    if let Some('=') = file.peek() {
-                        file.next();
-                        let err_equals_sign = *file.get_pos();
-                        let start = start.trim();
-                        let derefs = start.chars().take_while(|c| *c == '*').count();
-                        break match parse_statement(file) {
-                            Ok(v) => v,
-                            Err(mut e) => {
-                                e.context.push((
-                                    format!(
-                                        "statement was supposed to be assigned to variable {start}"
-                                    ),
-                                    Some((err_start_of_statement, Some(err_equals_sign))),
-                                ));
-                                return Err(e);
-                            }
-                        }
-                        .output_to(start[derefs..].to_owned(), derefs)
-                        .force_output_type(Some(match parsed_type {
-                                Ok(v) => v,
-                                Err(mut e) => {
-                                    e.context.push((
-                                        format!("interpreted this as an assignment to a variable with the format <var> <var_type> = <statement>"), Some((err_start_of_statement, Some(err_equals_sign)))
-                                    ));
-                                    return Err(e);
-                                }
-                            }));
-                    }
-                    // nevermind, not var type = statement
-                    file.set_pos(file_pos_before_pot_type);
                     // parse normal statement
                     let start = start.trim();
                     match start {

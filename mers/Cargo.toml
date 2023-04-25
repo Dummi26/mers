@@ -6,8 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "mers"
-path = "src/main.rs"
+name = "mers_libs"
+path = "src/lib.rs"
 
 [dependencies]
 edit = "0.1.4"
