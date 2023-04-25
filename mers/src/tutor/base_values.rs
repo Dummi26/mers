@@ -21,7 +21,7 @@ pub fn run(tutor: &mut Tutor) {
 //   thread: Represents a different thread. The thread's return value can be retrieved by using .await(). Thread values are returned by the builtin thread() function.
 //   reference: A mutable reference to some data. Used by things like push() and remove() to avoid having to clone the entire list just to make a small change.
 //   enums: An enum can wrap any type. Enums are identified by their names and can be created using EnumName: inner_value. The type is written EnumName(InnerType).
-// return a value of type GoBackToMenu([int]) to return to the menu.
+// return any enum to return to the menu.
 "));
     loop {
         match tutor.let_user_make_change().run(vec![]).data {

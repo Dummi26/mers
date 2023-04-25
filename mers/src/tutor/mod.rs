@@ -6,8 +6,11 @@ use crate::{
 };
 
 mod base_comments;
+mod base_functions;
 mod base_return;
+mod base_types;
 mod base_values;
+mod base_variables;
 mod menu;
 
 pub fn start(spawn_new_terminal_for_editor: bool) {
@@ -36,6 +39,7 @@ false
         editor_join_handle,
         file_path,
         receiver,
+        i_name: None,
     };
     loop {
         if let VDataEnum::Bool(true) = tutor.let_user_make_change().run(vec![]).data {
@@ -54,11 +58,13 @@ pub struct Tutor {
     editor_join_handle: JoinHandle<()>,
     file_path: PathBuf,
     receiver: std::sync::mpsc::Receiver<Result<RScript, ScriptError>>,
+    // i_ are inputs from the user
+    pub i_name: Option<String>,
 }
 impl Tutor {
     /// only returns after a successful compile. before returning, does not call self.update() - you have to do that manually.
     pub fn let_user_make_change(&mut self) -> RScript {
-        // eprintln!(" - - - - - - - - - - - - - - - - - - - - - - - - -");
+        eprintln!(" - - - - - - - - - - - - - - - - - - - - - - - - -");
         let script = loop {
             match self.receiver.recv().unwrap() {
                 Err(e) => {
