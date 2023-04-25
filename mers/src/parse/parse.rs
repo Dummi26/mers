@@ -588,6 +588,10 @@ fn parse_statement_adv(
                             .to()
                         }
                         "while" => {
+                            eprintln!("Warn: 'while' is now 'loop'. At some point, this will just be an error instead of a warning.");
+                            break SStatementEnum::Loop(parse_statement(file)?).to();
+                        }
+                        "loop" => {
                             break SStatementEnum::Loop(parse_statement(file)?).to();
                         }
                         "switch" | "switch!" => {

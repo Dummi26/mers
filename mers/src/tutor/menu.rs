@@ -2,7 +2,7 @@ use crate::script::val_data::VDataEnum;
 
 use super::Tutor;
 
-pub const MAX_POS: usize = 6;
+pub const MAX_POS: usize = 7;
 
 pub fn run(mut tutor: Tutor) {
     loop {
@@ -18,6 +18,7 @@ fn go_to() 0
 //   4  Variables
 //   5  Returns
 //   6  Types
+//   7  Error handling
 
 go_to()
 ",
@@ -34,6 +35,7 @@ go_to()
                         4 => super::base_variables::run(&mut tutor),
                         5 => super::base_return::run(&mut tutor),
                         6 => super::base_types::run(&mut tutor),
+                        7 => super::error_handling::run(&mut tutor),
                         _ => unreachable!(),
                     }
                 }

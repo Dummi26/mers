@@ -128,7 +128,7 @@ Let's build a counter app: We start at 0. If the user types '+', we increment th
 
 The first thing we will need for this is a loop to prevent the app from stopping after the first user input:
 
-    while {
+    loop {
         println("...")
     }
 
@@ -137,7 +137,7 @@ Running this should spam your terminal with '...'.
 Now let's add a counter variable, read user input and print the status message.
 
     counter = 0
-    while {
+    loop {
         input = read_line()
         println("The counter is currently at {0}. Type + or - to change it.".format(counter.to_string()))
     }
@@ -145,7 +145,7 @@ Now let's add a counter variable, read user input and print the status message.
 We can then use `eq(a b)` to check if the input is equal to + or -, and then decide to increase or decrease counter:
 
     counter = 0
-    while {
+    loop {
         input = read_line()
         if input.eq("+") {
             counter = counter.add(1)
@@ -177,7 +177,7 @@ In fact, `fn difference(a int/float b int/float) if a.gt(b) a.sub(b) else b.sub(
 Let's replace the if statement from before with a match statement!
 
     counter = 0
-    while {
+    loop {
         input = read_line()
         match input {
             input.eq("+") counter = counter.add(1)
@@ -199,7 +199,7 @@ Match statements are a lot more powerful than if-else-statements, but this will 
 Loops will break if the value returned in the current iteration matches:
 
     i = 0
-    res = while {
+    res = loop {
         i = i.add(1)
         i.gt(50)
     }
@@ -209,7 +209,7 @@ This will increment i until it reaches 51.
 Because `51.gt(50)` returns `true`, `res` will be set to `true`.
 
     i = 0
-    res = while {
+    res = loop {
         i = i.add(1)
         if i.gt(50) i else []
     }
@@ -217,7 +217,7 @@ Because `51.gt(50)` returns `true`, `res` will be set to `true`.
 
 Because a value of type int matches, we now break with "res: 51". For more complicated examples, using `[i]` instead of just `i` is recommended because `[i]` matches even if `i` doesn't.
 
-A while loop's return type will be the matches of the inner return type.
+A loop's return type will be the matches of the inner return type.
 
 For for loops, which can also end without a value matching, the return type is the same plus the empty tuple `[]`:
 

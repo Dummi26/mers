@@ -11,6 +11,7 @@ mod base_return;
 mod base_types;
 mod base_values;
 mod base_variables;
+mod error_handling;
 mod menu;
 
 pub fn start(spawn_new_terminal_for_editor: bool) {
@@ -21,6 +22,8 @@ pub fn start(spawn_new_terminal_for_editor: bool) {
 
 // This is an interactive experience. After making a change to this file,
 // save and then reload it to see the tutor's updates.
+// DO NOT save the file twice without reloading because you might overwrite changes made by the tutor,
+// which can completely ruin the file's formatting until the next full update (page change)!
 // To begin, change the following value from false to true:
 
 false

@@ -195,7 +195,7 @@ impl RStatementEnum {
                 }
             }
             Self::Loop(c) => loop {
-                // While loops will break if the value matches.
+                // loops will break if the value matches.
                 if let Some(break_val) = c.run(vars, info).data.matches() {
                     break break_val;
                 }
