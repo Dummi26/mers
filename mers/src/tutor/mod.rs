@@ -64,7 +64,7 @@ pub struct Tutor {
 impl Tutor {
     /// only returns after a successful compile. before returning, does not call self.update() - you have to do that manually.
     pub fn let_user_make_change(&mut self) -> RScript {
-        eprintln!(" - - - - - - - - - - - - - - - - - - - - - - - - -");
+        // eprintln!(" - - - - - - - - - - - - - - - - - - - - - - - - -");
         let script = loop {
             match self.receiver.recv().unwrap() {
                 Err(e) => {
