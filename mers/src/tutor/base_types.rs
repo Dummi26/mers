@@ -106,6 +106,9 @@ switch! x {}
 // And this doesn't even rely on any fancy technology, it's all just based on simple and intuitive rules:
 // x is the result of an if-else statement, meaning x's type is just the return types from the two branches combined: int and string -> int/string.
 // if we remove the else, x's type would be int/[]: either an int or nothing.
+// Instead of using switch! to get a compiler error, you can also look at the types at runtime using the builtin debug() function:
+// x.debug() // (or debug(x)) | this outputs 'int/string :: int :: 10' | debug()'s format is:
+//   the statement's type (this is constant and determined at compile-time) :: the value's type (this can change, but it's always one of the types in the constant type) :: string-representation of the value
 // (don't forget to comment out the third switch statement, too. you can't return to the menu otherwise)
 
 // By combining multiple-types with tuples, we can express complicated data structures without needing structs or enums:

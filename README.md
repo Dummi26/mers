@@ -139,7 +139,7 @@ Now let's add a counter variable, read user input and print the status message.
     counter = 0
     while {
         input = read_line()
-        println("The counter is currently at {0}. Type + or - to change it.".format(counter))
+        println("The counter is currently at {0}. Type + or - to change it.".format(counter.to_string()))
     }
 
 We can then use `eq(a b)` to check if the input is equal to + or -, and then decide to increase or decrease counter:
@@ -152,7 +152,7 @@ We can then use `eq(a b)` to check if the input is equal to + or -, and then dec
         } else if input.eq("-") {
             counter = counter.sub(1)
         } else {
-            println("The counter is currently at {0}. Type + or - to change it.".format(counter))
+            println("The counter is currently at {0}. Type + or - to change it.".format(counter.to_string()))
         }
     }
 
@@ -164,7 +164,7 @@ mers actually doesn't have an else-if, the if statement is simply parsed as:
         if input.eq("-") {
             counter = counter.sub(1)
         } else {
-            println("The counter is currently at {0}. Type + or - to change it.".format(counter))
+            println("The counter is currently at {0}. Type + or - to change it.".format(counter.to_string()))
         }
     }
 
@@ -182,7 +182,7 @@ Let's replace the if statement from before with a match statement!
         match input {
             input.eq("+") counter = counter.add(1)
             input.eq("-") counter = counter.sub(1)
-            true println("The counter is currently at {0}. Type + or - to change it.".format(counter))
+            true println("The counter is currently at {0}. Type + or - to change it.".format(counter.to_string()))
         }
     }
 
@@ -203,7 +203,7 @@ Loops will break if the value returned in the current iteration matches:
         i = i.add(1)
         i.gt(50)
     }
-    println("res: {0}".format(res))
+    println("res: {0}".format(res.to_string()))
 
 This will increment i until it reaches 51.
 Because `51.gt(50)` returns `true`, `res` will be set to `true`.
@@ -213,7 +213,7 @@ Because `51.gt(50)` returns `true`, `res` will be set to `true`.
         i = i.add(1)
         if i.gt(50) i else []
     }
-    println("res: {0}".format(res))
+    println("res: {0}".format(res.to_string()))
 
 Because a value of type int matches, we now break with "res: 51". For more complicated examples, using `[i]` instead of just `i` is recommended because `[i]` matches even if `i` doesn't.
 
@@ -288,7 +288,7 @@ However, match statements have a superpower: They can change the value of the va
 
     x = 10
     match x {
-        x.eq(10) println("x is now {0}".format(x))
+        x.eq(10) println("x is now {0}".format(x.to_string()))
         true println("x was not 10.")
     }
 
@@ -304,8 +304,8 @@ Using a match statement, this is one way to implement it:
     strings = ["87" "not a number" "25" "14.5" ...]
     for x strings {
         match x {
-            x.parse_int() println("int: {0} = 10 * {1} + {2}".format(x x.sub(x.mod(10)).div(10) x.mod(10)))
-            x.parse_float() println("float: {0} = {1} + {2}".format(x x.sub(x.mod(1)) x.mod(1)))
+            x.parse_int() println("int: {0} = 10 * {1} + {2}".format(x.to_string() x.sub(x.mod(10)).div(10).to_string() x.mod(10).to_string()))
+            x.parse_float() println("float: {0} = {1} + {2}".format(x.to_string() x.sub(x.mod(1)).to_string() x.mod(1).to_string()))
             true println("not a number")
         }
     }

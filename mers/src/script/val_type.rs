@@ -1,4 +1,10 @@
-use std::{collections::HashMap, fmt::Debug, ops::BitOr};
+use std::{
+    collections::HashMap,
+    fmt::{self, Debug, Display, Formatter},
+    ops::BitOr,
+};
+
+use super::global_info::GSInfo;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VType {
@@ -18,6 +24,8 @@ pub enum VSingleType {
     Reference(Box<Self>),
     EnumVariant(usize, VType),
     EnumVariantS(String, VType),
+    // CustomType(usize),
+    // CustomTypeS(String),
 }
 
 impl VSingleType {
@@ -297,5 +305,109 @@ impl VSingleType {
 impl Into<VType> for VSingleType {
     fn into(self) -> VType {
         VType { types: vec![self] }
+    }
+}
+
+//
+
+pub struct VTypeWInfo(VType, GSInfo);
+impl Display for VTypeWInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.0.fmtgs(f, Some(&self.1))
+    }
+}
+impl VType {
+    pub fn gsi(self, info: GSInfo) -> VTypeWInfo {
+        VTypeWInfo(self, info)
+    }
+}
+
+impl VSingleType {
+    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GSInfo>) -> fmt::Result {
+        match self {
+            Self::Bool => write!(f, "bool"),
+            Self::Int => write!(f, "int"),
+            Self::Float => write!(f, "float"),
+            Self::String => write!(f, "string"),
+            Self::Tuple(v) => {
+                write!(f, "[")?;
+                for (i, v) in v.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
+                    v.fmtgs(f, info)?;
+                }
+                write!(f, "]")
+            }
+            Self::List(v) => {
+                write!(f, "[")?;
+                v.fmtgs(f, info)?;
+                write!(f, " ...]")
+            }
+            Self::Function(func) => {
+                write!(f, "fn(")?;
+                for (inputs, output) in func {
+                    write!(f, "(")?;
+                    for i in inputs {
+                        i.fmtgs(f, info)?;
+                        write!(f, " ");
+                    }
+                    output.fmtgs(f, info)?;
+                    write!(f, ")")?;
+                }
+                write!(f, ")")
+            }
+            Self::Thread(out) => {
+                write!(f, "thread(")?;
+                out.fmtgs(f, info)?;
+                write!(f, ")")
+            }
+            Self::Reference(inner) => {
+                write!(f, "&")?;
+                inner.fmtgs(f, info)
+            }
+            Self::EnumVariant(variant, inner) => {
+                if let Some(name) = if let Some(info) = info {
+                    info.enums
+                        .iter()
+                        .find_map(|(name, id)| if id == variant { Some(name) } else { None })
+                } else {
+                    None
+                } {
+                    write!(f, "{name}(")?;
+                } else {
+                    write!(f, "{variant}(")?;
+                }
+                inner.fmtgs(f, info)?;
+                write!(f, ")")
+            }
+            Self::EnumVariantS(name, inner) => {
+                write!(f, "{name}(")?;
+                inner.fmtgs(f, info)?;
+                write!(f, ")")
+            }
+        }
+    }
+}
+impl Display for VSingleType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.fmtgs(f, None)
+    }
+}
+
+impl VType {
+    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GSInfo>) -> fmt::Result {
+        for (i, t) in self.types.iter().enumerate() {
+            if i > 0 {
+                write!(f, "/")?;
+            }
+            t.fmtgs(f, info)?;
+        }
+        Ok(())
+    }
+}
+impl Display for VType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.fmtgs(f, None)
     }
 }

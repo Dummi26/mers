@@ -3,11 +3,10 @@ use std::{process::Command, sync::Arc};
 use crate::{
     libs,
     script::{
-        block::{
-            to_runnable::ToRunnableError,
-            to_runnable::{self, GInfo},
-            RScript, SBlock, SFunction, SStatement, SStatementEnum,
-        },
+        code_parsed::*,
+        code_runnable::RScript,
+        global_info::GSInfo,
+        to_runnable::{self, GInfo, ToRunnableError},
         val_data::VDataEnum,
         val_type::{VSingleType, VType},
     },
@@ -15,7 +14,6 @@ use crate::{
 
 use super::file::File;
 
-#[derive(Debug)]
 pub enum ScriptError {
     CannotFindPathForLibrary(CannotFindPathForLibrary),
     ParseError(ParseError),
@@ -78,18 +76,9 @@ pub fn parse(file: &mut File) -> Result<RScript, ScriptError> {
     let mut ginfo = GInfo::default();
     let libs = parse_step_lib_paths(file)?;
     let func = parse_step_interpret(file)?;
-    ginfo.libs = Arc::new(parse_step_libs_load(libs, &mut ginfo)?);
+    ginfo.libs = parse_step_libs_load(libs, &mut ginfo)?;
 
-    eprintln!();
-    #[cfg(debug_assertions)]
-    eprintln!("Parsed: {func}");
-    #[cfg(debug_assertions)]
-    eprintln!("Parsed: {func:#?}");
-
-    let run = parse_step_compile(func, &mut ginfo)?;
-
-    #[cfg(debug_assertions)]
-    eprintln!("Runnable: {run:#?}");
+    let run = parse_step_compile(func, ginfo)?;
 
     Ok(run)
 }
@@ -130,7 +119,7 @@ pub fn parse_step_interpret(file: &mut File) -> Result<SFunction, ParseError> {
     Ok(SFunction::new(
         vec![(
             "args".to_string(),
-            VSingleType::List(VSingleType::String.into()).into(),
+            VSingleType::List(VSingleType::String.into()).to(),
         )],
         parse_block_advanced(file, Some(false), true, true, false)?,
     ))
@@ -163,10 +152,7 @@ pub fn parse_step_libs_load(
     Ok(libs)
 }
 
-pub fn parse_step_compile(
-    main_func: SFunction,
-    ginfo: &mut GInfo,
-) -> Result<RScript, ToRunnableError> {
+pub fn parse_step_compile(main_func: SFunction, ginfo: GInfo) -> Result<RScript, ToRunnableError> {
     to_runnable::to_runnable(main_func, ginfo)
 }
 
@@ -181,7 +167,6 @@ impl<'a> std::fmt::Display for ParseErrorWithFile<'a> {
         self.0.fmt_custom(f, Some(self.1))
     }
 }
-#[derive(Debug)]
 pub struct ParseError {
     err: ParseErrors,
     // the location of the error
@@ -191,6 +176,7 @@ pub struct ParseError {
         String,
         Option<(super::file::FilePosition, Option<super::file::FilePosition>)>,
     )>,
+    info: Option<GSInfo>,
 }
 impl ParseError {
     pub fn fmt_custom(
@@ -198,7 +184,8 @@ impl ParseError {
         f: &mut std::fmt::Formatter<'_>,
         file: Option<&super::file::File>,
     ) -> std::fmt::Result {
-        writeln!(f, "{}", self.err)?;
+        self.err.fmtgs(f, self.info.as_ref(), file)?;
+        writeln!(f);
         if let Some(location_end) = self.location_end {
             writeln!(f, "  from {} to {}", self.location, location_end)?;
             if let Some(file) = file {
@@ -238,7 +225,6 @@ impl std::fmt::Display for ParseError {
         self.fmt_custom(f, None)
     }
 }
-#[derive(Debug)]
 pub enum ParseErrors {
     StatementCannotStartWith(char),
     FoundClosingRoundBracketInSingleStatementBlockBeforeAnyStatement,
@@ -254,8 +240,13 @@ pub enum ParseErrors {
     CannotWrapWithThisStatement(SStatementEnum),
     ErrorParsingFunctionArgs(Box<ParseError>),
 }
-impl std::fmt::Display for ParseErrors {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl ParseErrors {
+    fn fmtgs(
+        &self,
+        f: &mut std::fmt::Formatter,
+        info: Option<&GSInfo>,
+        file: Option<&super::file::File>,
+    ) -> std::fmt::Result {
         match self {
             Self::StatementCannotStartWith(ch) => {
                 write!(f, "statements cannot start with the {ch} character.",)
@@ -281,13 +272,18 @@ impl std::fmt::Display for ParseErrors {
             Self::FoundEofInsteadOfType => write!(f, "expected type, found EOF instead."),
             Self::InvalidType(name) => write!(f, "\"{name}\" is not a type."),
             Self::CannotUseFixedIndexingWithThisType(t) => {
-                write!(f, "cannot use fixed-indexing with type {t}.")
+                write!(f, "cannot use fixed-indexing with type ")?;
+                t.fmtgs(f, info)?;
+                write!(f, ".")
             }
             Self::CannotWrapWithThisStatement(s) => {
-                write!(f, "cannot wrap with this kind of statement: {s}.")
+                write!(f, "cannot wrap with this kind of statement: ")?;
+                s.fmtgs(f, info)?;
+                write!(f, ".")
             }
             Self::ErrorParsingFunctionArgs(parse_error) => {
-                write!(f, "error parsing function args: {}", parse_error.err)
+                write!(f, "error parsing function args: ")?;
+                parse_error.fmt_custom(f, file)
             }
         }
     }
@@ -329,6 +325,7 @@ fn parse_block_advanced(
                         location: err_start_of_this_statement,
                         location_end: Some(*file.get_pos()),
                         context: vec![],
+                        info: None,
                     });
                 } else {
                     file.next();
@@ -341,7 +338,8 @@ fn parse_block_advanced(
                         err: ParseErrors::FoundClosingCurlyBracketInSingleStatementBlockBeforeAnyStatement,
                         location: err_start_of_this_statement,
                         location_end: Some(*file.get_pos()),
-                        context: vec![]
+                        context: vec![],
+                        info: None,
                     });
                 } else {
                     file.next();
@@ -357,6 +355,7 @@ fn parse_block_advanced(
                     location: err_start_of_this_statement,
                     location_end: Some(*file.get_pos()),
                     context: vec![],
+                    info: None,
                 })
             }
             _ => (),
@@ -387,7 +386,7 @@ fn parse_statement_adv(
     file.skip_whitespaces();
     let err_start_of_statement = *file.get_pos();
     let out = match file.peek() {
-        Some('{') => Some(SStatementEnum::Block(parse_block(file)?).into()),
+        Some('{') => Some(SStatementEnum::Block(parse_block(file)?).to()),
         Some('[') => {
             file.next();
             let mut v = vec![];
@@ -409,9 +408,9 @@ fn parse_statement_adv(
                 v.push(parse_statement(file)?);
             }
             Some(if list {
-                SStatementEnum::List(v).into()
+                SStatementEnum::List(v).to()
             } else {
-                SStatementEnum::Tuple(v).into()
+                SStatementEnum::Tuple(v).to()
             })
         }
         Some('"') => {
@@ -441,11 +440,12 @@ fn parse_statement_adv(
                             location: err_start_of_statement,
                             location_end: Some(*file.get_pos()),
                             context: vec![],
+                            info: None,
                         })
                     }
                 }
             }
-            Some(SStatementEnum::Value(VDataEnum::String(buf).to()).into())
+            Some(SStatementEnum::Value(VDataEnum::String(buf).to()).to())
         }
         _ => None,
     };
@@ -509,6 +509,7 @@ fn parse_statement_adv(
                             location: *file.get_pos(),
                             location_end: None,
                             context: vec![],
+                            info: None,
                         });
                     }
                     file.skip_whitespaces();
@@ -549,7 +550,7 @@ fn parse_statement_adv(
                                 Some(fn_name.trim().to_string()),
                                 func,
                             )
-                            .into();
+                            .to();
                         }
                         "if" => {
                             // TODO: Else
@@ -562,7 +563,7 @@ fn parse_statement_adv(
                                 while let Some('e' | 'l' | 's') = file.next() {}
                                 then_else = Some(parse_statement(file)?);
                             }
-                            break SStatementEnum::If(condition, then, then_else).into();
+                            break SStatementEnum::If(condition, then, then_else).to();
                         }
                         "for" => {
                             break SStatementEnum::For(
@@ -584,10 +585,10 @@ fn parse_statement_adv(
                                 parse_statement(file)?,
                                 parse_statement(file)?,
                             )
-                            .into()
+                            .to()
                         }
                         "while" => {
-                            break SStatementEnum::While(parse_statement(file)?).into();
+                            break SStatementEnum::Loop(parse_statement(file)?).to();
                         }
                         "switch" | "switch!" => {
                             let force = start.ends_with("!");
@@ -613,7 +614,7 @@ fn parse_statement_adv(
                                 }
                                 cases.push((parse_type(file)?, parse_statement(file)?));
                             }
-                            break SStatementEnum::Switch(switch_on_what, cases, force).into();
+                            break SStatementEnum::Switch(switch_on_what, cases, force).to();
                         }
                         "match" => {
                             let mut match_what = String::new();
@@ -638,10 +639,10 @@ fn parse_statement_adv(
                                 }
                                 cases.push((parse_statement(file)?, parse_statement(file)?));
                             }
-                            break SStatementEnum::Match(match_what, cases).into();
+                            break SStatementEnum::Match(match_what, cases).to();
                         }
-                        "true" => break SStatementEnum::Value(VDataEnum::Bool(true).to()).into(),
-                        "false" => break SStatementEnum::Value(VDataEnum::Bool(false).to()).into(),
+                        "true" => break SStatementEnum::Value(VDataEnum::Bool(true).to()).to(),
+                        "false" => break SStatementEnum::Value(VDataEnum::Bool(false).to()).to(),
                         _ => {
                             // int, float, var
                             break {
@@ -658,22 +659,21 @@ fn parse_statement_adv(
                                             pot_float.push(ch);
                                         }
                                         if let Ok(v) = format!("{start}.{pot_float}").parse() {
-                                            SStatementEnum::Value(VDataEnum::Float(v).to()).into()
+                                            SStatementEnum::Value(VDataEnum::Float(v).to()).to()
                                         } else {
                                             file.set_pos(pos);
-                                            SStatementEnum::Value(VDataEnum::Int(v).to()).into()
+                                            SStatementEnum::Value(VDataEnum::Int(v).to()).to()
                                         }
                                     } else {
-                                        SStatementEnum::Value(VDataEnum::Int(v).to()).into()
+                                        SStatementEnum::Value(VDataEnum::Int(v).to()).to()
                                     }
                                 // } else if let Ok(v) = start.parse() {
-                                //     SStatementEnum::Value(VDataEnum::Float(v).to()).into()
+                                //     SStatementEnum::Value(VDataEnum::Float(v).to()).to()
                                 } else {
                                     if start.starts_with('&') {
-                                        SStatementEnum::Variable(start[1..].to_string(), true)
-                                            .into()
+                                        SStatementEnum::Variable(start[1..].to_string(), true).to()
                                     } else {
-                                        SStatementEnum::Variable(start.to_string(), false).into()
+                                        SStatementEnum::Variable(start.to_string(), false).to()
                                     }
                                 }
                             };
@@ -688,7 +688,7 @@ fn parse_statement_adv(
                             None,
                             parse_function(file, Some(err_start_of_statement))?,
                         )
-                        .into();
+                        .to();
                     } else {
                         break SStatementEnum::FunctionCall(
                             name.to_string(),
@@ -701,11 +701,12 @@ fn parse_statement_adv(
                                         location: err_start_of_statement,
                                         location_end: Some(*file.get_pos()),
                                         context: vec![],
+                                        info: None,
                                     });
                                 }
                             },
                         )
-                        .into();
+                        .to();
                     }
                 }
                 Some(ch) => start.push(ch),
@@ -715,6 +716,7 @@ fn parse_statement_adv(
                         location: err_start_of_statement,
                         location_end: Some(*file.get_pos()),
                         context: vec![],
+                        info: None,
                     })
                 }
             }
@@ -739,10 +741,10 @@ fn parse_statement_adv(
                 out = match *wrapper.statement {
                     SStatementEnum::FunctionCall(func, args) => {
                         let args = [out].into_iter().chain(args.into_iter()).collect();
-                        SStatementEnum::FunctionCall(func, args).into()
+                        SStatementEnum::FunctionCall(func, args).to()
                     }
                     SStatementEnum::Value(vd) => match vd.data {
-                        VDataEnum::Int(i) => SStatementEnum::IndexFixed(out, i as _).into(),
+                        VDataEnum::Int(i) => SStatementEnum::IndexFixed(out, i as _).to(),
                         _ => {
                             let mut context = vec![];
                             if chain_length > 0 {
@@ -768,6 +770,7 @@ fn parse_statement_adv(
                                 location: err_start_of_wrapper,
                                 location_end: Some(err_end_of_wrapper),
                                 context,
+                                info: None,
                             });
                         }
                     },
@@ -796,6 +799,7 @@ fn parse_statement_adv(
                             location: err_start_of_wrapper,
                             location_end: Some(err_end_of_wrapper),
                             context,
+                            info: None,
                         });
                     }
                 };
@@ -838,6 +842,7 @@ fn parse_function(
                             } else {
                                 (format!("not a real fn definition"), None)
                             }],
+                            info: None,
                         })
                     }
                 }
@@ -1022,6 +1027,7 @@ fn parse_single_type_adv(
                                                 location: err_start_of_single_type,
                                                 location_end: Some(*file.get_pos()),
                                                 context: vec![],
+                                                info: None,
                                             })
                                         }
                                     }
@@ -1051,6 +1057,7 @@ fn parse_single_type_adv(
                                 location: err_start_of_single_type,
                                 location_end: Some(*file.get_pos()),
                                 context: vec![],
+                                info: None,
                             });
                         }
                     }
@@ -1066,6 +1073,7 @@ fn parse_single_type_adv(
                             location: err_start_of_single_type,
                             location_end: Some(*file.get_pos()),
                             context: vec![],
+                            info: None,
                         });
                     }
                 }
@@ -1076,6 +1084,7 @@ fn parse_single_type_adv(
                     location: err_start_of_single_type,
                     location_end: Some(*file.get_pos()),
                     context: vec![],
+                    info: None,
                 })
             }
         },

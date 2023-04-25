@@ -121,7 +121,10 @@ impl Lib {
                             fn_signature.next();
                         } else {
                             loop {
-                                let mut t = parse::parse_type_adv(&mut fn_signature, true).unwrap();
+                                let mut t = match parse::parse_type_adv(&mut fn_signature, true) {
+                                    Ok(v) => v,
+                                    Err(e) => panic!("{e}"),
+                                };
                                 t.0.enum_variants(enum_variants);
                                 fn_in.push(t.0);
                                 if t.1 {
@@ -129,7 +132,10 @@ impl Lib {
                                 }
                             }
                         }
-                        let mut fn_out = parse::parse_type(&mut fn_signature).unwrap();
+                        let mut fn_out = match parse::parse_type(&mut fn_signature) {
+                            Ok(v) => v,
+                            Err(e) => panic!("{e}"),
+                        };
                         fn_out.enum_variants(enum_variants);
                         eprintln!("Registering function \"{name}\" with args \"{}\" and return type \"{fn_out}\"", &fn_in.iter().fold(String::new(), |mut s, v| { s.push_str(format!(" {}", v).as_str()); s }).trim_start_matches(' '));
                         registered_fns.push((name.to_string(), fn_in, fn_out));

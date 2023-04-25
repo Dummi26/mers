@@ -16,7 +16,7 @@ calculator = (max int) {
         if fake_delay sleep(1)
         progress = i.mul(100).div(max)
     }
-    "the sum of all numbers from 0 to {0} is {1}!".format(max sum)
+    "the sum of all numbers from 0 to {0} is {1}!".format(max.to_string() sum.to_string())
 }
 
 // start the thread. if fake_delay is true, calculate 1+2+3+4+5+6+7+8+9+10. if fake_delay is false, count up to some ridiculously large number.
@@ -25,7 +25,7 @@ slow_calculation_thread = calculator.thread(if fake_delay 10 else 20000000)
 // every second, print the progress. once it reaches 100%, stop
 while {
     sleep(1)
-    println("{0}%".format(progress))
+    println("{0}%".format(progress.to_string()))
     progress.eq(100) // break from the loop
 }
 

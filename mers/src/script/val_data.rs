@@ -1,16 +1,16 @@
 use std::{
-    fmt::Debug,
+    fmt::{self, Debug, Display, Formatter},
     sync::{Arc, Mutex},
 };
 
 use super::{
-    block::RFunction,
+    code_runnable::RFunction,
+    global_info::GSInfo,
     val_type::{VSingleType, VType},
 };
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct VData {
-    // parents: Vec<()>,
     pub data: VDataEnum,
 }
 
@@ -213,7 +213,7 @@ pub mod thread {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match &*self.lock() {
                 VDataThreadEnum::Running(_) => write!(f, "(thread running)"),
-                VDataThreadEnum::Finished(v) => write!(f, "(thread finished: {v})"),
+                VDataThreadEnum::Finished(v) => write!(f, "(thread finished)"),
             }
         }
     }
@@ -225,5 +225,87 @@ pub mod thread {
         pub fn to(self) -> VDataThread {
             VDataThread(Arc::new(Mutex::new(self)))
         }
+    }
+}
+
+//
+
+pub struct VDataWInfo(VData, GSInfo);
+impl Display for VDataWInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.0.fmtgs(f, Some(&self.1))
+    }
+}
+impl VData {
+    pub fn gsi(self, info: GSInfo) -> VDataWInfo {
+        VDataWInfo(self, info)
+    }
+}
+
+impl VDataEnum {
+    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GSInfo>) -> fmt::Result {
+        match self {
+            Self::Bool(true) => write!(f, "true"),
+            Self::Bool(false) => write!(f, "false"),
+            Self::Int(v) => write!(f, "{v}"),
+            Self::Float(v) => write!(f, "{v}"),
+            Self::String(v) => write!(f, "\"{v}\""),
+            Self::Tuple(v) => {
+                write!(f, "[")?;
+                for (i, v) in v.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
+                    v.fmtgs(f, info)?;
+                }
+                write!(f, "]")
+            }
+            Self::List(_t, v) => {
+                write!(f, "[")?;
+                for (i, v) in v.iter().enumerate() {
+                    v.fmtgs(f, info)?;
+                    write!(f, " ")?;
+                }
+                write!(f, "...]")
+            }
+            Self::Function(func) => {
+                VSingleType::Function(func.input_output_map.clone()).fmtgs(f, info)
+            }
+            Self::Thread(..) => write!(f, "[TODO] THREAD"),
+            Self::Reference(inner) => {
+                write!(f, "&")?;
+                inner.lock().unwrap().fmtgs(f, info)
+            }
+            Self::EnumVariant(variant, inner) => {
+                if let Some(name) = if let Some(info) = info {
+                    info.enums
+                        .iter()
+                        .find_map(|(name, id)| if id == variant { Some(name) } else { None })
+                } else {
+                    None
+                } {
+                    write!(f, "{name}: ")?;
+                } else {
+                    write!(f, "{variant}: ")?;
+                }
+                inner.fmtgs(f, info)
+            }
+        }
+    }
+}
+impl Display for VDataEnum {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.fmtgs(f, None)
+    }
+}
+
+impl VData {
+    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GSInfo>) -> fmt::Result {
+        self.data.fmtgs(f, info)
+    }
+}
+impl Display for VData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.fmtgs(f, None)
     }
 }

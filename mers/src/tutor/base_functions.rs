@@ -25,6 +25,11 @@ fn say_hello_world() {
     println(\"Hello, world!\")
 }
 
+// Since the Subject.Verb(Object) syntax is more natural to many people, a.function(b c d) is an alternative way of writing function(a b c d):
+my_var = 15
+format(\"my variable had the value {0}!\" my_var) // normal
+\"my variable had the value {0}!\".format(my_var) // alternative (does the same thing)
+
 // to return to the menu, add two arguments to the mul() function to make it return 32*5
 mul()
 ",
