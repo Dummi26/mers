@@ -1043,6 +1043,12 @@ fn parse_single_type_adv(
                                     }
                                 }
                                 VSingleType::Function(fn_types)
+                            } else if name.as_str() == "thread" {
+                                let inner = parse_type_adv(file, true)?;
+                                if !inner.1 {
+                                    eprintln!("Warn: Parsed type thread(inner_type), but might have missed the closing bracket!");
+                                }
+                                VSingleType::Thread(inner.0)
                             } else {
                                 VSingleType::EnumVariantS(name, {
                                     let po = parse_type_adv(file, true)?;
