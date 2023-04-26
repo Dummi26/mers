@@ -87,7 +87,7 @@ fn main() {
                 if verbose != 0 {
                     eprintln!("info: set verbosity level to {verbose}. this doesn't do anything yet. [TODO!]");
                 }
-                if interactive >= 0 {
+                if interactive > 0 {
                     match interactive {
                         _ => {
                             // basic: open file and watch for fs changes
