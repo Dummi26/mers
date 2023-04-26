@@ -463,7 +463,6 @@ fn parse_statement_adv(
             };
             match nchar {
                 Some(':') => {
-                    _ = file.next();
                     let file_pos_before_pot_type = *file.get_pos();
                     let parsed_type = parse_type(file);
                     file.skip_whitespaces();
