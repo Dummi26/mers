@@ -463,40 +463,38 @@ fn parse_statement_adv(
             };
             match nchar {
                 Some(':') => {
-                    if let Some(':') = file.peek() {
-                        _ = file.next();
-                        let file_pos_before_pot_type = *file.get_pos();
-                        let parsed_type = parse_type(file);
-                        file.skip_whitespaces();
-                        if let Some('=') = file.next() {
-                            let err_equals_sign = *file.get_pos();
-                            let start = start.trim();
-                            let derefs = start.chars().take_while(|c| *c == '*').count();
-                            match parse_statement(file) {
-                                Ok(v) => break v
-                                    .output_to(start[derefs..].to_owned(), derefs)
-                                    .force_output_type(Some(match parsed_type {
-                                        Ok(v) => v,
-                                        Err(mut e) => {
-                                            e.context.push((
-                                                format!("interpreted this as an assignment to a variable with the format <var>::<var_type> = <statement>"), Some((err_start_of_statement, Some(err_equals_sign)))
-                                            ));
-                                            return Err(e);
-                                        }
-                                    })),
-                                Err(mut e) => {
-                                    e.context.push((
-                                        format!(
-                                            "statement was supposed to be assigned to variable {start}"
-                                        ),
-                                        Some((err_start_of_statement, Some(err_equals_sign))),
-                                    ));
-                                    return Err(e);
-                                }
+                    _ = file.next();
+                    let file_pos_before_pot_type = *file.get_pos();
+                    let parsed_type = parse_type(file);
+                    file.skip_whitespaces();
+                    if let Some('=') = file.next() {
+                        let err_equals_sign = *file.get_pos();
+                        let start = start.trim();
+                        let derefs = start.chars().take_while(|c| *c == '*').count();
+                        match parse_statement(file) {
+                            Ok(v) => break v
+                                .output_to(start[derefs..].to_owned(), derefs)
+                                .force_output_type(Some(match parsed_type {
+                                    Ok(v) => v,
+                                    Err(mut e) => {
+                                        e.context.push((
+                                            format!("interpreted this as an assignment to a variable with the format <var>::<var_type> = <statement>"), Some((err_start_of_statement, Some(err_equals_sign)))
+                                        ));
+                                        return Err(e);
+                                    }
+                                })),
+                            Err(mut e) => {
+                                e.context.push((
+                                    format!(
+                                        "statement was supposed to be assigned to variable {start}"
+                                    ),
+                                    Some((err_start_of_statement, Some(err_equals_sign))),
+                                ));
+                                return Err(e);
                             }
                         }
-                        file.set_pos(file_pos_before_pot_type);
                     }
+                    file.set_pos(file_pos_before_pot_type);
                     return Ok(SStatement::new(SStatementEnum::EnumVariant(
                         start,
                         parse_statement(file)?,
