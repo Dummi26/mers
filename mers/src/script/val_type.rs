@@ -204,7 +204,7 @@ impl VSingleType {
                 // function that takes no inputs
                 if let Some(out) = f.iter().find_map(|(args, out)| {
                     if args.is_empty() {
-                        Some(out.clone())
+                        Some(out.clone().inner_types())
                     } else {
                         None
                     }
