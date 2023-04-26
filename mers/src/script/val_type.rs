@@ -52,7 +52,7 @@ impl VType {
         }
         Some(out)
     }
-    // returns Some(true) or Some(false) if all types are references or not references. If it is mixed or types is empty, returns None.
+    /// returns Some(true) or Some(false) if all types are references or not references. If it is mixed or types is empty, returns None.
     pub fn is_reference(&self) -> Option<bool> {
         let mut noref = false;
         let mut reference = false;

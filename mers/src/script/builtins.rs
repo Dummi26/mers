@@ -24,6 +24,7 @@ pub enum BuiltinFunction {
     AssumeNoEnum, // assume enum(*)/t is t.
     NoEnum,
     Matches,
+    Clone,
     // print
     Print,
     Println,
@@ -93,6 +94,7 @@ impl BuiltinFunction {
             "assume_no_enum" => Self::AssumeNoEnum,
             "noenum" => Self::NoEnum,
             "matches" => Self::Matches,
+            "clone" => Self::Clone,
             "print" => Self::Print,
             "println" => Self::Println,
             "debug" => Self::Debug,
@@ -214,6 +216,7 @@ impl BuiltinFunction {
             }
             Self::NoEnum => input.len() == 1,
             Self::Matches => input.len() == 1,
+            Self::Clone => input.len() == 1 && matches!(input[0].is_reference(), Some(true)),
             Self::Print | Self::Println => {
                 if input.len() == 1 {
                     input[0].fits_in(&VSingleType::String.to()).is_empty()
@@ -502,6 +505,9 @@ impl BuiltinFunction {
             }
             Self::NoEnum => input[0].clone().noenum(),
             Self::Matches => input[0].matches().1,
+            Self::Clone => input[0]
+                .dereference()
+                .expect("type is a reference, so it can be dereferenced"),
             // []
             Self::Print | Self::Println | Self::Debug | Self::Sleep => VType {
                 types: vec![VSingleType::Tuple(vec![])],
@@ -750,6 +756,13 @@ impl BuiltinFunction {
                 Some(v) => VDataEnum::Tuple(vec![v]).to(),
                 None => VDataEnum::Tuple(vec![]).to(),
             },
+            Self::Clone => {
+                if let VDataEnum::Reference(r) = args[0].run(vars, info).data {
+                    r.lock().unwrap().clone()
+                } else {
+                    unreachable!()
+                }
+            }
             BuiltinFunction::Print => {
                 if let VDataEnum::String(arg) = args[0].run(vars, info).data {
                     print!("{}", arg);
