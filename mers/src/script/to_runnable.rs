@@ -16,6 +16,7 @@ use crate::{
 
 use super::{
     builtins::BuiltinFunction,
+    code_macro::Macro,
     code_parsed::{SBlock, SFunction, SStatement, SStatementEnum},
     code_runnable::{RBlock, RFunction, RScript, RStatement, RStatementEnum},
 };
@@ -351,7 +352,7 @@ fn statement(
                                 });
                             }
                         } else {
-                        return Err(ToRunnableError::UseOfUndefinedFunction(v.clone()));
+                            return Err(ToRunnableError::UseOfUndefinedFunction(v.clone()));
                         }
                     }
                 }
@@ -565,6 +566,9 @@ fn statement(
                     v
                 }
             }, statement(s, ginfo, linfo)?),
+            SStatementEnum::Macro(m) => match m {
+                Macro::StaticMers(val) => RStatementEnum::Value(val.clone()),
+            },
         }
         .to();
     // if force_output_type is set, verify that the real output type actually fits in the forced one.

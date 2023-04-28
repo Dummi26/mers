@@ -121,7 +121,10 @@ impl Lib {
                             fn_signature.next();
                         } else {
                             loop {
-                                let mut t = match parse::parse_type_adv(&mut fn_signature, true) {
+                                let mut t = match parse::implementation::parse_type_adv(
+                                    &mut fn_signature,
+                                    true,
+                                ) {
                                     Ok(v) => v,
                                     Err(e) => panic!("{e}"),
                                 };
@@ -132,7 +135,8 @@ impl Lib {
                                 }
                             }
                         }
-                        let mut fn_out = match parse::parse_type(&mut fn_signature) {
+                        let mut fn_out = match parse::implementation::parse_type(&mut fn_signature)
+                        {
                             Ok(v) => v,
                             Err(e) => panic!("{e}"),
                         };

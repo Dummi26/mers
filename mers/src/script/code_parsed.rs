@@ -1,6 +1,6 @@
 use std::fmt::{self, Display, Formatter, Pointer};
 
-use super::{global_info::GSInfo, val_data::VData, val_type::VType};
+use super::{code_macro::Macro, global_info::GSInfo, val_data::VData, val_type::VType};
 
 pub enum SStatementEnum {
     Value(VData),
@@ -17,6 +17,7 @@ pub enum SStatementEnum {
     Match(String, Vec<(SStatement, SStatement)>),
     IndexFixed(SStatement, usize),
     EnumVariant(String, SStatement),
+    Macro(Macro),
 }
 impl SStatementEnum {
     pub fn to(self) -> SStatement {
@@ -171,6 +172,9 @@ impl SStatementEnum {
             Self::EnumVariant(variant, inner) => {
                 write!(f, "{variant}: ")?;
                 inner.fmtgs(f, info)
+            }
+            Self::Macro(m) => {
+                write!(f, "!({m})")
             }
         }
     }

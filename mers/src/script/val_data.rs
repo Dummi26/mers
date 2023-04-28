@@ -47,6 +47,9 @@ impl PartialEq for VDataEnum {
 }
 
 impl VData {
+    pub fn safe_to_share(&self) -> bool {
+        self.data.safe_to_share()
+    }
     pub fn out(&self) -> VType {
         VType {
             types: vec![self.out_single()],
@@ -82,6 +85,15 @@ impl VDataEnum {
 
 // get()
 impl VDataEnum {
+    pub fn safe_to_share(&self) -> bool {
+        match self {
+            Self::Bool(_) | Self::Int(_) | Self::Float(_) | Self::String(_) | Self::Function(_) => {
+                true
+            }
+            Self::Tuple(v) | Self::List(_, v) => v.iter().all(|v| v.safe_to_share()),
+            Self::Thread(..) | Self::Reference(..) | Self::EnumVariant(..) => false,
+        }
+    }
     pub fn noenum(self) -> VData {
         match self {
             Self::EnumVariant(_, v) => *v,

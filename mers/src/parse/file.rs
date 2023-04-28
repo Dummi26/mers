@@ -108,11 +108,26 @@ impl File {
     }
     pub fn skip_whitespaces(&mut self) {
         loop {
-            match self.chars.get(self.pos.current_char_index) {
-                Some(ch) if ch.1.is_whitespace() => _ = self.next(),
+            match self.peek() {
+                Some(ch) if ch.is_whitespace() => _ = self.next(),
                 _ => break,
             }
         }
+    }
+    pub fn collect_to_whitespace(&mut self) -> String {
+        let mut o = String::new();
+        loop {
+            if let Some(ch) = self.next() {
+                if ch.is_whitespace() {
+                    self.set_pos(*self.get_ppos());
+                    break;
+                }
+                o.push(ch);
+            } else {
+                break;
+            }
+        }
+        o
     }
     pub fn path(&self) -> &PathBuf {
         &self.path
