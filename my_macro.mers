@@ -1,0 +1,2 @@
+println("my macro running in ./my_macro.mers")
+"value returned from ./my_macro.mers :)"
