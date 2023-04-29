@@ -278,41 +278,41 @@ impl BuiltinFunction {
                     && input[0]
                         .fits_in(&VType {
                             types: vec![VSingleType::Int, VSingleType::Float],
-                        })
+                        }, info)
                         .is_empty()
             }
             Self::Exit => {
                 input.len() == 0
-                    || (input.len() == 1 && input[0].fits_in(&VSingleType::Int.to()).is_empty())
+                    || (input.len() == 1 && input[0].fits_in(&VSingleType::Int.to(), info).is_empty())
             }
             // TODO!
             Self::FsList => true,
             Self::FsRead => {
-                input.len() == 1 && input[0].fits_in(&VSingleType::String.to()).is_empty()
+                input.len() == 1 && input[0].fits_in(&VSingleType::String.to(), info).is_empty()
             }
             Self::FsWrite => {
                 input.len() == 2
-                    && input[0].fits_in(&VSingleType::String.to()).is_empty()
+                    && input[0].fits_in(&VSingleType::String.to(), info).is_empty()
                     && input[1]
-                        .fits_in(&VSingleType::List(VSingleType::Int.to()).to())
+                        .fits_in(&VSingleType::List(VSingleType::Int.to()).to(), info)
                         .is_empty()
             }
             Self::BytesToString => {
                 input.len() == 1
                     && input[0]
-                        .fits_in(&VSingleType::List(VSingleType::Int.to()).to())
+                        .fits_in(&VSingleType::List(VSingleType::Int.to()).to(), info)
                         .is_empty()
             }
             Self::StringToBytes => {
-                input.len() == 1 && input[0].fits_in(&VSingleType::String.to()).is_empty()
+                input.len() == 1 && input[0].fits_in(&VSingleType::String.to(), info).is_empty()
             }
             Self::RunCommand | Self::RunCommandGetBytes => {
-                if input.len() >= 1 && input[0].fits_in(&VSingleType::String.to()).is_empty() {
+                if input.len() >= 1 && input[0].fits_in(&VSingleType::String.to(), info).is_empty() {
                     if input.len() == 1 {
                         true
                     } else if input.len() == 2 {
                         input[1]
-                            .fits_in(&VSingleType::List(VSingleType::String.to()).to())
+                            .fits_in(&VSingleType::List(VSingleType::String.to()).to(), info)
                             .is_empty()
                     } else {
                         false
@@ -328,16 +328,16 @@ impl BuiltinFunction {
                         types: vec![VSingleType::Int, VSingleType::Float],
                     };
                     let st = VSingleType::String.to();
-                    (input[0].fits_in(&num).is_empty() && input[1].fits_in(&num).is_empty())
-                        || (input[0].fits_in(&st).is_empty() && input[1].fits_in(&st).is_empty())
+                    (input[0].fits_in(&num, info).is_empty() && input[1].fits_in(&num, info).is_empty())
+                        || (input[0].fits_in(&st, info).is_empty() && input[1].fits_in(&st, info).is_empty())
                 }
             }
-            Self::Not => input.len() == 1 && input[0].fits_in(&VSingleType::Bool.to()).is_empty(),
+            Self::Not => input.len() == 1 && input[0].fits_in(&VSingleType::Bool.to(), info).is_empty(),
             Self::And | Self::Or => {
                 input.len() == 2
                     && input
                         .iter()
-                        .all(|v| v.fits_in(&VSingleType::Bool.to()).is_empty())
+                        .all(|v| v.fits_in(&VSingleType::Bool.to(), info).is_empty())
             }
             Self::Sub
             | Self::Mul
@@ -354,7 +354,7 @@ impl BuiltinFunction {
                     let num = VType {
                         types: vec![VSingleType::Int, VSingleType::Float],
                     };
-                    input[0].fits_in(&num).is_empty() && input[1].fits_in(&num).is_empty()
+                    input[0].fits_in(&num, info).is_empty() && input[1].fits_in(&num, info).is_empty()
                 }
             }
             // TODO! check that we pass a reference to a list!
@@ -365,7 +365,7 @@ impl BuiltinFunction {
                     // if vec.is_reference().is_some_and(|v| v) { // unstable
                     if let Some(true) = vec.is_reference() {
                         if let Some(t) = vec.get_any(info) {
-                            el.fits_in(&t).is_empty()
+                            el.fits_in(&t, info).is_empty()
                         } else {
                             false
                         }
@@ -381,7 +381,7 @@ impl BuiltinFunction {
                     let (vec, el) = (&input[0], &input[1]);
                     if let Some(true) = vec.is_reference() {
                         if let Some(t) = vec.get_any(info) {
-                            el.fits_in(&t).is_empty()
+                            el.fits_in(&t, info).is_empty()
                         } else {
                             false
                         }
@@ -415,7 +415,7 @@ impl BuiltinFunction {
                     if let Some(true) = vec.is_reference() {
                         // TODO! same issue as in pop
                         if let Some(_) = vec.get_any(info) {
-                            if index.fits_in(&VSingleType::Int.to()).is_empty() {
+                            if index.fits_in(&VSingleType::Int.to(), info).is_empty() {
                                 true
                             } else {
                                 false
@@ -436,11 +436,11 @@ impl BuiltinFunction {
                 if input.len() >= 2 && input.len() <= 3 {
                     let (s, start) = (&input[0], &input[1]);
                     let index_type = VSingleType::Int.to();
-                    if s.fits_in(&VSingleType::String.to()).is_empty()
-                        && start.fits_in(&index_type).is_empty()
+                    if s.fits_in(&VSingleType::String.to(), info).is_empty()
+                        && start.fits_in(&index_type, info).is_empty()
                     {
                         if let Some(end) = input.get(2) {
-                            end.fits_in(&index_type).is_empty()
+                            end.fits_in(&index_type, info).is_empty()
                         } else {
                             true
                         }
@@ -456,7 +456,7 @@ impl BuiltinFunction {
                 input.len() == 2
                     && input
                         .iter()
-                        .all(|v| v.fits_in(&VSingleType::String.to()).is_empty())
+                        .all(|v| v.fits_in(&VSingleType::String.to(), info).is_empty())
             }
             // two strings or &strings
             Self::IndexOf => {
@@ -467,12 +467,12 @@ impl BuiltinFunction {
                                 VSingleType::String,
                                 VSingleType::Reference(Box::new(VSingleType::String)),
                             ],
-                        })
+                        }, info)
                         .is_empty()
                     })
             }
             Self::Trim => {
-                input.len() == 1 && input[0].fits_in(&VSingleType::String.to()).is_empty()
+                input.len() == 1 && input[0].fits_in(&VSingleType::String.to(), info).is_empty()
             }
         }
     }

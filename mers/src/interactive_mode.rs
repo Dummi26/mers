@@ -33,7 +33,7 @@ println(greeting)
                             println!(" - - - - -");
                             println!("{}", output);
                         }
-                        Err(e) => println!("{}", e.with_file(&file)),
+                        Err(e) => println!("{}", e.0.with_file_and_gsinfo(&file, e.1.as_ref())),
                     }
                 } else {
                     println!("can't read file at {:?}!", temp_file);

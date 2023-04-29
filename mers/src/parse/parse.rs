@@ -6,7 +6,7 @@ use crate::{
         code_macro::MacroError,
         code_parsed::*,
         code_runnable::RScript,
-        global_info::{GlobalScriptInfo},
+        global_info::{GlobalScriptInfo, GSInfo},
         to_runnable::{self, ToRunnableError},
         val_data::VDataEnum,
         val_type::{VSingleType, VType},
@@ -52,20 +52,50 @@ impl std::fmt::Display for ScriptError {
     }
 }
 pub struct ScriptErrorWithFile<'a>(&'a ScriptError, &'a File);
+pub struct ScriptErrorWithInfo<'a>(&'a ScriptError, &'a GlobalScriptInfo);
+pub struct ScriptErrorWithFileAndInfo<'a>(&'a ScriptError, &'a File, &'a GlobalScriptInfo);
 impl<'a> ScriptError {
     pub fn with_file(&'a self, file: &'a File) -> ScriptErrorWithFile {
         ScriptErrorWithFile(self, file)
     }
+    pub fn with_gsinfo(&'a self, info: &'a GlobalScriptInfo) -> ScriptErrorWithInfo {
+        ScriptErrorWithInfo(self, info)
+    }
+    pub fn with_file_and_gsinfo(&'a self, file: &'a File, info: &'a GlobalScriptInfo) -> ScriptErrorWithFileAndInfo {
+        ScriptErrorWithFileAndInfo(self, file, info)
+    }
 }
 impl<'a> std::fmt::Display for ScriptErrorWithFile<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self.0 {
+        self.0.fmt_custom(f, Some(self.1), None)
+    }
+}
+impl<'a> std::fmt::Display for ScriptErrorWithInfo<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt_custom(f, None, Some(self.1))
+    }
+}
+impl<'a> std::fmt::Display for ScriptErrorWithFileAndInfo<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt_custom(f, Some(self.1), Some(self.2))
+    }
+}
+
+impl ScriptError {
+    fn fmt_custom(&self, f: &mut std::fmt::Formatter<'_>, file: Option<&File>, info: Option<&GlobalScriptInfo>) -> std::fmt::Result {
+        match &self {
             ScriptError::CannotFindPathForLibrary(e) => write!(f, "{e}"),
             ScriptError::ParseError(e) => {
-                write!(f, "failed while parsing: {}", e.with_file(self.1))
+                write!(f, "failed while parsing: ")?;
+                e.fmt_custom(f, file)?;
+                Ok(())
             }
             ScriptError::UnableToLoadLibrary(e) => write!(f, "{e}"),
-            ScriptError::ToRunnableError(e) => write!(f, "failed to compile: {e}"),
+            ScriptError::ToRunnableError(e) => {
+                write!(f, "failed to compile: ")?;
+                e.fmtgs(f, info);
+                Ok(())
+            }
         }
     }
 }
@@ -73,13 +103,28 @@ impl<'a> std::fmt::Display for ScriptErrorWithFile<'a> {
 pub const PARSE_VERSION: u64 = 0;
 
 /// executes the 4 parse_steps in order: lib_paths => interpret => libs_load => compile
-pub fn parse(file: &mut File) -> Result<RScript, ScriptError> {
+pub fn parse(file: &mut File) -> Result<RScript, (ScriptError, GSInfo)> {
     let mut ginfo = GlobalScriptInfo::default();
-    let libs = parse_step_lib_paths(file)?;
-    let func = parse_step_interpret(file)?;
-    ginfo.libs = parse_step_libs_load(libs, &mut ginfo)?;
 
-    let run = parse_step_compile(func, ginfo)?;
+    let libs = match parse_step_lib_paths(file) {
+        Ok(v) => v,
+        Err(e) => return Err((e.into(), ginfo.to_arc())),
+    };
+
+    let func = match parse_step_interpret(file) {
+        Ok(v) => v,
+        Err(e) => return Err((e.into(), ginfo.to_arc())),
+    };
+
+    ginfo.libs = match parse_step_libs_load(libs, &mut ginfo) {
+        Ok(v) => v,
+        Err(e) => return Err((e.into(), ginfo.to_arc())),
+    };
+
+    let run = match parse_step_compile(func, ginfo) {
+        Ok(v) => v,
+        Err(e) => return Err((e.0.into(), e.1)),
+    };
 
     Ok(run)
 }
@@ -153,7 +198,7 @@ pub fn parse_step_libs_load(
     Ok(libs)
 }
 
-pub fn parse_step_compile(main_func: SFunction, ginfo: GlobalScriptInfo) -> Result<RScript, ToRunnableError> {
+pub fn parse_step_compile(main_func: SFunction, ginfo: GlobalScriptInfo) -> Result<RScript, (ToRunnableError, GSInfo)> {
     to_runnable::to_runnable(main_func, ginfo)
 }
 
@@ -685,6 +730,10 @@ pub mod implementation {
                                     cases.push((parse_statement(file)?, parse_statement(file)?));
                                 }
                                 break SStatementEnum::Match(match_what, cases).to();
+                            }
+                            "type" => {
+                                file.skip_whitespaces();
+                                break SStatementEnum::TypeDefinition(file.collect_to_whitespace(), parse_type(file)?).to();
                             }
                             "true" => break SStatementEnum::Value(VDataEnum::Bool(true).to()).to(),
                             "false" => {

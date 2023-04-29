@@ -18,13 +18,14 @@ use super::{
     builtins::BuiltinFunction,
     code_macro::Macro,
     code_parsed::{SBlock, SFunction, SStatement, SStatementEnum},
-    code_runnable::{RBlock, RFunction, RScript, RStatement, RStatementEnum},
+    code_runnable::{RBlock, RFunction, RScript, RStatement, RStatementEnum}, global_info::GSInfo,
 };
 
 pub enum ToRunnableError {
     MainWrongInput,
     UseOfUndefinedVariable(String),
     UseOfUndefinedFunction(String),
+    UnknownType(String),
     CannotDeclareVariableWithDereference(String),
     CannotDereferenceTypeNTimes(VType, usize, VType),
     FunctionWrongArgCount(String, usize, usize),
@@ -51,6 +52,11 @@ impl Debug for ToRunnableError {
 //  - Show location in code where the error was found
 impl Display for ToRunnableError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.fmtgs(f, None)
+    }
+}
+impl ToRunnableError {
+    pub fn fmtgs(&self, f: &mut std::fmt::Formatter, info: Option<&GlobalScriptInfo>) -> std::fmt::Result {
         match self {
                 Self::MainWrongInput => write!(
                     f,
@@ -58,41 +64,77 @@ impl Display for ToRunnableError {
                 ),
                 Self::UseOfUndefinedVariable(v) => write!(f, "Cannot use variable \"{v}\" as it isn't defined (yet?)."),
                 Self::UseOfUndefinedFunction(v) => write!(f, "Cannot use function \"{v}\" as it isn't defined (yet?)."),
+                Self::UnknownType(name) => write!(f, "Unknown type \"{name}\"."),
                 Self::CannotDeclareVariableWithDereference(v) => write!(f, "Cannot declare a variable and dereference it (variable '{v}')."),
-                Self::CannotDereferenceTypeNTimes(og_type, derefs_wanted, last_valid_type) => write!(f,
-                    "Cannot dereference type {og_type} {derefs_wanted} times (stopped at {last_valid_type})."
-                ),
+                Self::CannotDereferenceTypeNTimes(og_type, derefs_wanted, last_valid_type) => {
+                    write!(f, "Cannot dereference type ")?;
+                    og_type.fmtgs(f, info)?;
+                    write!(f, "{derefs_wanted} times (stopped at ")?;
+                    last_valid_type.fmtgs(f, info);
+                    write!(f, ")")?;
+                    Ok(())
+                },
                 Self::FunctionWrongArgCount(v, a, b) => write!(f, "Tried to call function \"{v}\", which takes {a} arguments, with {b} arguments instead."),
                 Self::InvalidType {
                     expected,
                     found,
                     problematic,
                 } => {
-                    write!(f, "Invalid type: Expected {expected} but found {found}, which includes {problematic}, which is not covered.")
+                    write!(f, "Invalid type: Expected ")?;
+                    expected.fmtgs(f, info)?;
+                    write!(f, " but found ")?;
+                    found.fmtgs(f, info)?;
+                    write!(f, ", which includes ")?;
+                    problematic.fmtgs(f, info)?;
+                    write!(f, " which is not covered.")?;
+                    Ok(())
                 }
-                Self::CaseForceButTypeNotCovered(v) => write!(f, "Switch! statement, but not all types covered. Types to cover: {v}"),
-                Self::MatchConditionInvalidReturn(v) => write!(f, "match statement condition returned {v}, which is not necessarily a tuple of size 0 to 1."),
-                Self::NotIndexableFixed(t, i) => write!(f, "Cannot use fixed-index {i} on type {t}."),
+                Self::CaseForceButTypeNotCovered(v) => {
+                    write!(f, "Switch! statement, but not all types covered. Types to cover: ")?;
+                    v.fmtgs(f, info)?;
+                    Ok(())
+                }
+                Self::MatchConditionInvalidReturn(v) => {
+                    write!(f, "match statement condition returned ")?;
+                    v.fmtgs(f, info)?;
+                    write!(f, ", which is not necessarily a tuple of size 0 to 1.")?;
+                    Ok(())
+                }
+                Self::NotIndexableFixed(t, i) => {
+                    write!(f, "Cannot use fixed-index {i} on type ")?;
+                    t.fmtgs(f, info)?;
+                    write!(f, ".")?;
+                    Ok(())
+                }
                 Self::WrongInputsForBuiltinFunction(_builtin, builtin_name, args) => {
-                    write!(f, "Wrong arguments for builtin function {}:", builtin_name)?;
+                    write!(f, "Wrong arguments for builtin function \"{}\":", builtin_name)?;
                     for arg in args {
-                        write!(f, " {arg}")?;
+                        write!(f, " ")?;
+                        arg.fmtgs(f, info)?;
                     }
                     write!(f, ".")
                 }
                 Self::WrongArgsForLibFunction(name, args) => {
                     write!(f, "Wrong arguments for library function {}:", name)?;
                     for arg in args {
-                        write!(f, " {arg}")?;
+                        write!(f, " ")?;
+                        arg.fmtgs(f, info)?;
                     }
                     write!(f, ".")
                 }
                 Self::ForLoopContainerHasNoInnerTypes => {
                     write!(f, "For loop: container had no inner types, cannot iterate.")
                 }
-                Self::StatementRequiresOutputTypeToBeAButItActuallyOutputsBWhichDoesNotFitInA(required, real, problematic) => write!(f,
-                    "the statement requires its output type to be {required}, but its real output type is {real}, which doesn not fit in the required type because of the problematic types {problematic}."
-                ),
+                Self::StatementRequiresOutputTypeToBeAButItActuallyOutputsBWhichDoesNotFitInA(required, real, problematic) => {
+                    write!(f, "the statement requires its output type to be ")?;
+                    required.fmtgs(f, info)?;
+                    write!(f, ", but its real output type is ")?;
+                    real.fmtgs(f, info)?;
+                    write!(f, ", which doesn't fit in the required type because of the problematic types ")?;
+                    problematic.fmtgs(f, info)?;
+                    write!(f, ".")?;
+                    Ok(())
+                }
             }
     }
 }
@@ -104,9 +146,9 @@ struct LInfo {
     fns: HashMap<String, Arc<RFunction>>,
 }
 
-pub fn to_runnable(s: SFunction, mut ginfo: GlobalScriptInfo) -> Result<RScript, ToRunnableError> {
+pub fn to_runnable(s: SFunction, mut ginfo: GlobalScriptInfo) -> Result<RScript, (ToRunnableError, GSInfo)> {
     if s.inputs.len() != 1 || s.inputs[0].0 != "args" {
-        return Err(ToRunnableError::MainWrongInput);
+        return Err((ToRunnableError::MainWrongInput, ginfo.to_arc()));
     }
     assert_eq!(
         s.inputs[0].1,
@@ -116,18 +158,25 @@ pub fn to_runnable(s: SFunction, mut ginfo: GlobalScriptInfo) -> Result<RScript,
             })],
         }
     );
-    let func = function(
+    let func = match function(
         &s,
         &mut ginfo,
         LInfo {
             vars: HashMap::new(),
             fns: HashMap::new(),
         },
-    )?;
-    Ok(RScript::new(
+    ) {
+        Ok(v) => v,
+        Err(e) => return Err((e, ginfo.to_arc())),
+    };
+    let ginfo = ginfo.to_arc();
+    match RScript::new(
         func,
-        ginfo.to_arc(),
-    )?)
+        ginfo.clone(),
+    ) {
+        Ok(v) => Ok(v),
+        Err(e) => Err((e, ginfo)),
+    }
 }
 
 // go over every possible known-type input for the given function, returning all possible RFunctions.
@@ -142,7 +191,9 @@ fn get_all_functions(
     if s.inputs.len() > inputs.len() {
         let input_here = &s.inputs[inputs.len()].1;
         for t in &input_here.types {
-            inputs.push(t.clone().into());
+            let mut t = t.clone();
+            stype(&mut t, ginfo)?;
+            inputs.push(t);
             get_all_functions(s, ginfo, linfo, input_vars, inputs, out)?;
             inputs.pop();
         }
@@ -150,7 +201,11 @@ fn get_all_functions(
     } else {
         // set the types
         for (varid, vartype) in s.inputs.iter().zip(inputs.iter()) {
-            linfo.vars.get_mut(&varid.0).unwrap().1 = vartype.clone().into();
+            linfo.vars.get_mut(&varid.0).unwrap().1 = {
+                let mut vartype = vartype.clone();
+                stype(&mut vartype, ginfo)?;
+                vartype.to()
+            }
         }
         out.push((inputs.clone(), block(&s.block, ginfo, linfo.clone())?.out(ginfo)));
         Ok(())
@@ -164,11 +219,13 @@ fn function(
     let mut input_vars = vec![];
     let mut input_types = vec![];
     for (iname, itype) in &s.inputs {
+        let mut itype = itype.to_owned();
+        stypes(&mut itype, ginfo)?;
         linfo
             .vars
             .insert(iname.clone(), (ginfo.vars, itype.clone()));
         input_vars.push(ginfo.vars);
-        input_types.push(itype.clone());
+        input_types.push(itype);
         ginfo.vars += 1;
     }
     let mut all_outs = vec![];
@@ -200,18 +257,23 @@ fn block(s: &SBlock, ginfo: &mut GlobalScriptInfo, mut linfo: LInfo) -> Result<R
     Ok(RBlock { statements })
 }
 
-fn stypes(t: &mut VType, ginfo: &mut GlobalScriptInfo) {
+fn stypes(t: &mut VType, ginfo: &mut GlobalScriptInfo) -> Result<(), ToRunnableError> {
     for t in &mut t.types {
-        stype(t, ginfo);
+        stype(t, ginfo)?;
     }
+    Ok(())
 }
-fn stype(t: &mut VSingleType, ginfo: &mut GlobalScriptInfo) {
+fn stype(t: &mut VSingleType, ginfo: &mut GlobalScriptInfo) -> Result<(), ToRunnableError> {
     match t {
+        VSingleType::Bool | VSingleType::Int | VSingleType::Float | VSingleType::String => (),
         VSingleType::Tuple(v) => {
             for t in v {
-                stypes(t, ginfo);
+                stypes(t, ginfo)?;
             }
         }
+        VSingleType::List(t) => stypes(t, ginfo)?,
+        VSingleType::Reference(t) => stype(t, ginfo)?,
+        VSingleType::Thread(t) => stypes(t, ginfo)?,
         VSingleType::EnumVariantS(e, v) => {
             *t = VSingleType::EnumVariant(
                 {
@@ -224,13 +286,30 @@ fn stype(t: &mut VSingleType, ginfo: &mut GlobalScriptInfo) {
                     }
                 },
                 {
-                    stypes(v, ginfo);
+                    stypes(v, ginfo)?;
                     v.clone()
                 },
             )
         }
-        _ => (),
+        VSingleType::Function(io_map) => {
+            for io_variant in io_map {
+                for i in &mut io_variant.0 {
+                    stype(i, ginfo)?;
+                }
+                stypes(&mut io_variant.1, ginfo)?;
+            }
+        }
+        VSingleType::EnumVariant(_, t) => stypes(t, ginfo)?,
+        VSingleType::CustomTypeS(name) => {
+            *t = VSingleType::CustomType(if let Some(v) = ginfo.custom_type_names.get(name) {
+                *v
+            } else {
+                return Err(ToRunnableError::UnknownType(name.to_owned()));
+            })
+        }
+        VSingleType::CustomType(_) => ()
     }
+    Ok(())
 }
 fn statement(
     s: &SStatement,
@@ -253,7 +332,7 @@ fn statement(
             SStatementEnum::Variable(v, is_ref) => {
                 if let Some(var) = linfo.vars.get(v) {
                     RStatementEnum::Variable(var.0, {
-                        let mut v = var.1.clone(); stypes(&mut v, ginfo); v }, *is_ref)
+                        let mut v = var.1.clone(); stypes(&mut v, ginfo)?; v }, *is_ref)
                 } else {
                     return Err(ToRunnableError::UseOfUndefinedVariable(v.clone()));
                 }
@@ -273,7 +352,7 @@ fn statement(
                     }
                     for (i, rarg) in rargs.iter().enumerate() {
                         let rarg = rarg.out(ginfo);
-                        let out = rarg.fits_in(&func.input_types[i]);
+                        let out = rarg.fits_in(&func.input_types[i], ginfo);
                         if !out.is_empty() {
                             return Err(ToRunnableError::InvalidType {
                                 expected: func.input_types[i].clone(),
@@ -296,7 +375,7 @@ fn statement(
                         // LIBRARY FUNCTION?
                         if let Some((libid, fnid)) = ginfo.lib_fns.get(v) {
                             let (_name, fn_in, fn_out) = &ginfo.libs[*libid].registered_fns[*fnid];
-                            if fn_in.len() == rargs.len() && fn_in.iter().zip(rargs.iter()).all(|(fn_in, arg)| arg.out(ginfo).fits_in(fn_in).is_empty()) {
+                            if fn_in.len() == rargs.len() && fn_in.iter().zip(rargs.iter()).all(|(fn_in, arg)| arg.out(ginfo).fits_in(fn_in, ginfo).is_empty()) {
                                 RStatementEnum::LibFunction(*libid, *fnid, rargs, fn_out.clone())
                             } else {
                                 // TODO! better error here
@@ -332,7 +411,7 @@ fn statement(
                     let condition = statement(&c, ginfo, linfo)?;
                     let out = condition.out(ginfo).fits_in(&VType {
                         types: vec![VSingleType::Bool],
-                    });
+                    }, ginfo);
                     if out.is_empty() {
                         condition
                     } else {
@@ -374,7 +453,7 @@ fn statement(
                     let mut ncases = Vec::with_capacity(cases.len());
                     let og_type = switch_on_v.1.clone(); // linfo.vars.get(switch_on).unwrap().1.clone();
                     for case in cases {
-                        let case0 = { let mut v = case.0.clone(); stypes(&mut v, ginfo); v };
+                        let case0 = { let mut v = case.0.clone(); stypes(&mut v, ginfo)?; v };
                         linfo.vars.get_mut(switch_on).unwrap().1 = case0.clone();
                         ncases.push((case0, statement(&case.1, ginfo, linfo)?));
                     }
@@ -391,8 +470,8 @@ fn statement(
                             'force: {
                                 for (case_type, _) in cases {
                                     let mut ct = case_type.clone();
-                                    stypes(&mut ct, ginfo);
-                                    if val_type.fits_in(&ct).is_empty() {
+                                    stypes(&mut ct, ginfo)?;
+                                    if val_type.fits_in(&ct, ginfo).is_empty() {
                                         break 'force;
                                     }
                                 }
@@ -493,23 +572,7 @@ fn statement(
 
             SStatementEnum::IndexFixed(st, i) => {
                 let st = statement(st, ginfo, linfo)?;
-                let ok = 'ok: {
-                    let mut one = false;
-                    for t in st.out(ginfo).types {
-                        one = true;
-                        // only if all types are indexable by i
-                        match t {
-                            VSingleType::Tuple(v) => {
-                                if v.len() <= *i {
-                                    break 'ok false;
-                                }
-                            }
-                            _ => break 'ok false,
-                        }
-                    }
-                    one
-                };
-                if ok {
+                if st.out(ginfo).get_always(*i, ginfo).is_some() {
                     RStatementEnum::IndexFixed(st, *i)
                 } else {
                     return Err(ToRunnableError::NotIndexableFixed(st.out(ginfo), *i));
@@ -524,6 +587,14 @@ fn statement(
                     v
                 }
             }, statement(s, ginfo, linfo)?),
+            SStatementEnum::TypeDefinition(name, t) => {
+                // insert to name map has to happen before stypes()
+                ginfo.custom_type_names.insert(name.to_owned(), ginfo.custom_types.len());
+                let mut t = t.to_owned();
+                stypes(&mut t, ginfo)?;
+                ginfo.custom_types.push(t);
+                RStatementEnum::Value(VDataEnum::Tuple(vec![]).to())
+            }
             SStatementEnum::Macro(m) => match m {
                 Macro::StaticMers(val) => RStatementEnum::Value(val.clone()),
             },
@@ -531,10 +602,12 @@ fn statement(
         .to();
     // if force_output_type is set, verify that the real output type actually fits in the forced one.
     if let Some(force_opt) = &s.force_output_type {
+        let mut force_opt = force_opt.to_owned();
+        stypes(&mut force_opt, ginfo)?;
         let real_output_type = statement.out(ginfo);
-        let problematic_types = real_output_type.fits_in(force_opt);
+        let problematic_types = real_output_type.fits_in(&force_opt, ginfo);
         if problematic_types.is_empty() {
-            statement.force_output_type = Some(force_opt.clone());
+            statement.force_output_type = Some(force_opt);
         } else {
             return Err(ToRunnableError::StatementRequiresOutputTypeToBeAButItActuallyOutputsBWhichDoesNotFitInA(force_opt.clone(), real_output_type, VType { types: problematic_types }));
         }
@@ -554,7 +627,7 @@ fn statement(
                     ));
                 }
             }
-            let inv_types = out.fits_in(&var_derefd);
+            let inv_types = out.fits_in(&var_derefd, ginfo);
             if !inv_types.is_empty() {
                 eprintln!("Warn: shadowing variable {opt} because statement's output type {out} does not fit in the original variable's {var_out}. This might become an error in the future, or it might stop shadowing the variiable entirely - for stable scripts, avoid this by giving the variable a different name.");
                 if *derefs != 0 {

@@ -260,7 +260,7 @@ impl RStatementEnum {
                 let switch_on_type = switch_on.out();
                 let mut out = VDataEnum::Tuple(vec![]).to();
                 for (case_type, case_action) in cases.iter() {
-                    if switch_on_type.fits_in(case_type).is_empty() {
+                    if switch_on_type.fits_in(case_type, info).is_empty() {
                         out = case_action.run(vars, info);
                         break;
                     }
@@ -329,7 +329,7 @@ impl RStatementEnum {
                     let switch_on = switch_on.to();
                     'search: {
                         for (on_type, case) in cases.iter() {
-                            if switch_on.fits_in(&on_type).is_empty() {
+                            if switch_on.fits_in(&on_type, info).is_empty() {
                                 out = out | case.out(info);
                                 break 'search;
                             }

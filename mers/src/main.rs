@@ -125,7 +125,7 @@ fn main() {
             println!("Output ({}s)\n{out}", elapsed.as_secs_f64());
         }
         Err(e) => {
-            println!("Couldn't compile:\n{e}");
+            println!("Couldn't compile:\n{}", e.0.with_file_and_gsinfo(&file, e.1.as_ref()));
             std::process::exit(99);
         }
     }

@@ -43,7 +43,7 @@ fn parse_mers_code(file: &mut File) -> Result<RScript, MacroError> {
         _ = file.next();
         match parse::parse(file) {
             Ok(v) => Ok(v),
-            Err(e) => Err(e.into()),
+            Err(e) => Err(e.0.into()),
         }
     } else {
         let path = parse_string_val(file);
@@ -56,7 +56,10 @@ fn parse_mers_code(file: &mut File) -> Result<RScript, MacroError> {
                 .expect("can't include mers code because the file could not be read"),
             path.into(),
         );
-        Ok(parse::parse(&mut file)?)
+        Ok(match parse::parse(&mut file) {
+            Ok(v) => v,
+            Err(e) => return Err(e.0.into()),
+        })
     }
 }
 

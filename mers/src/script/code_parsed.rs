@@ -17,6 +17,7 @@ pub enum SStatementEnum {
     Match(String, Vec<(SStatement, SStatement)>),
     IndexFixed(SStatement, usize),
     EnumVariant(String, SStatement),
+    TypeDefinition(String, VType),
     Macro(Macro),
 }
 impl SStatementEnum {
@@ -173,6 +174,7 @@ impl SStatementEnum {
                 write!(f, "{variant}: ")?;
                 inner.fmtgs(f, info)
             }
+            Self::TypeDefinition(name, t) => write!(f, "type {name} {t}"),
             Self::Macro(m) => {
                 write!(f, "!({m})")
             }
