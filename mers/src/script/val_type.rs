@@ -140,10 +140,12 @@ impl VType {
 impl VType {
     /// Returns a vec with all types in self that aren't covered by rhs. If the returned vec is empty, self fits in rhs.
     pub fn fits_in(&self, rhs: &Self, info: &GlobalScriptInfo) -> Vec<VSingleType> {
+        #[cfg(debug_assertions)]
+        eprintln!("{} in {}? [VType]", self, rhs);
         let mut no = vec![];
         for t in &self.types {
             // if t doesnt fit in any of rhs's types
-            if !rhs.types.iter().any(|r| t.fits_in(r, info)) {
+            if !t.fits_in_type(rhs, info) {
                 no.push(t.clone())
             }
         }
@@ -281,15 +283,15 @@ impl VSingleType {
         }
     }
     pub fn fits_in(&self, rhs: &Self, info: &GlobalScriptInfo) -> bool {
-        // #[cfg(debug_assertions)]
-        // eprintln!("{self} in {rhs}?");
-        match (self, rhs) {
+        #[cfg(debug_assertions)]
+        eprintln!("{self} in {rhs}?");
+        let o = match (self, rhs) {
             (Self::Reference(r), Self::Reference(b)) => r.fits_in(b, info),
             (Self::Reference(_), _) | (_, Self::Reference(_)) => false,
             (Self::EnumVariant(v1, t1), Self::EnumVariant(v2, t2)) => {
                 *v1 == *v2 && t1.fits_in(&t2, info).is_empty()
             },
-            (Self::CustomType(a), Self::CustomType(b)) => *a == *b || info.custom_types[*a].fits_in(&info.custom_types[*b], info).is_empty(),
+            (Self::CustomType(a), Self::CustomType(b)) => *a == *b /* || info.custom_types[*a].fits_in(&info.custom_types[*b], info).is_empty() */,
             (Self::CustomType(a), b) => info.custom_types[*a].fits_in(&b.clone().to(), info).is_empty(),
             (a, Self::CustomType(b)) => a.clone().to().fits_in(&info.custom_types[*b], info).is_empty(),
             (Self::CustomTypeS(_), _) | (_, Self::CustomTypeS(_)) => unreachable!("CustomTypeS instead of CustomType - compiler bug?"),
@@ -329,6 +331,15 @@ impl VSingleType {
             (Self::Function(..), _) => false,
             (Self::Thread(a), Self::Thread(b)) => a.fits_in(b, info).is_empty(),
             (Self::Thread(..), _) => false,
+        };
+        #[cfg(debug_assertions)]
+        eprintln!(" -> {}", o);
+        o
+    }
+    pub fn fits_in_type(&self, rhs: &VType, info: &GlobalScriptInfo) -> bool {
+        match self {
+            Self::CustomType(t) => rhs.types.iter().any(|rhs| if let Self::CustomType(rhs) = rhs { *t == *rhs } else { false }) || info.custom_types[*t].fits_in(rhs, info).is_empty(),
+            _ => rhs.types.iter().any(|t| self.fits_in(t, info)),
         }
     }
 }
