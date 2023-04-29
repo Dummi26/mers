@@ -6,8 +6,8 @@ use crate::{
         code_macro::MacroError,
         code_parsed::*,
         code_runnable::RScript,
-        global_info::GSInfo,
-        to_runnable::{self, GInfo, ToRunnableError},
+        global_info::{GlobalScriptInfo},
+        to_runnable::{self, ToRunnableError},
         val_data::VDataEnum,
         val_type::{VSingleType, VType},
     },
@@ -74,7 +74,7 @@ pub const PARSE_VERSION: u64 = 0;
 
 /// executes the 4 parse_steps in order: lib_paths => interpret => libs_load => compile
 pub fn parse(file: &mut File) -> Result<RScript, ScriptError> {
-    let mut ginfo = GInfo::default();
+    let mut ginfo = GlobalScriptInfo::default();
     let libs = parse_step_lib_paths(file)?;
     let func = parse_step_interpret(file)?;
     ginfo.libs = parse_step_libs_load(libs, &mut ginfo)?;
@@ -135,7 +135,7 @@ impl std::fmt::Display for UnableToLoadLibrary {
 }
 pub fn parse_step_libs_load(
     lib_cmds: Vec<Command>,
-    ginfo: &mut GInfo,
+    ginfo: &mut GlobalScriptInfo,
 ) -> Result<Vec<libs::Lib>, UnableToLoadLibrary> {
     let mut libs = vec![];
     for cmd in lib_cmds {
@@ -153,7 +153,7 @@ pub fn parse_step_libs_load(
     Ok(libs)
 }
 
-pub fn parse_step_compile(main_func: SFunction, ginfo: GInfo) -> Result<RScript, ToRunnableError> {
+pub fn parse_step_compile(main_func: SFunction, ginfo: GlobalScriptInfo) -> Result<RScript, ToRunnableError> {
     to_runnable::to_runnable(main_func, ginfo)
 }
 
@@ -177,7 +177,7 @@ pub struct ParseError {
         String,
         Option<(super::file::FilePosition, Option<super::file::FilePosition>)>,
     )>,
-    info: Option<GSInfo>,
+    info: Option<GlobalScriptInfo>,
 }
 impl ParseError {
     pub fn fmt_custom(
@@ -246,7 +246,7 @@ impl ParseErrors {
     fn fmtgs(
         &self,
         f: &mut std::fmt::Formatter,
-        info: Option<&GSInfo>,
+        info: Option<&GlobalScriptInfo>,
         file: Option<&super::file::File>,
     ) -> std::fmt::Result {
         match self {
@@ -1150,15 +1150,16 @@ pub mod implementation {
                         "int" => VSingleType::Int,
                         "float" => VSingleType::Float,
                         "string" => VSingleType::String,
-                        _ => {
-                            return Err(ParseError {
-                                err: ParseErrors::InvalidType(name.trim().to_string()),
-                                location: err_start_of_single_type,
-                                location_end: Some(*file.get_pos()),
-                                context: vec![],
-                                info: None,
-                            });
-                        }
+                        custom => VSingleType::CustomTypeS(custom.to_owned()),
+                        // _ => {
+                        //     return Err(ParseError {
+                        //         err: ParseErrors::InvalidType(name.trim().to_string()),
+                        //         location: err_start_of_single_type,
+                        //         location_end: Some(*file.get_pos()),
+                        //         context: vec![],
+                        //         info: None,
+                        //     });
+                        // }
                     }
                 }
                 None => {

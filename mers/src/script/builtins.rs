@@ -8,7 +8,7 @@ use crate::libs;
 
 use super::{
     code_runnable::RStatement,
-    global_info::GSInfo,
+    global_info::{GlobalScriptInfo, GSInfo},
     val_data::{thread::VDataThreadEnum, VData, VDataEnum},
     val_type::{VSingleType, VType},
 };
@@ -148,7 +148,7 @@ impl BuiltinFunction {
             _ => return None,
         })
     }
-    pub fn can_take(&self, input: &Vec<VType>) -> bool {
+    pub fn can_take(&self, input: &Vec<VType>, info: &GlobalScriptInfo) -> bool {
         match self {
             Self::Assume1 => {
                 if input.len() >= 1 {
@@ -172,7 +172,7 @@ impl BuiltinFunction {
                     }
                     if input.len() >= 2 {
                         if input.len() == 2 {
-                            input[1].fits_in(&VSingleType::String.to()).is_empty()
+                            input[1].fits_in(&VSingleType::String.to(), info).is_empty()
                         } else {
                             false
                         }
@@ -203,7 +203,7 @@ impl BuiltinFunction {
                     }
                     if input.len() >= 2 {
                         if input.len() == 2 {
-                            input[1].fits_in(&VSingleType::String.to()).is_empty()
+                            input[1].fits_in(&VSingleType::String.to(), info).is_empty()
                         } else {
                             false
                         }
@@ -219,7 +219,7 @@ impl BuiltinFunction {
             Self::Clone => input.len() == 1 && matches!(input[0].is_reference(), Some(true)),
             Self::Print | Self::Println => {
                 if input.len() == 1 {
-                    input[0].fits_in(&VSingleType::String.to()).is_empty()
+                    input[0].fits_in(&VSingleType::String.to(), info).is_empty()
                 } else {
                     false
                 }
@@ -230,11 +230,11 @@ impl BuiltinFunction {
                 !input.is_empty()
                     && input
                         .iter()
-                        .all(|v| v.fits_in(&VSingleType::String.to()).is_empty())
+                        .all(|v| v.fits_in(&VSingleType::String.to(), info).is_empty())
             }
             Self::StdinReadLine => input.is_empty(),
             Self::ParseInt | Self::ParseFloat => {
-                input.len() == 1 && input[0].fits_in(&VSingleType::String.to()).is_empty()
+                input.len() == 1 && input[0].fits_in(&VSingleType::String.to(), info).is_empty()
             }
             Self::Run | Self::Thread => {
                 if input.len() >= 1 {
@@ -364,7 +364,7 @@ impl BuiltinFunction {
                     let (vec, el) = (&input[0], &input[1]);
                     // if vec.is_reference().is_some_and(|v| v) { // unstable
                     if let Some(true) = vec.is_reference() {
-                        if let Some(t) = vec.get_any() {
+                        if let Some(t) = vec.get_any(info) {
                             el.fits_in(&t).is_empty()
                         } else {
                             false
@@ -380,7 +380,7 @@ impl BuiltinFunction {
                 if input.len() == 3 {
                     let (vec, el) = (&input[0], &input[1]);
                     if let Some(true) = vec.is_reference() {
-                        if let Some(t) = vec.get_any() {
+                        if let Some(t) = vec.get_any(info) {
                             el.fits_in(&t).is_empty()
                         } else {
                             false
@@ -397,7 +397,7 @@ impl BuiltinFunction {
                     let vec = &input[0];
                     if let Some(true) = vec.is_reference() {
                         // TODO! this also returns true for tuples. what should we do for tuples? should pop return (first_val rest_of_tuple) and not take a reference?
-                        if let Some(_) = vec.get_any() {
+                        if let Some(_) = vec.get_any(info) {
                             true
                         } else {
                             false
@@ -414,7 +414,7 @@ impl BuiltinFunction {
                     let (vec, index) = (&input[0], &input[1]);
                     if let Some(true) = vec.is_reference() {
                         // TODO! same issue as in pop
-                        if let Some(_) = vec.get_any() {
+                        if let Some(_) = vec.get_any(info) {
                             if index.fits_in(&VSingleType::Int.to()).is_empty() {
                                 true
                             } else {
@@ -477,7 +477,7 @@ impl BuiltinFunction {
         }
     }
     /// for invalid inputs, may panic
-    pub fn returns(&self, input: Vec<VType>) -> VType {
+    pub fn returns(&self, input: Vec<VType>, info: &GlobalScriptInfo) -> VType {
         match self {
             Self::Assume1 => {
                 let mut out = VType { types: vec![] };
@@ -569,7 +569,7 @@ impl BuiltinFunction {
                         types: vec![
                             VSingleType::Tuple(vec![]),
                             VSingleType::Tuple(vec![v
-                                .get_any()
+                                .get_any(info)
                                 .expect("cannot use get on this type")]),
                         ],
                     }
@@ -783,7 +783,7 @@ impl BuiltinFunction {
                 let val = args[0].run(vars, info);
                 println!(
                     "{} :: {} :: {}",
-                    args[0].out().gsi(info.clone()),
+                    args[0].out(info).gsi(info.clone()),
                     val.out().gsi(info.clone()),
                     val.gsi(info.clone())
                 );

@@ -1,6 +1,6 @@
 use std::fmt::{self, Display, Formatter, Pointer};
 
-use super::{code_macro::Macro, global_info::GSInfo, val_data::VData, val_type::VType};
+use super::{code_macro::Macro, global_info::GlobalScriptInfo, val_data::VData, val_type::VType};
 
 pub enum SStatementEnum {
     Value(VData),
@@ -78,7 +78,7 @@ impl SFunction {
 //
 
 impl SStatementEnum {
-    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GSInfo>) -> fmt::Result {
+    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GlobalScriptInfo>) -> fmt::Result {
         match self {
             Self::Value(v) => v.fmtgs(f, info),
             Self::Tuple(v) => {
@@ -186,7 +186,7 @@ impl Display for SStatementEnum {
 }
 
 impl SStatement {
-    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GSInfo>) -> fmt::Result {
+    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GlobalScriptInfo>) -> fmt::Result {
         if let Some((opt, derefs)) = &self.output_to {
             if let Some(forced_type) = &self.force_output_type {
                 write!(f, "{}{}::", "*".repeat(*derefs), opt)?;
@@ -206,7 +206,7 @@ impl Display for SStatement {
 }
 
 impl SFunction {
-    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GSInfo>) -> fmt::Result {
+    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GlobalScriptInfo>) -> fmt::Result {
         write!(f, "(")?;
         for (i, (name, t)) in self.inputs.iter().enumerate() {
             if i > 0 {
@@ -222,7 +222,7 @@ impl SFunction {
 }
 
 impl SBlock {
-    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GSInfo>) -> fmt::Result {
+    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GlobalScriptInfo>) -> fmt::Result {
         match self.statements.len() {
             0 => write!(f, "{{}}"),
             1 => self.statements[0].fmtgs(f, info),

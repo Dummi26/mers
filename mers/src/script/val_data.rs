@@ -5,7 +5,7 @@ use std::{
 
 use super::{
     code_runnable::RFunction,
-    global_info::GSInfo,
+    global_info::{GlobalScriptInfo, GSInfo},
     val_type::{VSingleType, VType},
 };
 
@@ -255,7 +255,7 @@ impl VData {
 }
 
 impl VDataEnum {
-    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GSInfo>) -> fmt::Result {
+    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GlobalScriptInfo>) -> fmt::Result {
         match self {
             Self::Bool(true) => write!(f, "true"),
             Self::Bool(false) => write!(f, "false"),
@@ -290,7 +290,7 @@ impl VDataEnum {
             }
             Self::EnumVariant(variant, inner) => {
                 if let Some(name) = if let Some(info) = info {
-                    info.enums
+                    info.enum_variants
                         .iter()
                         .find_map(|(name, id)| if id == variant { Some(name) } else { None })
                 } else {
@@ -312,7 +312,7 @@ impl Display for VDataEnum {
 }
 
 impl VData {
-    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GSInfo>) -> fmt::Result {
+    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GlobalScriptInfo>) -> fmt::Result {
         self.data.fmtgs(f, info)
     }
 }

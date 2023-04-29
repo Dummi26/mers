@@ -97,46 +97,6 @@ impl Display for ToRunnableError {
     }
 }
 
-// Global, shared between all
-pub struct GInfo {
-    vars: usize,
-    pub libs: Vec<libs::Lib>,
-    pub lib_fns: HashMap<String, (usize, usize)>,
-    pub enum_variants: HashMap<String, usize>,
-}
-impl Default for GInfo {
-    fn default() -> Self {
-        Self {
-            vars: 0,
-            libs: vec![],
-            lib_fns: HashMap::new(),
-            enum_variants: Self::default_enum_variants(),
-        }
-    }
-}
-impl GInfo {
-    pub fn default_enum_variants() -> HashMap<String, usize> {
-        builtins::EVS
-            .iter()
-            .enumerate()
-            .map(|(i, v)| (v.to_string(), i))
-            .collect()
-    }
-    pub fn new(libs: Vec<libs::Lib>, enum_variants: HashMap<String, usize>) -> Self {
-        let mut lib_fns = HashMap::new();
-        for (libid, lib) in libs.iter().enumerate() {
-            for (fnid, (name, ..)) in lib.registered_fns.iter().enumerate() {
-                lib_fns.insert(name.to_string(), (libid, fnid));
-            }
-        }
-        Self {
-            vars: 0,
-            libs,
-            lib_fns,
-            enum_variants,
-        }
-    }
-}
 // Local, used to keep local variables separated
 #[derive(Clone)]
 struct LInfo {
@@ -144,7 +104,7 @@ struct LInfo {
     fns: HashMap<String, Arc<RFunction>>,
 }
 
-pub fn to_runnable(s: SFunction, mut ginfo: GInfo) -> Result<RScript, ToRunnableError> {
+pub fn to_runnable(s: SFunction, mut ginfo: GlobalScriptInfo) -> Result<RScript, ToRunnableError> {
     if s.inputs.len() != 1 || s.inputs[0].0 != "args" {
         return Err(ToRunnableError::MainWrongInput);
     }
@@ -166,19 +126,14 @@ pub fn to_runnable(s: SFunction, mut ginfo: GInfo) -> Result<RScript, ToRunnable
     )?;
     Ok(RScript::new(
         func,
-        ginfo.vars,
-        GlobalScriptInfo {
-            libs: ginfo.libs,
-            enums: ginfo.enum_variants,
-        }
-        .to_arc(),
+        ginfo.to_arc(),
     )?)
 }
 
 // go over every possible known-type input for the given function, returning all possible RFunctions.
 fn get_all_functions(
     s: &SFunction,
-    ginfo: &mut GInfo,
+    ginfo: &mut GlobalScriptInfo,
     linfo: &mut LInfo,
     input_vars: &Vec<usize>,
     inputs: &mut Vec<VSingleType>,
@@ -197,13 +152,13 @@ fn get_all_functions(
         for (varid, vartype) in s.inputs.iter().zip(inputs.iter()) {
             linfo.vars.get_mut(&varid.0).unwrap().1 = vartype.clone().into();
         }
-        out.push((inputs.clone(), block(&s.block, ginfo, linfo.clone())?.out()));
+        out.push((inputs.clone(), block(&s.block, ginfo, linfo.clone())?.out(ginfo)));
         Ok(())
     }
 }
 fn function(
     s: &SFunction,
-    ginfo: &mut GInfo,
+    ginfo: &mut GlobalScriptInfo,
     mut linfo: LInfo,
 ) -> Result<RFunction, ToRunnableError> {
     let mut input_vars = vec![];
@@ -237,7 +192,7 @@ fn function(
     })
 }
 
-fn block(s: &SBlock, ginfo: &mut GInfo, mut linfo: LInfo) -> Result<RBlock, ToRunnableError> {
+fn block(s: &SBlock, ginfo: &mut GlobalScriptInfo, mut linfo: LInfo) -> Result<RBlock, ToRunnableError> {
     let mut statements = Vec::new();
     for st in &s.statements {
         statements.push(statement(st, ginfo, &mut linfo)?);
@@ -245,12 +200,12 @@ fn block(s: &SBlock, ginfo: &mut GInfo, mut linfo: LInfo) -> Result<RBlock, ToRu
     Ok(RBlock { statements })
 }
 
-fn stypes(t: &mut VType, ginfo: &mut GInfo) {
+fn stypes(t: &mut VType, ginfo: &mut GlobalScriptInfo) {
     for t in &mut t.types {
         stype(t, ginfo);
     }
 }
-fn stype(t: &mut VSingleType, ginfo: &mut GInfo) {
+fn stype(t: &mut VSingleType, ginfo: &mut GlobalScriptInfo) {
     match t {
         VSingleType::Tuple(v) => {
             for t in v {
@@ -279,7 +234,7 @@ fn stype(t: &mut VSingleType, ginfo: &mut GInfo) {
 }
 fn statement(
     s: &SStatement,
-    ginfo: &mut GInfo,
+    ginfo: &mut GlobalScriptInfo,
     linfo: &mut LInfo,
 ) -> Result<RStatement, ToRunnableError> {
     let mut statement = match &*s.statement {
@@ -317,7 +272,7 @@ fn statement(
                         ));
                     }
                     for (i, rarg) in rargs.iter().enumerate() {
-                        let rarg = rarg.out();
+                        let rarg = rarg.out(ginfo);
                         let out = rarg.fits_in(&func.input_types[i]);
                         if !out.is_empty() {
                             return Err(ToRunnableError::InvalidType {
@@ -331,8 +286,8 @@ fn statement(
                 } else {
                     // TODO: type-checking for builtins
                     if let Some(builtin) = BuiltinFunction::get(v) {
-                        let arg_types = rargs.iter().map(|v| v.out()).collect();
-                        if builtin.can_take(&arg_types) {
+                        let arg_types = rargs.iter().map(|v| v.out(ginfo)).collect();
+                        if builtin.can_take(&arg_types, ginfo) {
                             RStatementEnum::BuiltinFunction(builtin, rargs)
                         } else {
                             return Err(ToRunnableError::WrongInputsForBuiltinFunction(builtin, v.to_string(), arg_types));
@@ -341,12 +296,12 @@ fn statement(
                         // LIBRARY FUNCTION?
                         if let Some((libid, fnid)) = ginfo.lib_fns.get(v) {
                             let (_name, fn_in, fn_out) = &ginfo.libs[*libid].registered_fns[*fnid];
-                            if fn_in.len() == rargs.len() && fn_in.iter().zip(rargs.iter()).all(|(fn_in, arg)| arg.out().fits_in(fn_in).is_empty()) {
+                            if fn_in.len() == rargs.len() && fn_in.iter().zip(rargs.iter()).all(|(fn_in, arg)| arg.out(ginfo).fits_in(fn_in).is_empty()) {
                                 RStatementEnum::LibFunction(*libid, *fnid, rargs, fn_out.clone())
                             } else {
                                 // TODO! better error here
                                 return Err(if fn_in.len() == rargs.len() {
-                                    ToRunnableError::WrongArgsForLibFunction(v.to_string(), rargs.iter().map(|v| v.out()).collect())
+                                    ToRunnableError::WrongArgsForLibFunction(v.to_string(), rargs.iter().map(|v| v.out(ginfo)).collect())
                                 } else {
                                     ToRunnableError::FunctionWrongArgCount(v.to_string(), fn_in.len(), rargs.len())
                                 });
@@ -375,7 +330,7 @@ fn statement(
             SStatementEnum::If(c, t, e) => RStatementEnum::If(
                 {
                     let condition = statement(&c, ginfo, linfo)?;
-                    let out = condition.out().fits_in(&VType {
+                    let out = condition.out(ginfo).fits_in(&VType {
                         types: vec![VSingleType::Bool],
                     });
                     if out.is_empty() {
@@ -383,7 +338,7 @@ fn statement(
                     } else {
                         return Err(ToRunnableError::InvalidType {
                             expected: VSingleType::Bool.into(),
-                            found: condition.out(),
+                            found: condition.out(ginfo),
                             problematic: VType { types: out },
                         });
                     }
@@ -400,7 +355,7 @@ fn statement(
             SStatementEnum::For(v, c, b) => {
                 let mut linfo = linfo.clone();
                 let container = statement(&c, ginfo, &mut linfo)?;
-                let inner = container.out().inner_types();
+                let inner = container.out(ginfo).inner_types();
                 if inner.types.is_empty() {
                     return Err(ToRunnableError::ForLoopContainerHasNoInnerTypes);
                 }
@@ -444,7 +399,8 @@ fn statement(
                                 types_not_covered_req_error = true;
                                 types_not_covered = types_not_covered | {
                                     let mut v = val_type;
-                                    fn make_readable(v: &mut VType, ginfo: &GInfo) {
+                                    /// converts the VType to one that is human-readable (changes enum from usize to String, ...)
+                                    fn make_readable(v: &mut VType, ginfo: &GlobalScriptInfo) {
                                         for t in v.types.iter_mut() {
                                             match t {
                                                 VSingleType::EnumVariant(i, v) => {
@@ -452,18 +408,20 @@ fn statement(
                                                     make_readable(&mut v, ginfo);
                                                     *t = VSingleType::EnumVariantS(ginfo.enum_variants.iter().find_map(|(st, us)| if *us == *i { Some(st.clone()) } else { None }).unwrap(), v);
                                                 },
-                                                VSingleType::EnumVariantS(_, v) => make_readable(v, ginfo),
+                                                VSingleType::CustomType(i) => {
+                                                    *t = VSingleType::CustomTypeS(ginfo.custom_type_names.iter().find_map(|(st, us)| if *us == *i { Some(st.clone()) } else { None }).unwrap());
+                                                }
                                                 VSingleType::Tuple(v) => for t in v.iter_mut() {
                                                     make_readable(t, ginfo)
                                                 }
-                                                VSingleType::List(t) => make_readable(t, ginfo),
+                                                VSingleType::List(t) | VSingleType::EnumVariantS(_, t) => make_readable(t, ginfo),
                                                 VSingleType::Reference(v) => {
                                                     let mut v = v.clone().to();
                                                     make_readable(&mut v, ginfo);
                                                     assert_eq!(v.types.len(), 1);
                                                     *t = VSingleType::Reference(Box::new(v.types.remove(0)));
                                                 }
-                                                VSingleType::Bool | VSingleType::Int | VSingleType::Float | VSingleType::String | VSingleType::Function(..) | VSingleType::Thread(..) => (),
+                                                VSingleType::Bool | VSingleType::Int | VSingleType::Float | VSingleType::String | VSingleType::Function(..) | VSingleType::Thread(..) | VSingleType::CustomTypeS(_) => (),
                                             }
                                         }
                                     }
@@ -490,7 +448,7 @@ fn statement(
                     let og_type = switch_on_v.1.clone(); // linfo.vars.get(match_on).unwrap().1.clone();
                     for case in cases {
                         let case_condition = statement(&case.0, ginfo, linfo)?;
-                        let case_condition_out =  case_condition.out();
+                        let case_condition_out =  case_condition.out(ginfo);
                         let mut refutable = false;
                         let mut success_output = VType { types: vec![] };
                         for case_type in case_condition_out.types.iter() {
@@ -537,7 +495,7 @@ fn statement(
                 let st = statement(st, ginfo, linfo)?;
                 let ok = 'ok: {
                     let mut one = false;
-                    for t in st.out().types {
+                    for t in st.out(ginfo).types {
                         one = true;
                         // only if all types are indexable by i
                         match t {
@@ -554,7 +512,7 @@ fn statement(
                 if ok {
                     RStatementEnum::IndexFixed(st, *i)
                 } else {
-                    return Err(ToRunnableError::NotIndexableFixed(st.out(), *i));
+                    return Err(ToRunnableError::NotIndexableFixed(st.out(ginfo), *i));
                 }
             }
             SStatementEnum::EnumVariant(variant, s) => RStatementEnum::EnumVariant({
@@ -573,7 +531,7 @@ fn statement(
         .to();
     // if force_output_type is set, verify that the real output type actually fits in the forced one.
     if let Some(force_opt) = &s.force_output_type {
-        let real_output_type = statement.out();
+        let real_output_type = statement.out(ginfo);
         let problematic_types = real_output_type.fits_in(force_opt);
         if problematic_types.is_empty() {
             statement.force_output_type = Some(force_opt.clone());
@@ -583,7 +541,7 @@ fn statement(
     }
     if let Some((opt, derefs)) = &s.output_to {
         if let Some((var_id, var_out)) = linfo.vars.get(opt) {
-            let out = statement.out();
+            let out = statement.out(ginfo);
             let mut var_derefd = var_out.clone();
             for _ in 0..*derefs {
                 var_derefd = if let Some(v) = var_derefd.dereference() {
@@ -612,13 +570,13 @@ fn statement(
                 statement.output_to = Some((*var_id, *derefs));
             }
         } else {
-            let mut out = statement.out();
+            let mut out = statement.out(ginfo);
             for _ in 0..*derefs {
                 out = if let Some(v) = out.dereference() {
                     v
                 } else {
                     return Err(ToRunnableError::CannotDereferenceTypeNTimes(
-                        statement.out(),
+                        statement.out(ginfo),
                         *derefs,
                         out,
                     ));

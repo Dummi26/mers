@@ -4,7 +4,7 @@ use std::{
     ops::BitOr,
 };
 
-use super::global_info::GSInfo;
+use super::global_info::{GlobalScriptInfo, GSInfo};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VType {
@@ -24,20 +24,22 @@ pub enum VSingleType {
     Reference(Box<Self>),
     EnumVariant(usize, VType),
     EnumVariantS(String, VType),
-    // CustomType(usize),
-    // CustomTypeS(String),
+    CustomType(usize),
+    CustomTypeS(String),
 }
 
 impl VSingleType {
     // None => Cannot get, Some(t) => getting can return t or nothing
-    pub fn get(&self, i: usize) -> Option<VType> {
+    pub fn get(&self, i: usize, gsinfo: &GlobalScriptInfo) -> Option<VType> {
         match self {
             Self::Bool | Self::Int | Self::Float | Self::Function(..) | Self::Thread(..) => None,
             Self::String => Some(VSingleType::String.into()),
             Self::Tuple(t) => t.get(i).cloned(),
             Self::List(t) => Some(t.clone()),
-            Self::Reference(r) => r.get(i),
-            Self::EnumVariant(_, t) | Self::EnumVariantS(_, t) => t.get(i),
+            Self::Reference(r) => r.get(i, gsinfo),
+            Self::EnumVariant(_, t) | Self::EnumVariantS(_, t) => t.get(i, gsinfo),
+            Self::CustomType(t) => gsinfo.custom_types[*t].get(i, gsinfo),
+            &Self::CustomTypeS(_) => unreachable!("CustomTypeS instead of CustomType, compiler error?"),
         }
     }
 }
@@ -45,10 +47,10 @@ impl VType {
     pub fn empty() -> Self {
         Self { types: vec![] }
     }
-    pub fn get(&self, i: usize) -> Option<VType> {
+    pub fn get(&self, i: usize, info: &GlobalScriptInfo) -> Option<VType> {
         let mut out = VType { types: vec![] };
         for t in &self.types {
-            out = out | t.get(i)?; // if we can't use *get* on one type, we can't use it at all.
+            out = out | t.get(i, info)?; // if we can't use *get* on one type, we can't use it at all.
         }
         Some(out)
     }
@@ -80,15 +82,17 @@ impl VType {
 }
 
 impl VSingleType {
-    pub fn get_any(&self) -> Option<VType> {
+    pub fn get_any(&self, info: &GlobalScriptInfo) -> Option<VType> {
         match self {
             Self::Bool | Self::Int | Self::Float | Self::Function(..) | Self::Thread(..) => None,
             Self::String => Some(VSingleType::String.into()),
             Self::Tuple(t) => Some(t.iter().fold(VType { types: vec![] }, |a, b| a | b)),
             Self::List(t) => Some(t.clone()),
-            Self::Reference(r) => r.get_any(),
-            Self::EnumVariant(_, t) => t.get_any(),
+            Self::Reference(r) => r.get_any(info),
+            Self::EnumVariant(_, t) => t.get_any(info),
             Self::EnumVariantS(..) => unreachable!(),
+            Self::CustomType(t) => info.custom_types[*t].get_any(info),
+            Self::CustomTypeS(_) => unreachable!(),
         }
     }
     pub fn is_reference(&self) -> bool {
@@ -106,10 +110,10 @@ impl VSingleType {
     }
 }
 impl VType {
-    pub fn get_any(&self) -> Option<VType> {
+    pub fn get_any(&self, info: &GlobalScriptInfo) -> Option<VType> {
         let mut out = VType { types: vec![] };
         for t in &self.types {
-            out = out | t.get_any()?; // if we can't use *get* on one type, we can't use it at all.
+            out = out | t.get_any(info)?; // if we can't use *get* on one type, we can't use it at all.
         }
         Some(out)
     }
@@ -117,11 +121,11 @@ impl VType {
 
 impl VType {
     /// Returns a vec with all types in self that aren't covered by rhs. If the returned vec is empty, self fits in rhs.
-    pub fn fits_in(&self, rhs: &Self) -> Vec<VSingleType> {
+    pub fn fits_in(&self, rhs: &Self, info: &GlobalScriptInfo) -> Vec<VSingleType> {
         let mut no = vec![];
         for t in &self.types {
             // if t doesnt fit in any of rhs's types
-            if !rhs.types.iter().any(|r| t.fits_in(r)) {
+            if !rhs.types.iter().any(|r| t.fits_in(r, info)) {
                 no.push(t.clone())
             }
         }
@@ -223,6 +227,7 @@ impl VSingleType {
             v => v.to(),
         }
     }
+    /// converts all Self::EnumVariantS to Self::EnumVariant
     pub fn enum_variants(&mut self, enum_variants: &mut HashMap<String, usize>) {
         match self {
             Self::Bool | Self::Int | Self::Float | Self::String => (),
@@ -254,15 +259,20 @@ impl VSingleType {
                 v.enum_variants(enum_variants);
                 *self = Self::EnumVariant(e, v.clone());
             }
+            Self::CustomType(_) | Self::CustomTypeS(_) => (),
         }
     }
-    pub fn fits_in(&self, rhs: &Self) -> bool {
+    pub fn fits_in(&self, rhs: &Self, info: &GlobalScriptInfo) -> bool {
         match (self, rhs) {
-            (Self::Reference(r), Self::Reference(b)) => r.fits_in(b),
+            (Self::Reference(r), Self::Reference(b)) => r.fits_in(b, info),
             (Self::Reference(_), _) | (_, Self::Reference(_)) => false,
             (Self::EnumVariant(v1, t1), Self::EnumVariant(v2, t2)) => {
-                *v1 == *v2 && t1.fits_in(&t2).is_empty()
-            }
+                *v1 == *v2 && t1.fits_in(&t2, info).is_empty()
+            },
+            (Self::CustomType(a), b) => info.custom_types[*a].fits_in(&b.clone().to(), info).is_empty(),
+            (a, Self::CustomType(b)) => a.clone().to().fits_in(&info.custom_types[*b], info).is_empty(),
+            (Self::CustomType(a), Self::CustomType(b)) => info.custom_types[*a].fits_in(&info.custom_types[*b], info).is_empty(),
+            (Self::CustomTypeS(_), _) | (_, Self::CustomTypeS(_)) => unreachable!(),
             (Self::EnumVariant(..), _) | (_, Self::EnumVariant(..)) => false,
             (Self::EnumVariantS(..), _) | (_, Self::EnumVariantS(..)) => unreachable!(),
             (Self::Bool, Self::Bool)
@@ -272,19 +282,19 @@ impl VSingleType {
             (Self::Bool | Self::Int | Self::Float | Self::String, _) => false,
             (Self::Tuple(a), Self::Tuple(b)) => {
                 if a.len() == b.len() {
-                    a.iter().zip(b.iter()).all(|(a, b)| a.fits_in(b).is_empty())
+                    a.iter().zip(b.iter()).all(|(a, b)| a.fits_in(b, info).is_empty())
                 } else {
                     false
                 }
             }
             (Self::Tuple(_), _) => false,
-            (Self::List(a), Self::List(b)) => a.fits_in(b).is_empty(),
+            (Self::List(a), Self::List(b)) => a.fits_in(b, info).is_empty(),
             (Self::List(_), _) => false,
             (Self::Function(a), Self::Function(b)) => 'func_out: {
                 for a in a {
                     'search: {
                         for b in b {
-                            if a.1.fits_in(&b.1).is_empty()
+                            if a.1.fits_in(&b.1, info).is_empty()
                                 && a.0.iter().zip(b.0.iter()).all(|(a, b)| *a == *b)
                             {
                                 break 'search;
@@ -296,7 +306,7 @@ impl VSingleType {
                 true
             }
             (Self::Function(..), _) => false,
-            (Self::Thread(a), Self::Thread(b)) => a.fits_in(b).is_empty(),
+            (Self::Thread(a), Self::Thread(b)) => a.fits_in(b, info).is_empty(),
             (Self::Thread(..), _) => false,
         }
     }
@@ -323,7 +333,7 @@ impl VType {
 }
 
 impl VSingleType {
-    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GSInfo>) -> fmt::Result {
+    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GlobalScriptInfo>) -> fmt::Result {
         match self {
             Self::Bool => write!(f, "bool"),
             Self::Int => write!(f, "int"),
@@ -368,7 +378,7 @@ impl VSingleType {
             }
             Self::EnumVariant(variant, inner) => {
                 if let Some(name) = if let Some(info) = info {
-                    info.enums
+                    info.enum_variants
                         .iter()
                         .find_map(|(name, id)| if id == variant { Some(name) } else { None })
                 } else {
@@ -396,7 +406,7 @@ impl Display for VSingleType {
 }
 
 impl VType {
-    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GSInfo>) -> fmt::Result {
+    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GlobalScriptInfo>) -> fmt::Result {
         for (i, t) in self.types.iter().enumerate() {
             if i > 0 {
                 write!(f, "/")?;

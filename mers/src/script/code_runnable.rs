@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use super::{
     builtins::BuiltinFunction,
-    global_info::GSInfo,
+    global_info::{GlobalScriptInfo, GSInfo},
     to_runnable::ToRunnableError,
     val_data::{VData, VDataEnum},
     val_type::{VSingleType, VType},
@@ -29,9 +29,9 @@ impl RBlock {
             VDataEnum::Tuple(vec![]).to()
         }
     }
-    pub fn out(&self) -> VType {
+    pub fn out(&self, info: &GlobalScriptInfo) -> VType {
         if let Some(last) = self.statements.last() {
-            last.out()
+            last.out(info)
         } else {
             VType {
                 types: vec![VSingleType::Tuple(vec![])],
@@ -76,8 +76,8 @@ impl RFunction {
         }
         out
     }
-    pub fn out_all(&self) -> VType {
-        self.block.out()
+    pub fn out_all(&self, info: &GlobalScriptInfo) -> VType {
+        self.block.out(info)
     }
     pub fn in_types(&self) -> &Vec<VType> {
         &self.input_types
@@ -109,7 +109,7 @@ impl RStatement {
             out
         }
     }
-    pub fn out(&self) -> VType {
+    pub fn out(&self, info: &GlobalScriptInfo) -> VType {
         // `a = b` evaluates to []
         if self.output_to.is_some() {
             return VType {
@@ -119,7 +119,7 @@ impl RStatement {
         if let Some(t) = &self.force_output_type {
             return t.clone();
         }
-        self.statement.out()
+        self.statement.out(info)
     }
 }
 
@@ -283,14 +283,14 @@ impl RStatementEnum {
             Self::EnumVariant(e, v) => VDataEnum::EnumVariant(*e, Box::new(v.run(vars, info))).to(),
         }
     }
-    pub fn out(&self) -> VType {
+    pub fn out(&self, info: &GlobalScriptInfo) -> VType {
         match self {
             Self::Value(v) => v.out(),
-            Self::Tuple(v) => VSingleType::Tuple(v.iter().map(|v| v.out()).collect()).into(),
+            Self::Tuple(v) => VSingleType::Tuple(v.iter().map(|v| v.out(info)).collect()).into(),
             Self::List(v) => VSingleType::List({
                 let mut types = VType { types: vec![] };
                 for t in v {
-                    types = types | t.out();
+                    types = types | t.out(info);
                 }
                 types
             })
@@ -308,21 +308,21 @@ impl RStatementEnum {
                     t.clone()
                 }
             }
-            Self::FunctionCall(f, args) => f.out_vt(&args.iter().map(|v| v.out()).collect()),
+            Self::FunctionCall(f, args) => f.out_vt(&args.iter().map(|v| v.out(info)).collect()),
             Self::LibFunction(.., out) => out.clone(),
-            Self::Block(b) => b.out(),
+            Self::Block(b) => b.out(info),
             Self::If(_, a, b) => {
                 if let Some(b) = b {
-                    a.out() | b.out()
+                    a.out(info) | b.out(info)
                 } else {
-                    a.out() | VSingleType::Tuple(vec![]).to()
+                    a.out(info) | VSingleType::Tuple(vec![]).to()
                 }
             }
-            Self::Loop(c) => c.out().matches().1,
-            Self::For(_, _, b) => VSingleType::Tuple(vec![]).to() | b.out().matches().1,
-            Self::BuiltinFunction(f, args) => f.returns(args.iter().map(|rs| rs.out()).collect()),
+            Self::Loop(c) => c.out(info).matches().1,
+            Self::For(_, _, b) => VSingleType::Tuple(vec![]).to() | b.out(info).matches().1,
+            Self::BuiltinFunction(f, args) => f.returns(args.iter().map(|rs| rs.out(info)).collect(), info),
             Self::Switch(switch_on, cases) => {
-                let switch_on = switch_on.out().types;
+                let switch_on = switch_on.out(info).types;
                 let mut might_return_empty = switch_on.is_empty();
                 let mut out = VType { types: vec![] }; // if nothing is executed
                 for switch_on in switch_on {
@@ -330,7 +330,7 @@ impl RStatementEnum {
                     'search: {
                         for (on_type, case) in cases.iter() {
                             if switch_on.fits_in(&on_type).is_empty() {
-                                out = out | case.out();
+                                out = out | case.out(info);
                                 break 'search;
                             }
                         }
@@ -345,12 +345,12 @@ impl RStatementEnum {
             Self::Match(_, cases) => {
                 let mut out = VSingleType::Tuple(vec![]).to();
                 for case in cases {
-                    out = out | case.1.out();
+                    out = out | case.1.out(info);
                 }
                 out
             }
-            Self::IndexFixed(st, i) => st.out().get(*i).unwrap(),
-            Self::EnumVariant(e, v) => VSingleType::EnumVariant(*e, v.out()).to(),
+            Self::IndexFixed(st, i) => st.out(info).get(*i, info).unwrap(),
+            Self::EnumVariant(e, v) => VSingleType::EnumVariant(*e, v.out(info)).to(),
         }
     }
     pub fn to(self) -> RStatement {
@@ -364,18 +364,17 @@ impl RStatementEnum {
 
 pub struct RScript {
     main: RFunction,
-    vars: usize,
     info: GSInfo,
 }
 impl RScript {
-    pub fn new(main: RFunction, vars: usize, info: GSInfo) -> Result<Self, ToRunnableError> {
+    pub fn new(main: RFunction, info: GSInfo) -> Result<Self, ToRunnableError> {
         if main.inputs.len() != 1 {
             return Err(ToRunnableError::MainWrongInput);
         }
-        Ok(Self { main, vars, info })
+        Ok(Self { main, info: info })
     }
     pub fn run(&self, args: Vec<String>) -> VData {
-        let mut vars = Vec::with_capacity(self.vars);
+        let mut vars = Vec::with_capacity(self.info.vars);
         vars.push(am(VDataEnum::List(
             VSingleType::String.into(),
             args.into_iter()
@@ -383,7 +382,7 @@ impl RScript {
                 .collect(),
         )
         .to()));
-        for _i in 1..self.vars {
+        for _i in 1..self.info.vars {
             vars.push(am(VDataEnum::Tuple(vec![]).to()));
         }
         self.main.run(&vars, &self.info)
