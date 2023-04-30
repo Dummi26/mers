@@ -1,8 +1,8 @@
 use std::{path::PathBuf, thread::JoinHandle, time::Instant};
 
 use crate::{
-    parse::{self, parse::ScriptError, file::File},
-    script::{code_runnable::RScript, val_data::VDataEnum, global_info::GSInfo},
+    parsing::{self, file::File, parse::ScriptError},
+    script::{code_runnable::RScript, global_info::GSInfo, val_data::VDataEnum},
 };
 
 mod base_comments;
@@ -30,8 +30,8 @@ false
 ",
         Box::new(move |file| {
             let mut file =
-                parse::file::File::new(std::fs::read_to_string(file).unwrap(), PathBuf::new());
-            sender.send((parse::parse::parse(&mut file), file)).unwrap();
+                parsing::file::File::new(std::fs::read_to_string(file).unwrap(), PathBuf::new());
+            sender.send((parsing::parse::parse(&mut file), file)).unwrap();
         }),
     )
     .unwrap();
@@ -60,7 +60,7 @@ pub struct Tutor {
     written_status_byte_len: usize,
     editor_join_handle: JoinHandle<()>,
     file_path: PathBuf,
-    receiver: std::sync::mpsc::Receiver<(Result<RScript, (ScriptError, GSInfo)>, File)>,
+    receiver: std::sync::mpsc::Receiver<(Result<RScript, parsing::parse::Error>, File)>,
     // i_ are inputs from the user
     pub i_name: Option<String>,
 }
@@ -70,10 +70,11 @@ impl Tutor {
         // eprintln!(" - - - - - - - - - - - - - - - - - - - - - - - - -");
         let script = loop {
             match self.receiver.recv().unwrap() {
-                (Err((e, info)), file) => {
+                (Err(e), file) => {
                     self.current_status = format!(
                         " - Error during build{}",
-                        e.with_file_and_gsinfo(&file, info.as_ref()).to_string()
+                        e.with_file(&file)
+                            .to_string()
                             .lines()
                             .map(|v| format!("\n// {v}"))
                             .collect::<String>()

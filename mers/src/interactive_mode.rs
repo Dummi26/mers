@@ -25,15 +25,15 @@ println(greeting)
                 println!();
                 if let Ok(file_contents) = fs::read_to_string(&temp_file) {
                     let mut file =
-                        crate::parse::file::File::new(file_contents, temp_file.to_path_buf());
-                    match crate::parse::parse::parse(&mut file) {
+                        crate::parsing::file::File::new(file_contents, temp_file.to_path_buf());
+                    match crate::parsing::parse::parse(&mut file) {
                         Ok(func) => {
                             println!(" - - - - -");
                             let output = func.run(vec![]);
                             println!(" - - - - -");
                             println!("{}", output);
                         }
-                        Err(e) => println!("{}", e.0.with_file_and_gsinfo(&file, e.1.as_ref())),
+                        Err(e) => println!("{}", e.with_file(&file)),
                     }
                 } else {
                     println!("can't read file at {:?}!", temp_file);

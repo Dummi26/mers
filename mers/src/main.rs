@@ -9,7 +9,7 @@ mod interactive_mode;
 mod libs;
 #[cfg(feature = "nushell_plugin")]
 mod nushell_plugin;
-mod parse;
+mod parsing;
 mod script;
 mod tutor;
 
@@ -105,7 +105,7 @@ fn normal_main() {
                     };
                     return;
                 } else if execute {
-                    parse::file::File::new(
+                    parsing::file::File::new(
                         args.iter().skip(1).fold(String::new(), |mut s, v| {
                             if !s.is_empty() {
                                 s.push(' ');
@@ -120,11 +120,11 @@ fn normal_main() {
                     std::process::exit(101);
                 }
             } else {
-                parse::file::File::new(std::fs::read_to_string(&args[0]).unwrap(), path.into())
+                parsing::file::File::new(std::fs::read_to_string(&args[0]).unwrap(), path.into())
             }
         }
     };
-    match parse::parse::parse(&mut file) {
+    match parsing::parse::parse(&mut file) {
         Ok(script) => {
             println!(" - - - - -");
             let start = Instant::now();
@@ -134,10 +134,7 @@ fn normal_main() {
             println!("Output ({}s)\n{out}", elapsed.as_secs_f64());
         }
         Err(e) => {
-            println!(
-                "Couldn't compile:\n{}",
-                e.0.with_file_and_gsinfo(&file, e.1.as_ref())
-            );
+            println!("Couldn't compile:\n{}", e.with_file(&file));
             std::process::exit(99);
         }
     }

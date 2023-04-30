@@ -1,0 +1,3 @@
+var: [string ...] = [...]
+&var.push("a string")
+var.len().eq(1)

@@ -10,7 +10,7 @@ use std::{
 };
 
 use crate::{
-    parse::{file::File, parse},
+    parsing::{file::File, parse},
     script::{
         val_data::{VData, VDataEnum},
         val_type::VType,
