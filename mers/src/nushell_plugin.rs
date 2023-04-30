@@ -4,7 +4,7 @@ use nu_plugin::{serve_plugin, MsgPackSerializer, Plugin};
 use nu_protocol::{PluginExample, PluginSignature, ShellError, Span, Spanned, SyntaxShape, Value};
 
 use crate::{
-    parse,
+    parsing,
     script::{
         global_info::GlobalScriptInfo,
         val_data::{VData, VDataEnum},
@@ -47,9 +47,9 @@ impl Plugin for MersNuPlugin {
         let source_span = Span::unknown(); // source.span;
                                            // let source = source.item;
         let mut file = if call.has_flag("execute") {
-            parse::file::File::new(source, PathBuf::new())
+            parsing::file::File::new(source, PathBuf::new())
         } else {
-            parse::file::File::new(
+            parsing::file::File::new(
                 match fs::read_to_string(&source) {
                     Ok(v) => v,
                     Err(e) => {
@@ -61,7 +61,7 @@ impl Plugin for MersNuPlugin {
                 source.into(),
             )
         };
-        Ok(match parse::parse::parse(&mut file) {
+        Ok(match parsing::parse::parse(&mut file) {
             Ok(code) => {
                 let args = match call.opt(1)? {
                     Some(v) => v,
@@ -122,7 +122,7 @@ impl Plugin for MersNuPlugin {
                 error: Box::new(ShellError::IncorrectValue {
                     msg: format!(
                         "Couldn't compile mers, error: {}",
-                        e.0.with_file_and_gsinfo(&file, e.1.as_ref())
+                        e.with_file(&file)
                     ),
                     span: source_span,
                 }),
