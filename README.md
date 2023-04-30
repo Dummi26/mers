@@ -1,4 +1,4 @@
-# mers
+# mers ![build status](https://github.com/Dummi26/mers/actions/workflows/rust.yml/badge.svg)
 
 Mers is an experimental programming language inspired by high-level and scripting languages, but with error handling inspired by rust.
 
