@@ -7,11 +7,20 @@ use notify::Watcher as FsWatcher;
 
 mod interactive_mode;
 mod libs;
+#[cfg(feature = "nushell_plugin")]
+mod nushell_plugin;
 mod parse;
 mod script;
 mod tutor;
 
 fn main() {
+    #[cfg(not(feature = "nushell_plugin"))]
+    normal_main();
+    #[cfg(feature = "nushell_plugin")]
+    nushell_plugin::main();
+}
+
+fn normal_main() {
     let args: Vec<_> = std::env::args().skip(1).collect();
     #[cfg(debug_assertions)]
     let args = if args.len() == 0 {
@@ -125,7 +134,10 @@ fn main() {
             println!("Output ({}s)\n{out}", elapsed.as_secs_f64());
         }
         Err(e) => {
-            println!("Couldn't compile:\n{}", e.0.with_file_and_gsinfo(&file, e.1.as_ref()));
+            println!(
+                "Couldn't compile:\n{}",
+                e.0.with_file_and_gsinfo(&file, e.1.as_ref())
+            );
             std::process::exit(99);
         }
     }

@@ -8,7 +8,7 @@ use crate::libs;
 
 use super::{
     code_runnable::RStatement,
-    global_info::{GlobalScriptInfo, GSInfo},
+    global_info::{GSInfo, GlobalScriptInfo},
     val_data::{thread::VDataThreadEnum, VData, VDataEnum},
     val_type::{VSingleType, VType},
 };
@@ -276,14 +276,18 @@ impl BuiltinFunction {
             Self::Sleep => {
                 input.len() == 1
                     && input[0]
-                        .fits_in(&VType {
-                            types: vec![VSingleType::Int, VSingleType::Float],
-                        }, info)
+                        .fits_in(
+                            &VType {
+                                types: vec![VSingleType::Int, VSingleType::Float],
+                            },
+                            info,
+                        )
                         .is_empty()
             }
             Self::Exit => {
                 input.len() == 0
-                    || (input.len() == 1 && input[0].fits_in(&VSingleType::Int.to(), info).is_empty())
+                    || (input.len() == 1
+                        && input[0].fits_in(&VSingleType::Int.to(), info).is_empty())
             }
             // TODO!
             Self::FsList => true,
@@ -307,7 +311,8 @@ impl BuiltinFunction {
                 input.len() == 1 && input[0].fits_in(&VSingleType::String.to(), info).is_empty()
             }
             Self::RunCommand | Self::RunCommandGetBytes => {
-                if input.len() >= 1 && input[0].fits_in(&VSingleType::String.to(), info).is_empty() {
+                if input.len() >= 1 && input[0].fits_in(&VSingleType::String.to(), info).is_empty()
+                {
                     if input.len() == 1 {
                         true
                     } else if input.len() == 2 {
@@ -328,11 +333,15 @@ impl BuiltinFunction {
                         types: vec![VSingleType::Int, VSingleType::Float],
                     };
                     let st = VSingleType::String.to();
-                    (input[0].fits_in(&num, info).is_empty() && input[1].fits_in(&num, info).is_empty())
-                        || (input[0].fits_in(&st, info).is_empty() && input[1].fits_in(&st, info).is_empty())
+                    (input[0].fits_in(&num, info).is_empty()
+                        && input[1].fits_in(&num, info).is_empty())
+                        || (input[0].fits_in(&st, info).is_empty()
+                            && input[1].fits_in(&st, info).is_empty())
                 }
             }
-            Self::Not => input.len() == 1 && input[0].fits_in(&VSingleType::Bool.to(), info).is_empty(),
+            Self::Not => {
+                input.len() == 1 && input[0].fits_in(&VSingleType::Bool.to(), info).is_empty()
+            }
             Self::And | Self::Or => {
                 input.len() == 2
                     && input
@@ -354,7 +363,8 @@ impl BuiltinFunction {
                     let num = VType {
                         types: vec![VSingleType::Int, VSingleType::Float],
                     };
-                    input[0].fits_in(&num, info).is_empty() && input[1].fits_in(&num, info).is_empty()
+                    input[0].fits_in(&num, info).is_empty()
+                        && input[1].fits_in(&num, info).is_empty()
                 }
             }
             // TODO! check that we pass a reference to a list!
@@ -462,12 +472,15 @@ impl BuiltinFunction {
             Self::IndexOf => {
                 input.len() == 2
                     && input.iter().all(|v| {
-                        v.fits_in(&VType {
-                            types: vec![
-                                VSingleType::String,
-                                VSingleType::Reference(Box::new(VSingleType::String)),
-                            ],
-                        }, info)
+                        v.fits_in(
+                            &VType {
+                                types: vec![
+                                    VSingleType::String,
+                                    VSingleType::Reference(Box::new(VSingleType::String)),
+                                ],
+                            },
+                            info,
+                        )
                         .is_empty()
                     })
             }
@@ -773,7 +786,10 @@ impl BuiltinFunction {
             }
             BuiltinFunction::Println => {
                 if let VDataEnum::String(arg) = args[0].run(vars, info).data {
+                    #[cfg(not(feature = "nushell_plugin"))]
                     println!("{}", arg);
+                    #[cfg(feature = "nushell_plugin")]
+                    eprintln!("{}", arg);
                     VDataEnum::Tuple(vec![]).to()
                 } else {
                     unreachable!()
@@ -781,7 +797,15 @@ impl BuiltinFunction {
             }
             BuiltinFunction::Debug => {
                 let val = args[0].run(vars, info);
+                #[cfg(not(feature = "nushell_plugin"))]
                 println!(
+                    "{} :: {} :: {}",
+                    args[0].out(info).gsi(info.clone()),
+                    val.out().gsi(info.clone()),
+                    val.gsi(info.clone())
+                );
+                #[cfg(feature = "nushell_plugin")]
+                eprintln!(
                     "{} :: {} :: {}",
                     args[0].out(info).gsi(info.clone()),
                     val.out().gsi(info.clone()),

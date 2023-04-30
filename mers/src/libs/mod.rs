@@ -309,7 +309,7 @@ where
         't' | 'l' => {
             let mut v = vec![];
             loop {
-                if stdout.one_byte().unwrap() == '\n' as _ {
+                if stdout.one_byte().unwrap() == '\n' as u8 {
                     break if id_byte == 't' {
                         VDataEnum::Tuple(v)
                     } else {

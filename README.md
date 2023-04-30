@@ -34,9 +34,12 @@ The compiler checks your program. It will guarantee type-safety. If a variable h
 
 ## building mers
 
-to use mers, clone this repo and compile it using cargo. (if you don't have rustc and cargo, get it from https://rustup.rs/. the mers project is in the mers subdirectory, one level deeper than this readme.)
+Build scripts can be found in build_scripts/ and compile mers using cargo. If you don't have rustc and cargo, install it using [rustup](https://rustup.rs/).
 
-for simplicity, i will assume you have the executable in your path and it is named mers. Since this probably isn't the case, just know that `mers` can be replaced with `cargo run --release` in all of the following commands.
+If you're using [Nushell](https://www.nushell.sh/), there is a script that integrates mers, since most mers values can be converted to ones nu understands.
+I would recommend that you put the normal mers binary in your PATH even if you want to use mers-nu, because it has more CLI options.
+
+For simplicity, i will assume you have the executable in your path and it is named mers. Since this probably isn't the case, just know that `mers` can be replaced with `cargo run --release` in all of the following commands, assuming you are located in the mers/ directory.
 
 ### running from a file
 

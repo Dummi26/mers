@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use super::{
     builtins::BuiltinFunction,
-    global_info::{GlobalScriptInfo, GSInfo},
+    global_info::{GSInfo, GlobalScriptInfo},
     to_runnable::ToRunnableError,
     val_data::{VData, VDataEnum},
     val_type::{VSingleType, VType},
@@ -320,7 +320,9 @@ impl RStatementEnum {
             }
             Self::Loop(c) => c.out(info).matches().1,
             Self::For(_, _, b) => VSingleType::Tuple(vec![]).to() | b.out(info).matches().1,
-            Self::BuiltinFunction(f, args) => f.returns(args.iter().map(|rs| rs.out(info)).collect(), info),
+            Self::BuiltinFunction(f, args) => {
+                f.returns(args.iter().map(|rs| rs.out(info)).collect(), info)
+            }
             Self::Switch(switch_on, cases) => {
                 let switch_on = switch_on.out(info).types;
                 let mut might_return_empty = switch_on.is_empty();
@@ -371,7 +373,7 @@ impl RScript {
         if main.inputs.len() != 1 {
             return Err(ToRunnableError::MainWrongInput);
         }
-        Ok(Self { main, info: info })
+        Ok(Self { main, info })
     }
     pub fn run(&self, args: Vec<String>) -> VData {
         let mut vars = Vec::with_capacity(self.info.vars);
@@ -386,5 +388,8 @@ impl RScript {
             vars.push(am(VDataEnum::Tuple(vec![]).to()));
         }
         self.main.run(&vars, &self.info)
+    }
+    pub fn info(&self) -> &GSInfo {
+        &self.info
     }
 }
