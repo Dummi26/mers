@@ -30,7 +30,6 @@ fn normal_main() {
     } else {
         args
     };
-    let path = std::env::args().nth(1).unwrap();
     let mut file = match args.len() {
         0 => {
             println!("Please provide some arguments, such as the path to a file or \"-e <code>\".");
@@ -113,14 +112,14 @@ fn normal_main() {
                             s.push_str(v);
                             s
                         }),
-                        path.into(),
+                        std::path::PathBuf::new(),
                     )
                 } else {
                     println!("please provide either a file or -e and a script to run!");
                     std::process::exit(101);
                 }
             } else {
-                parsing::file::File::new(std::fs::read_to_string(&args[0]).unwrap(), path.into())
+                parsing::file::File::new(std::fs::read_to_string(&args[0]).unwrap(), args[0].as_str().into())
             }
         }
     };
