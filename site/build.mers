@@ -1,26 +1,34 @@
 #!/usr/bin/env mers
 
+// helper functions
+
 fn read_string(path string) {
     bytes_to_string(fs_read(path).assume_no_enum()).assume_no_enum()
 }
+fn code_to_html(code string code_width_limit_chars int) {
+    out = ""
+    for line code.regex(".*").assume_no_enum() {
+        if code_width_limit_chars.gtoe(0).and(line.len().gt(code_width_limit_chars)) {
+            line = line.substring(0 code_width_limit_chars)
+        }
+        line = line
+            .replace("&" "&amp;")
+            .replace("<" "&lt;")
+            .replace(">" "&gt;")
+        out = out.add(line.add("<br>"))
+    }
+    out
+}
+
+// data
 
 index = read_string("index.html")
 
-welcome_script: []/string = []
-get_welcome_script = () {
-    script = welcome_script
-    switch! script {
-        string script
-        [] {
-            scr = ""
-            for line read_string("welcome.mers").regex(".*").assume_no_enum() {
-                scr = scr.add(line.add("<br>"))
-            }
-            welcome_script = scr
-            scr
-        }
-    }
-}
+index_html = index.code_to_html(75)
+build_script = read_string("build.mers").code_to_html(-1)
+welcome_script = read_string("welcome.mers").code_to_html(-1)
+
+// process index.html
 
 out = ""
 for line index.regex("\\S*.*").assume_no_enum() {
@@ -28,10 +36,14 @@ for line index.regex("\\S*.*").assume_no_enum() {
         // comment, ignore
     } else if line.starts_with("$") {
         if line.eq("$welcome_script") {
-            script = get_welcome_script.run()
-            out = out.add(script)
+            out = out.add(welcome_script)
+        } else if line.eq("$build_script") {
+            out = out.add(build_script)
+        } else if line.eq("$index.html") {
+            out = out.add(index_html)
         }
     } else {
+        // remove spaces
         loop {
             if line.starts_with(" ") {
                 line = line.substring(1)

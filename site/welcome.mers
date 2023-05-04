@@ -1,4 +1,52 @@
-#!/usr/bin/env mers
-/* welcome to mers */
-println("Hello, World!")
-42 // return value
+fn get_number_input(question string) {
+    println(question)
+    input = read_line()
+    // try to parse to an int, then a float.
+    in = match input {
+        input.parse_int() input
+        input.parse_float() input
+    }
+    // 'in' has type int/float/[] because of the match statement
+    switch! in {
+        int/float in
+        // replace [] with an appropriate error before returning
+        [] Err: "input was not a number."
+    }
+    // return type is int/float/Err(string)
+}
+
+answer = get_number_input("What is your favorite number?")
+
+// switch can be used to branch based on a variables type.
+// switch! indicates that every possible type must be handled.
+switch! answer {
+    int {
+        println("Entered an integer")
+        answer.debug() // int
+    }
+    float {
+        println("Entered a decimal number")
+        answer.debug() // float
+    }
+    Err(string) println("Input was not a number!")
+}
+
+sleep(2)
+
+
+// function that returns an anonymous function (function object).
+// anonymous functions can be used as iterators in for-loops.
+fn count_up() {
+    count = -1
+    () {
+        count = count.add(1)
+        count
+    }
+}
+
+for num count_up() {
+    println(num.to_string())
+    // once num is greater than 60,
+    // the loop stops and returns num.
+    if num.gt(60) num else []
+}

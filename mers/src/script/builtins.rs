@@ -84,6 +84,7 @@ pub enum BuiltinFunction {
     IndexOf,
     Trim,
     Substring,
+    Replace,
     Regex,
 }
 
@@ -144,6 +145,7 @@ impl BuiltinFunction {
             "index_of" => Self::IndexOf,
             "trim" => Self::Trim,
             "substring" => Self::Substring,
+            "replace" => Self::Replace,
             "regex" => Self::Regex,
             _ => return None,
         })
@@ -484,6 +486,12 @@ impl BuiltinFunction {
                         .is_empty()
                     })
             }
+            Self::Replace => {
+                input.len() == 3
+                    && input
+                        .iter()
+                        .all(|v| v.fits_in(&VSingleType::String.to(), info).is_empty())
+            }
             Self::Trim => {
                 input.len() == 1 && input[0].fits_in(&VSingleType::String.to(), info).is_empty()
             }
@@ -707,6 +715,7 @@ impl BuiltinFunction {
             },
             Self::Trim => VSingleType::String.into(),
             Self::Substring => VSingleType::String.into(),
+            Self::Replace => VSingleType::String.to(),
             Self::Regex => VType {
                 types: vec![
                     // [string ...]
@@ -1699,6 +1708,17 @@ impl BuiltinFunction {
                     } else {
                         unreachable!()
                     }
+                } else {
+                    unreachable!()
+                }
+            }
+            Self::Replace => {
+                if let (VDataEnum::String(a), VDataEnum::String(b), VDataEnum::String(c)) = (
+                    args[0].run(vars, info).data,
+                    args[1].run(vars, info).data,
+                    args[2].run(vars, info).data,
+                ) {
+                    VDataEnum::String(a.replace(&b, &c)).to()
                 } else {
                     unreachable!()
                 }
