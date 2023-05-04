@@ -1,0 +1,79 @@
+body {
+  color: MintCream;
+  background-color: DarkSlateBlue;
+  /* background-color: MidnightBlue; */
+}
+h1, h2, h3 {
+  text-align: center;
+}
+hr {
+    display: block;
+    height: 1px;
+    border: 0;
+    border-top: 1px solid #ccc;
+    margin: 1em 0;
+    padding: 0;
+}
+
+.mers-code-snippet {
+  text-align: left;
+}
+
+.container {
+  height: auto;
+  overflow: auto;
+}
+.container_left {
+  margin-left: 8%;
+  width: 20%;
+  margin-right: 5%;
+  float: left;
+  display: inline-block;
+}
+.container_center {
+  margin-left: 0.5%;
+  width: 30%;
+  margin-right: 0.5%;
+  border-style: dotted;
+  display: inline-block;
+}
+.container_left2 {
+  margin-left: 8%;
+  width: 50%;
+  margin-right: 5%;
+  float: left;
+  display: inline-block;  
+}
+.container_right {
+  margin-left: 5%;
+  width: 20%;
+  margin-right: 8%;
+  float: right;
+  display: inline-block;
+}
+.container2_left {
+  margin-left: 8%;
+  width: 40%;
+  float: left;
+  display: inline-block;
+}
+.container2_right {
+  margin-right: 8%;
+  width: 40%;
+  float: right;
+  display: inline-block;
+}
+
+.code-border {
+  border-style: double;
+}
+.textalign-center {
+  text-align: center;
+}
+.afterpagebreak {
+  width: 100%;
+  page-break-before: always;
+}
+.fullwide {
+  width: 100%;
+}
