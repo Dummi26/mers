@@ -1,0 +1,46 @@
+#!/usr/bin/env mers
+
+fn read_string(path string) {
+    bytes_to_string(fs_read(path).assume_no_enum()).assume_no_enum()
+}
+
+index = read_string("index.html")
+
+welcome_script: []/string = []
+get_welcome_script = () {
+    script = welcome_script
+    switch! script {
+        string script
+        [] {
+            scr = ""
+            for line read_string("welcome.mers").regex(".*").assume_no_enum() {
+                scr = scr.add(line.add("<br>"))
+            }
+            welcome_script = scr
+            scr
+        }
+    }
+}
+
+out = ""
+for line index.regex("\\S*.*").assume_no_enum() {
+    if line.starts_with("#") {
+        // comment, ignore
+    } else if line.starts_with("$") {
+        if line.eq("$welcome_script") {
+            script = get_welcome_script.run()
+            out = out.add(script)
+        }
+    } else {
+        loop {
+            if line.starts_with(" ") {
+                line = line.substring(1)
+            } else {
+                true // break
+            }
+        }
+        out = out.add(line.add("\n"))
+    }
+}
+
+fs_write("../index.html" string_to_bytes(out)).assume_no_enum()

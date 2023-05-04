@@ -1,0 +1,4 @@
+#!/usr/bin/env mers
+/* welcome to mers */
+println("Hello, World!")
+42 // return value

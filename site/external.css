@@ -1,0 +1,40 @@
+body {
+  color: MintCream;
+  background-color: DarkSlateBlue;
+  /* background-color: MidnightBlue; */
+}
+h1 {
+  text-align: center;
+}
+
+.mers-code-snippet {
+  text-align: left;
+}
+
+.container_left {
+  margin-left: 9%;
+  width: 20%;
+  margin-right: 5%;
+  float: left;
+  display: inline-block;
+}
+.container_center {
+  margin-left: 0.5%;
+  width: 30%;
+  margin-right: 0.5%;
+  border-style: dotted;
+  display: inline-block;
+}
+.container_right {
+  margin-left: 5%;
+  width: 20%;
+  margin-right: 9%;
+  float: right;
+  display: inline-block;
+}
+.code-border {
+  border-style: double;
+}
+.textalign-center {
+  text-align: center;
+}
