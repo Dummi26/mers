@@ -24,7 +24,7 @@ hr {
   overflow: auto;
 }
 .container_left {
-  margin-left: 9%;
+  margin-left: 8%;
   width: 20%;
   margin-right: 5%;
   float: left;
@@ -38,7 +38,7 @@ hr {
   display: inline-block;
 }
 .container_left2 {
-  margin-left: 9%;
+  margin-left: 8%;
   width: 50%;
   margin-right: 5%;
   float: left;
@@ -47,18 +47,18 @@ hr {
 .container_right {
   margin-left: 5%;
   width: 20%;
-  margin-right: 9%;
+  margin-right: 8%;
   float: right;
   display: inline-block;
 }
 .container2_left {
-  margin-left: 9%;
+  margin-left: 8%;
   width: 40%;
   float: left;
   display: inline-block;
 }
 .container2_right {
-  margin-right: 9%;
+  margin-right: 8%;
   width: 40%;
   float: right;
   display: inline-block;
