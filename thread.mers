@@ -23,7 +23,7 @@ calculator = (max int) {
 slow_calculation_thread = calculator.thread(if fake_delay 10 else 20000000)
 
 // every second, print the progress. once it reaches 100%, stop
-while {
+loop {
     sleep(1)
     println("{0}%".format(progress.to_string()))
     progress.eq(100) // break from the loop

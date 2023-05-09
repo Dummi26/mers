@@ -11,7 +11,7 @@ second_button = column.gui_add(Button: "This is a second button.")
 text_state = -2
 second_text = column.gui_add(Text: "press the button above to remove this text!")
 
-while {
+loop {
     for event gui_updates() {
         switch! event {
             ButtonPressed([int ...]) {

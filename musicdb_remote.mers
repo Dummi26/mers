@@ -165,7 +165,7 @@ thread(() {
     queue_list_inner.gui_remove()
 })
 
-while {
+loop {
     for event gui_updates() {
         switch! event {
             ButtonPressed([int ...]) {
