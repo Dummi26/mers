@@ -1,0 +1,17 @@
+lib mers_libs/http_requests
+
+t = thread(() {
+    // because this downloads for so long, the println() will appear after the other one.
+    http_get("https:\//raw.githubusercontent.com/dwyl/english-words/master/words.txt").assume_no_enum()
+    println("got words from word list!")
+})
+
+sleep(0.5)
+
+// this will finish before the thread does.
+http_get("https:\//github.com/").assume_no_enum()
+println("got github start page as html")
+
+// t.await()
+
+http_get("not a url").debug()

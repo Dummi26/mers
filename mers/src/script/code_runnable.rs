@@ -177,7 +177,7 @@ impl RStatementEnum {
             }
             Self::BuiltinFunction(v, args) => v.run(args, vars, info),
             Self::LibFunction(libid, fnid, args, _) => info.libs[*libid]
-                .run_fn(*fnid, &args.iter().map(|arg| arg.run(vars, info)).collect()),
+                .run_fn(*fnid, args.iter().map(|arg| arg.run(vars, info)).collect()),
             Self::Block(b) => b.run(vars, info),
             Self::If(c, t, e) => {
                 if let VDataEnum::Bool(v) = c.run(vars, info).data {

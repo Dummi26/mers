@@ -1,145 +1,147 @@
 use std::{
     collections::HashMap,
-    io::{BufRead, Write},
+    io::{BufRead, Stdin, StdinLock, Stdout, StdoutLock, Write},
 };
 
-use crate::{
-    libs::DirectReader,
-    script::{val_data::VData, val_type::VType},
-};
+use crate::script::{val_data::VData, val_type::VType};
 
-use super::{data_from_bytes, data_to_bytes};
+use super::{
+    comms::{self, ByteData, ByteDataA, Message, MessageResponse, RespondableMessage},
+    LibInitInfo, LibInitReq,
+};
 
 pub struct MyLib {
-    name: String,
-    version: (u8, u8),
-    description: String,
-    functions: Vec<(String, Vec<VType>, VType)>,
-    enum_variants: HashMap<String, usize>,
+    // name: String,
+    version: (u32, u32),
+    // description: String,
+    // functions: Vec<(String, Vec<VType>, VType)>,
+    pub callbacks: Callbacks,
+    enum_variants: Vec<(String, usize)>,
+    stdin: StdinLock<'static>,
+    stdin_no_lock: Stdin,
 }
 impl MyLib {
     pub fn new(
         name: String,
-        version: (u8, u8),
+        version: (u32, u32),
         description: String,
-        functions: Vec<(String, Vec<VType>, VType)>,
-    ) -> (Self, MyLibTaskCompletion) {
-        (
-            Self {
-                name,
-                version,
-                description,
-                functions,
-                enum_variants: HashMap::new(),
-            },
-            MyLibTaskCompletion { _priv: () },
-        )
+        functions: Vec<(String, Vec<(Vec<VType>, VType)>)>,
+    ) -> Self {
+        let stdout_no_lock = std::io::stdout();
+        let stdin_no_lock = std::io::stdin();
+        let mut stdout = stdout_no_lock.lock();
+        let mut stdin = stdin_no_lock.lock();
+        // comms version
+        stdout.write(1u128.as_byte_data_vec().as_slice()).unwrap();
+        let init_req: LibInitReq = (version.0, version.1, name, description, functions);
+        stdout
+            .write(init_req.as_byte_data_vec().as_slice())
+            .unwrap();
+        stdout.flush();
+        let enum_variants = LibInitInfo::from_byte_data(&mut stdin).unwrap();
+        Self {
+            // name: name.clone(),
+            version,
+            // description: description.clone(),
+            // functions: functions.clone(),
+            callbacks: Callbacks::empty(),
+            enum_variants,
+            stdin,
+            stdin_no_lock,
+        }
     }
-    pub fn get_enum(&self, e: &str) -> Option<usize> {
-        self.enum_variants.get(e).map(|v| *v)
+    pub fn get_enums(&self) -> &Vec<(String, usize)> {
+        &self.enum_variants
     }
-    pub fn run<I, O>(
-        &mut self,
-        run: MyLibTaskCompletion,
-        stdin: &mut I,
-        stdout: &mut O,
-    ) -> MyLibTask
-    where
-        I: BufRead,
-        O: Write,
-    {
-        drop(run);
-        match match stdin.one_byte().unwrap().into() {
-            'i' => {
-                assert_eq!(stdin.one_byte().unwrap() as char, '\n');
-                stdout.write(&[self.version.0, self.version.1]).unwrap();
-                writeln!(stdout, "{}", self.name).unwrap();
-                stdout
-                    .write(&[self.description.split('\n').count() as _])
-                    .unwrap();
-                writeln!(stdout, "{}", self.description).unwrap();
-                for func in self.functions.iter() {
-                    writeln!(
-                        stdout,
-                        "f{}({}) {}",
-                        func.0,
-                        func.1
-                            .iter()
-                            .enumerate()
-                            .map(|(i, v)| if i == 0 {
-                                format!("{v}")
-                            } else {
-                                format!(" {v}")
-                            })
-                            .collect::<String>(),
-                        func.2
-                    )
-                    .unwrap();
-                }
-                writeln!(stdout, "x").unwrap();
-                None
+    fn get_one_msg(&mut self) -> Result<Result<(), Message>, std::io::Error> {
+        let id = u128::from_byte_data(&mut self.stdin)?;
+        let message = Message::from_byte_data(&mut self.stdin)?;
+        match message {
+            Message::RunFunction(msg) => self.callbacks.run_function.run(Respondable::new(id, msg)),
+        };
+        Ok(Ok(()))
+    }
+    pub fn get_next_unhandled_message(&mut self) -> Result<(), Message> {
+        loop {
+            match self.get_one_msg() {
+                Ok(Ok(())) => {}
+                // unhandled message. return it to be handeled or included in the error
+                Ok(Err(msg)) => return Err(msg),
+                // i/o error, probably because mers exited. return successfully.
+                Err(e) => return Ok(()),
             }
-            'I' => {
-                let mut line = String::new();
-                loop {
-                    line.clear();
-                    stdin.read_line(&mut line).unwrap();
-                    if let Some((task, args)) = line.split_once(' ') {
-                        match task {
-                            "set_enum_id" => {
-                                let (enum_name, enum_id) = args.split_once(' ').unwrap();
-                                let name = enum_name.trim().to_string();
-                                let id = enum_id.trim().parse().unwrap();
-                                self.enum_variants.insert(name.clone(), id);
-                            }
-                            _ => todo!(),
-                        }
-                    } else {
-                        match line.trim_end() {
-                            "init_finished" => break,
-                            _ => unreachable!(),
-                        }
-                    }
-                }
-                Some(MyLibTask::FinishedInit(MyLibTaskCompletion { _priv: () }))
-            }
-            'f' => {
-                let fnid = stdin.one_byte().unwrap() as usize;
-                Some(MyLibTask::RunFunction(MyLibTaskRunFunction {
-                    function: fnid,
-                    args: self.functions[fnid]
-                        .1
-                        .iter()
-                        .map(|_| data_from_bytes(stdin).to())
-                        .collect(),
-                }))
-            }
-            _ => None,
-        } {
-            Some(v) => v,
-            None => MyLibTask::None(MyLibTaskCompletion { _priv: () }),
         }
     }
 }
 
-pub enum MyLibTask {
-    None(MyLibTaskCompletion),
-    FinishedInit(MyLibTaskCompletion),
-    RunFunction(MyLibTaskRunFunction),
+pub struct Respondable<M> {
+    id: u128,
+    pub msg: M,
 }
-pub struct MyLibTaskRunFunction {
-    pub function: usize,
-    pub args: Vec<VData>,
-}
-impl MyLibTaskRunFunction {
-    pub fn done<O>(self, o: &mut O, returns: VData) -> MyLibTaskCompletion
-    where
-        O: Write,
-    {
-        data_to_bytes(&returns, o);
-        MyLibTaskCompletion { _priv: () }
+impl<M> Respondable<M> {
+    fn new(id: u128, msg: M) -> Self {
+        Self { id, msg }
     }
 }
-pub struct MyLibTaskCompletion {
-    _priv: (),
+impl<M> Respondable<M>
+where
+    M: RespondableMessage,
+{
+    pub fn respond(self, with: M::With) {
+        let mut stdout = std::io::stdout().lock();
+        stdout.write(&self.id.as_byte_data_vec()).unwrap();
+        stdout
+            .write(&self.msg.respond(with).as_byte_data_vec())
+            .unwrap();
+        stdout.flush().unwrap();
+    }
+}
+impl<M> Respondable<M>
+where
+    M: Into<Message>,
+{
+    pub fn to_general(self) -> Respondable<Message> {
+        Respondable::new(self.id, self.msg.into())
+    }
+}
+
+pub struct Callbacks {
+    pub run_function: Callback<comms::run_function::Message>,
+}
+impl Callbacks {
+    pub fn empty() -> Self {
+        Self {
+            run_function: Callback::empty(),
+        }
+    }
+}
+pub struct Callback<M>
+where
+    M: super::comms::RespondableMessage,
+{
+    pub nonconsuming: Vec<Box<dyn FnMut(&M)>>,
+    pub consuming: Option<Box<dyn FnMut(Respondable<M>)>>,
+}
+impl<M> Callback<M>
+where
+    M: super::comms::RespondableMessage,
+{
+    pub fn empty() -> Self {
+        Self {
+            nonconsuming: vec![],
+            consuming: None,
+        }
+    }
+    /// If the event was handled by a consuming function, returns Ok(r) where r is the returned value from the consuming function.
+    /// If it wasn't handled (or only handled by nonconsuming functions), Err(m) is returned, giving ownership of the original message back to the caller for further handling.
+    pub fn run(&mut self, msg: Respondable<M>) -> Result<(), Respondable<M>> {
+        for f in self.nonconsuming.iter_mut() {
+            f(&msg.msg);
+        }
+        if let Some(f) = self.consuming.as_mut() {
+            Ok(f(msg))
+        } else {
+            Err(msg)
+        }
+    }
 }

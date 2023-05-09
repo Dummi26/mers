@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::libs;
 
-use super::{val_type::VType, builtins};
+use super::{builtins, val_type::VType};
 
 pub type GSInfo = Arc<GlobalScriptInfo>;
 

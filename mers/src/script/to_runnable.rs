@@ -18,7 +18,8 @@ use super::{
     builtins::BuiltinFunction,
     code_macro::Macro,
     code_parsed::{SBlock, SFunction, SStatement, SStatementEnum},
-    code_runnable::{RBlock, RFunction, RScript, RStatement, RStatementEnum}, global_info::GSInfo,
+    code_runnable::{RBlock, RFunction, RScript, RStatement, RStatementEnum},
+    global_info::GSInfo,
 };
 
 pub enum ToRunnableError {
@@ -29,6 +30,7 @@ pub enum ToRunnableError {
     CannotDeclareVariableWithDereference(String),
     CannotDereferenceTypeNTimes(VType, usize, VType),
     FunctionWrongArgCount(String, usize, usize),
+    FunctionWrongArgs(Vec<VType>, String),
     InvalidType {
         expected: VType,
         found: VType,
@@ -56,7 +58,11 @@ impl Display for ToRunnableError {
     }
 }
 impl ToRunnableError {
-    pub fn fmtgs(&self, f: &mut std::fmt::Formatter, info: Option<&GlobalScriptInfo>) -> std::fmt::Result {
+    pub fn fmtgs(
+        &self,
+        f: &mut std::fmt::Formatter,
+        info: Option<&GlobalScriptInfo>,
+    ) -> std::fmt::Result {
         match self {
                 Self::MainWrongInput => write!(
                     f,
@@ -75,6 +81,7 @@ impl ToRunnableError {
                     Ok(())
                 },
                 Self::FunctionWrongArgCount(v, a, b) => write!(f, "Tried to call function \"{v}\", which takes {a} arguments, with {b} arguments instead."),
+                Self::FunctionWrongArgs(args, name) => write!(f, "Wrong args for function \"{name}\":{}", args.iter().map(|v| format!(" {v}")).collect::<String>()),
                 Self::InvalidType {
                     expected,
                     found,
@@ -146,7 +153,10 @@ struct LInfo {
     fns: HashMap<String, Arc<RFunction>>,
 }
 
-pub fn to_runnable(s: SFunction, mut ginfo: GlobalScriptInfo) -> Result<RScript, (ToRunnableError, GSInfo)> {
+pub fn to_runnable(
+    s: SFunction,
+    mut ginfo: GlobalScriptInfo,
+) -> Result<RScript, (ToRunnableError, GSInfo)> {
     if s.inputs.len() != 1 || s.inputs[0].0 != "args" {
         return Err((ToRunnableError::MainWrongInput, ginfo.to_arc()));
     }
@@ -170,10 +180,7 @@ pub fn to_runnable(s: SFunction, mut ginfo: GlobalScriptInfo) -> Result<RScript,
         Err(e) => return Err((e, ginfo.to_arc())),
     };
     let ginfo = ginfo.to_arc();
-    match RScript::new(
-        func,
-        ginfo.clone(),
-    ) {
+    match RScript::new(func, ginfo.clone()) {
         Ok(v) => Ok(v),
         Err(e) => Err((e, ginfo)),
     }
@@ -207,7 +214,10 @@ fn get_all_functions(
                 vartype.to()
             }
         }
-        out.push((inputs.clone(), block(&s.block, ginfo, linfo.clone())?.out(ginfo)));
+        out.push((
+            inputs.clone(),
+            block(&s.block, ginfo, linfo.clone())?.out(ginfo),
+        ));
         Ok(())
     }
 }
@@ -249,7 +259,11 @@ fn function(
     })
 }
 
-fn block(s: &SBlock, ginfo: &mut GlobalScriptInfo, mut linfo: LInfo) -> Result<RBlock, ToRunnableError> {
+fn block(
+    s: &SBlock,
+    ginfo: &mut GlobalScriptInfo,
+    mut linfo: LInfo,
+) -> Result<RBlock, ToRunnableError> {
     let mut statements = Vec::new();
     for st in &s.statements {
         statements.push(statement(st, ginfo, &mut linfo)?);
@@ -257,13 +271,13 @@ fn block(s: &SBlock, ginfo: &mut GlobalScriptInfo, mut linfo: LInfo) -> Result<R
     Ok(RBlock { statements })
 }
 
-fn stypes(t: &mut VType, ginfo: &mut GlobalScriptInfo) -> Result<(), ToRunnableError> {
+pub fn stypes(t: &mut VType, ginfo: &mut GlobalScriptInfo) -> Result<(), ToRunnableError> {
     for t in &mut t.types {
         stype(t, ginfo)?;
     }
     Ok(())
 }
-fn stype(t: &mut VSingleType, ginfo: &mut GlobalScriptInfo) -> Result<(), ToRunnableError> {
+pub fn stype(t: &mut VSingleType, ginfo: &mut GlobalScriptInfo) -> Result<(), ToRunnableError> {
     match t {
         VSingleType::Bool | VSingleType::Int | VSingleType::Float | VSingleType::String => (),
         VSingleType::Tuple(v) => {
@@ -307,7 +321,7 @@ fn stype(t: &mut VSingleType, ginfo: &mut GlobalScriptInfo) -> Result<(), ToRunn
                 return Err(ToRunnableError::UnknownType(name.to_owned()));
             })
         }
-        VSingleType::CustomType(_) => ()
+        VSingleType::CustomType(_) => (),
     }
     Ok(())
 }
@@ -342,28 +356,32 @@ fn statement(
                 for arg in args.iter() {
                     rargs.push(statement(arg, ginfo, linfo)?);
                 }
-                if let Some(func) = linfo.fns.get(v) {
-                    if rargs.len() != func.inputs.len() {
-                        return Err(ToRunnableError::FunctionWrongArgCount(
-                            v.clone(),
-                            func.inputs.len(),
-                            rargs.len(),
-                        ));
-                    }
-                    for (i, rarg) in rargs.iter().enumerate() {
-                        let rarg = rarg.out(ginfo);
-                        let out = rarg.fits_in(&func.input_types[i], ginfo);
-                        if !out.is_empty() {
-                            return Err(ToRunnableError::InvalidType {
-                                expected: func.input_types[i].clone(),
-                                found: rarg,
-                                problematic: VType { types: out },
-                            });
+                fn check_fn_args(args: &Vec<VType>, inputs: &Vec<(Vec<VType>, VType)>, ginfo: &GlobalScriptInfo) -> Option<VType> {
+                    let mut fit_any = false;
+                    let mut out = VType::empty();
+                    for (inputs, output) in inputs {
+                        if args.len() == inputs.len() && args.iter().zip(inputs.iter()).all(|(arg, input)| arg.fits_in(input, ginfo).is_empty()) {
+                            fit_any = true;
+                            out = out | output;
                         }
                     }
-                    RStatementEnum::FunctionCall(func.clone(), rargs)
+                    if fit_any {
+                        Some(out)
+                    } else {
+                        None
+                    }
+                }
+                let arg_types: Vec<_> = rargs.iter().map(|v| v.out(ginfo)).collect();
+                if let Some(func) = linfo.fns.get(v) {
+                    if let Some(_out) = check_fn_args(&arg_types, &func.input_output_map.iter().map(|v| (v.0.iter().map(|v| v.clone().to()).collect(), v.1.to_owned())).collect(), ginfo) {
+                        RStatementEnum::FunctionCall(func.clone(), rargs)
+                    } else {
+                        return Err(ToRunnableError::FunctionWrongArgs(
+                            arg_types,
+                            v.to_owned()
+                        ));
+                    }
                 } else {
-                    // TODO: type-checking for builtins
                     if let Some(builtin) = BuiltinFunction::get(v) {
                         let arg_types = rargs.iter().map(|v| v.out(ginfo)).collect();
                         if builtin.can_take(&arg_types, ginfo) {
@@ -374,16 +392,12 @@ fn statement(
                     } else {
                         // LIBRARY FUNCTION?
                         if let Some((libid, fnid)) = ginfo.lib_fns.get(v) {
-                            let (_name, fn_in, fn_out) = &ginfo.libs[*libid].registered_fns[*fnid];
-                            if fn_in.len() == rargs.len() && fn_in.iter().zip(rargs.iter()).all(|(fn_in, arg)| arg.out(ginfo).fits_in(fn_in, ginfo).is_empty()) {
+                            let lib = &ginfo.libs[*libid];
+                            let libfn = &lib.registered_fns[*fnid];
+                            if let Some(fn_out) = check_fn_args(&arg_types, &libfn.1, ginfo) {
                                 RStatementEnum::LibFunction(*libid, *fnid, rargs, fn_out.clone())
                             } else {
-                                // TODO! better error here
-                                return Err(if fn_in.len() == rargs.len() {
-                                    ToRunnableError::WrongArgsForLibFunction(v.to_string(), rargs.iter().map(|v| v.out(ginfo)).collect())
-                                } else {
-                                    ToRunnableError::FunctionWrongArgCount(v.to_string(), fn_in.len(), rargs.len())
-                                });
+                                return Err(ToRunnableError::WrongArgsForLibFunction(v.to_owned(), arg_types));
                             }
                         } else {
                             return Err(ToRunnableError::UseOfUndefinedFunction(v.clone()));

@@ -119,7 +119,10 @@ fn normal_main() {
                     std::process::exit(101);
                 }
             } else {
-                parsing::file::File::new(std::fs::read_to_string(&args[0]).unwrap(), args[0].as_str().into())
+                parsing::file::File::new(
+                    std::fs::read_to_string(&args[0]).unwrap(),
+                    args[0].as_str().into(),
+                )
             }
         }
     };

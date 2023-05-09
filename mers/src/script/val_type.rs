@@ -4,7 +4,7 @@ use std::{
     ops::BitOr,
 };
 
-use super::global_info::{GlobalScriptInfo, GSInfo, self};
+use super::global_info::{self, GSInfo, GlobalScriptInfo};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VType {
@@ -39,18 +39,28 @@ impl VSingleType {
             Self::Reference(r) => r.get(i, gsinfo),
             Self::EnumVariant(_, t) | Self::EnumVariantS(_, t) => t.get(i, gsinfo),
             Self::CustomType(t) => gsinfo.custom_types[*t].get(i, gsinfo),
-            &Self::CustomTypeS(_) => unreachable!("CustomTypeS instead of CustomType, compiler bug? [get]"),
+            &Self::CustomTypeS(_) => {
+                unreachable!("CustomTypeS instead of CustomType, compiler bug? [get]")
+            }
         }
     }
     // None => might not always return t, Some(t) => can only return t
     pub fn get_always(&self, i: usize, info: &GlobalScriptInfo) -> Option<VType> {
         match self {
-            Self::Bool | Self::Int | Self::Float | Self::String | Self::List(_) | Self::Function(..) | Self::Thread(..) => None,
+            Self::Bool
+            | Self::Int
+            | Self::Float
+            | Self::String
+            | Self::List(_)
+            | Self::Function(..)
+            | Self::Thread(..) => None,
             Self::Tuple(t) => t.get(i).cloned(),
             Self::Reference(r) => r.get_always(i, info),
             Self::EnumVariant(_, t) | Self::EnumVariantS(_, t) => t.get_always(i, info),
             Self::CustomType(t) => info.custom_types[*t].get_always(i, info),
-            Self::CustomTypeS(_) => unreachable!("CustomTypeS instead of CustomType, compiler bug? [get_always]"),
+            Self::CustomTypeS(_) => {
+                unreachable!("CustomTypeS instead of CustomType, compiler bug? [get_always]")
+            }
         }
     }
 }
@@ -290,13 +300,23 @@ impl VSingleType {
             (Self::Reference(_), _) | (_, Self::Reference(_)) => false,
             (Self::EnumVariant(v1, t1), Self::EnumVariant(v2, t2)) => {
                 *v1 == *v2 && t1.fits_in(&t2, info).is_empty()
-            },
-            (Self::CustomType(a), Self::CustomType(b)) => *a == *b /* || info.custom_types[*a].fits_in(&info.custom_types[*b], info).is_empty() */,
-            (Self::CustomType(a), b) => info.custom_types[*a].fits_in(&b.clone().to(), info).is_empty(),
-            (a, Self::CustomType(b)) => a.clone().to().fits_in(&info.custom_types[*b], info).is_empty(),
-            (Self::CustomTypeS(_), _) | (_, Self::CustomTypeS(_)) => unreachable!("CustomTypeS instead of CustomType - compiler bug?"),
+            }
+            (Self::CustomType(a), Self::CustomType(b)) => *a == *b, /* || info.custom_types[*a].fits_in(&info.custom_types[*b], info).is_empty() */
+            (Self::CustomType(a), b) => info.custom_types[*a]
+                .fits_in(&b.clone().to(), info)
+                .is_empty(),
+            (a, Self::CustomType(b)) => a
+                .clone()
+                .to()
+                .fits_in(&info.custom_types[*b], info)
+                .is_empty(),
+            (Self::CustomTypeS(_), _) | (_, Self::CustomTypeS(_)) => {
+                unreachable!("CustomTypeS instead of CustomType - compiler bug?")
+            }
             (Self::EnumVariant(..), _) | (_, Self::EnumVariant(..)) => false,
-            (Self::EnumVariantS(..), _) | (_, Self::EnumVariantS(..)) => unreachable!("EnumVariantS instead of EnumVariant - compiler bug?"),
+            (Self::EnumVariantS(..), _) | (_, Self::EnumVariantS(..)) => {
+                unreachable!("EnumVariantS instead of EnumVariant - compiler bug?")
+            }
             (Self::Bool, Self::Bool)
             | (Self::Int, Self::Int)
             | (Self::Float, Self::Float)
@@ -304,7 +324,9 @@ impl VSingleType {
             (Self::Bool | Self::Int | Self::Float | Self::String, _) => false,
             (Self::Tuple(a), Self::Tuple(b)) => {
                 if a.len() == b.len() {
-                    a.iter().zip(b.iter()).all(|(a, b)| a.fits_in(b, info).is_empty())
+                    a.iter()
+                        .zip(b.iter())
+                        .all(|(a, b)| a.fits_in(b, info).is_empty())
                 } else {
                     false
                 }
@@ -338,7 +360,15 @@ impl VSingleType {
     }
     pub fn fits_in_type(&self, rhs: &VType, info: &GlobalScriptInfo) -> bool {
         match self {
-            Self::CustomType(t) => rhs.types.iter().any(|rhs| if let Self::CustomType(rhs) = rhs { *t == *rhs } else { false }) || info.custom_types[*t].fits_in(rhs, info).is_empty(),
+            Self::CustomType(t) => {
+                rhs.types.iter().any(|rhs| {
+                    if let Self::CustomType(rhs) = rhs {
+                        *t == *rhs
+                    } else {
+                        false
+                    }
+                }) || info.custom_types[*t].fits_in(rhs, info).is_empty()
+            }
             _ => rhs.types.iter().any(|t| self.fits_in(t, info)),
         }
     }
@@ -410,9 +440,13 @@ impl VSingleType {
             }
             Self::EnumVariant(variant, inner) => {
                 if let Some(name) = if let Some(info) = info {
-                    info.enum_variants
-                        .iter()
-                        .find_map(|(name, id)| if id == variant { Some(name) } else { None })
+                    info.enum_variants.iter().find_map(|(name, id)| {
+                        if id == variant {
+                            Some(name)
+                        } else {
+                            None
+                        }
+                    })
                 } else {
                     None
                 } {
@@ -428,14 +462,39 @@ impl VSingleType {
                 inner.fmtgs(f, info)?;
                 write!(f, ")")
             }
-            Self::CustomType(t) => if let Some(info) = info {
-                #[cfg(not(debug_assertions))]
-                write!(f, "{}", info.custom_type_names.iter().find_map(|(name, id)| if *t == *id { Some(name.to_owned()) } else { None }).unwrap())?;
-                #[cfg(debug_assertions)]
-                write!(f, "{}/*{}*/", info.custom_type_names.iter().find_map(|(name, id)| if *t == *id { Some(name.to_owned()) } else { None }).unwrap(), &info.custom_types[*t])?;
-                Ok(())
-            } else {
-                write!(f, "[custom type #{t}]")
+            Self::CustomType(t) => {
+                if let Some(info) = info {
+                    #[cfg(not(debug_assertions))]
+                    write!(
+                        f,
+                        "{}",
+                        info.custom_type_names
+                            .iter()
+                            .find_map(|(name, id)| if *t == *id {
+                                Some(name.to_owned())
+                            } else {
+                                None
+                            })
+                            .unwrap()
+                    )?;
+                    #[cfg(debug_assertions)]
+                    write!(
+                        f,
+                        "{}/*{}*/",
+                        info.custom_type_names
+                            .iter()
+                            .find_map(|(name, id)| if *t == *id {
+                                Some(name.to_owned())
+                            } else {
+                                None
+                            })
+                            .unwrap(),
+                        &info.custom_types[*t]
+                    )?;
+                    Ok(())
+                } else {
+                    write!(f, "[custom type #{t}]")
+                }
             }
             Self::CustomTypeS(t) => write!(f, "{t}"),
         }
