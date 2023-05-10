@@ -75,7 +75,7 @@ impl ToRunnableError {
                 Self::CannotDereferenceTypeNTimes(og_type, derefs_wanted, last_valid_type) => {
                     write!(f, "Cannot dereference type ")?;
                     og_type.fmtgs(f, info)?;
-                    write!(f, "{derefs_wanted} times (stopped at ")?;
+                    write!(f, " {derefs_wanted} times (stopped at ")?;
                     last_valid_type.fmtgs(f, info);
                     write!(f, ")")?;
                     Ok(())

@@ -461,7 +461,7 @@ impl ByteData for VSingleType {
 }
 impl ByteDataA for VData {
     fn as_byte_data(&self, vec: &mut Vec<u8>) {
-        self.data.as_byte_data(vec)
+        self.data().0.as_byte_data(vec)
     }
 }
 impl ByteData for VData {
@@ -469,9 +469,7 @@ impl ByteData for VData {
     where
         R: std::io::Read,
     {
-        Ok(Self {
-            data: ByteData::from_byte_data(data)?,
-        })
+        Ok(VDataEnum::from_byte_data(data)?.to())
     }
 }
 impl ByteDataA for VDataEnum {

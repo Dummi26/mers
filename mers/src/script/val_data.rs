@@ -5,16 +5,101 @@ use std::{
 
 use super::{
     code_runnable::RFunction,
-    global_info::{GlobalScriptInfo, GSInfo},
+    global_info::{GSInfo, GlobalScriptInfo},
     val_type::{VSingleType, VType},
 };
 
-#[derive(Clone, Debug, PartialEq)]
 pub struct VData {
-    pub data: VDataEnum,
+    /// (_, mutable) - if false, behave as CopyOnWrite.
+    pub data: Arc<Mutex<(VDataEnum, bool)>>,
+}
+impl VData {
+    /// if self is mutable, assigns the new value to the mutex.
+    /// if self is immutable, creates a new mutex and sets self to mutable.
+    pub fn assign(&mut self, new_val: VDataEnum) {
+        {
+            let mut d = self.data.lock().unwrap();
+            if d.1 {
+                d.0 = new_val;
+                return;
+            }
+        }
+        *self = new_val.to();
+    }
+    pub fn inner_replace(&mut self, new_val: VDataEnum) -> VDataEnum {
+        {
+            let mut d = self.data.lock().unwrap();
+            if d.1 {
+                return std::mem::replace(&mut d.0, new_val);
+            }
+        }
+        let o = self.data().0.clone();
+        *self = new_val.to();
+        o
+    }
+    /// returns the contained VDataEnum. May or may not clone.
+    pub fn inner(self) -> VDataEnum {
+        self.data().0.clone()
+    }
+    /// ensures self is mutable, then returns a new instance of VData that is also mutable and uses the same Arc<Mutex<_>>.
+    pub fn clone_mut(&mut self) -> Self {
+        // if not mutable, copy and set to mutable.
+        self.make_mut();
+        // now, both self and the returned value are set to mutable and share the same mutex.
+        self.clone_mut_assume()
+    }
+    /// like clone_mut, but assumes self is already mutable, and therefor does not need to mutate self
+    /// as the Arc<Mutex<_>> will stay the same.
+    pub fn clone_mut_assume(&self) -> Self {
+        Self {
+            data: Arc::clone(&self.data),
+        }
+    }
+    pub fn ptr_eq(&self, rhs: &Self) -> bool {
+        Arc::ptr_eq(&self.data, &rhs.data)
+    }
+    /// makes self mutable. might clone.
+    pub fn make_mut(&mut self) -> &mut Self {
+        {
+            let mut s = self.data.lock().unwrap();
+            if !s.1 {
+                *s = (s.0.clone(), true);
+            }
+        }
+        self
+    }
+    pub fn data(&self) -> std::sync::MutexGuard<(VDataEnum, bool)> {
+        self.data.lock().unwrap()
+    }
+}
+impl Clone for VData {
+    fn clone(&self) -> Self {
+        let mut d = self.data.lock().unwrap();
+        // set to immutable, locking the data as-is.
+        d.1 = false;
+        // then return the same arc (-> avoid cloning)
+        Self {
+            data: Arc::clone(&self.data),
+        }
+    }
+}
+impl Debug for VData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let d = self.data.lock().unwrap();
+        if d.1 {
+            write!(f, "(!mutable!):{:?}", d.0)
+        } else {
+            write!(f, "(immutable):{:?}", d.0)
+        }
+    }
+}
+impl PartialEq for VData {
+    fn eq(&self, other: &Self) -> bool {
+        self.data().0 == other.data().0
+    }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum VDataEnum {
     Bool(bool),
     Int(isize),
@@ -24,15 +109,34 @@ pub enum VDataEnum {
     List(VType, Vec<VData>),
     Function(RFunction),
     Thread(thread::VDataThread, VType),
-    Reference(Arc<Mutex<VData>>),
+    Reference(VData),
     EnumVariant(usize, Box<VData>),
+}
+impl Clone for VDataEnum {
+    fn clone(&self) -> Self {
+        match self {
+            // exception: don't clone the value AND don't use CoW,
+            // because we want to share the same Arc<Mutex<_>>.
+            Self::Reference(r) => Self::Reference(r.clone_mut_assume()),
+            // default impls
+            Self::Bool(b) => Self::Bool(*b),
+            Self::Int(i) => Self::Int(*i),
+            Self::Float(f) => Self::Float(*f),
+            Self::String(s) => Self::String(s.clone()),
+            Self::Tuple(v) => Self::Tuple(v.clone()),
+            Self::List(t, v) => Self::List(t.clone(), v.clone()),
+            Self::Function(f) => Self::Function(f.clone()),
+            Self::Thread(th, ty) => Self::Thread(th.clone(), ty.clone()),
+            Self::EnumVariant(v, d) => Self::EnumVariant(v.clone(), d.clone()),
+        }
+    }
 }
 impl PartialEq for VDataEnum {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Reference(a), Self::Reference(b)) => *a.lock().unwrap() == *b.lock().unwrap(),
-            (Self::Reference(a), b) => a.lock().unwrap().data == *b,
-            (a, Self::Reference(b)) => *a == b.lock().unwrap().data,
+            (Self::Reference(a), Self::Reference(b)) => a == b,
+            (Self::Reference(a), b) => &a.data().0 == b,
+            (a, Self::Reference(b)) => a == &b.data().0,
             (Self::Bool(a), Self::Bool(b)) => *a == *b,
             (Self::Int(a), Self::Int(b)) => *a == *b,
             (Self::Float(a), Self::Float(b)) => *a == *b,
@@ -48,7 +152,7 @@ impl PartialEq for VDataEnum {
 
 impl VData {
     pub fn safe_to_share(&self) -> bool {
-        self.data.safe_to_share()
+        self.data().0.safe_to_share()
     }
     pub fn out(&self) -> VType {
         VType {
@@ -56,7 +160,7 @@ impl VData {
         }
     }
     pub fn out_single(&self) -> VSingleType {
-        match &self.data {
+        match &self.data().0 {
             VDataEnum::Bool(..) => VSingleType::Bool,
             VDataEnum::Int(..) => VSingleType::Int,
             VDataEnum::Float(..) => VSingleType::Float,
@@ -65,21 +169,23 @@ impl VData {
             VDataEnum::List(t, _) => VSingleType::List(t.clone()),
             VDataEnum::Function(f) => VSingleType::Function(f.input_output_map.clone()),
             VDataEnum::Thread(_, o) => VSingleType::Thread(o.clone()),
-            VDataEnum::Reference(r) => r.lock().unwrap().out_single(),
+            VDataEnum::Reference(r) => VSingleType::Reference(Box::new(r.out_single())),
             VDataEnum::EnumVariant(e, v) => VSingleType::EnumVariant(*e, v.out()),
         }
     }
     pub fn get(&self, i: usize) -> Option<Self> {
-        self.data.get(i)
+        self.data().0.get(i)
     }
     pub fn noenum(self) -> Self {
-        self.data.noenum()
+        self.inner().noenum()
     }
 }
 
 impl VDataEnum {
     pub fn to(self) -> VData {
-        VData { data: self }
+        VData {
+            data: Arc::new(Mutex::new((self, true))),
+        }
     }
 }
 
@@ -113,7 +219,7 @@ impl VDataEnum {
                 None => None,
             },
             Self::Tuple(v) | Self::List(_, v) => v.get(i).cloned(),
-            Self::Reference(r) => r.lock().unwrap().get(i),
+            Self::Reference(r) => r.get(i),
             Self::EnumVariant(_, v) => v.get(i),
         }
     }
@@ -286,13 +392,17 @@ impl VDataEnum {
             Self::Thread(..) => write!(f, "[TODO] THREAD"),
             Self::Reference(inner) => {
                 write!(f, "&")?;
-                inner.lock().unwrap().fmtgs(f, info)
+                inner.fmtgs(f, info)
             }
             Self::EnumVariant(variant, inner) => {
                 if let Some(name) = if let Some(info) = info {
-                    info.enum_variants
-                        .iter()
-                        .find_map(|(name, id)| if id == variant { Some(name) } else { None })
+                    info.enum_variants.iter().find_map(|(name, id)| {
+                        if id == variant {
+                            Some(name)
+                        } else {
+                            None
+                        }
+                    })
                 } else {
                     None
                 } {
@@ -313,7 +423,7 @@ impl Display for VDataEnum {
 
 impl VData {
     pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GlobalScriptInfo>) -> fmt::Result {
-        self.data.fmtgs(f, info)
+        self.data().0.fmtgs(f, info)
     }
 }
 impl Display for VData {

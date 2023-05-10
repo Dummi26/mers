@@ -18,9 +18,9 @@ five_less = sub(my_first_variable 5) // 10
 ",
     ));
     loop {
-        match tutor.let_user_make_change().run(vec![]).data {
+        match &tutor.let_user_make_change().run(vec![]).data().0 {
             VDataEnum::String(name) if !name.is_empty() => {
-                tutor.i_name = Some(name);
+                tutor.i_name = Some(name.to_owned());
                 break;
             }
             VDataEnum::String(_) => {

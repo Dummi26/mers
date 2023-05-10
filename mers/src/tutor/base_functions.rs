@@ -35,7 +35,7 @@ mul()
 ",
     ));
     loop {
-        match tutor.let_user_make_change().run(vec![]).data {
+        match &tutor.let_user_make_change().run(vec![]).data().0 {
             VDataEnum::Int(160) => break,
             other => {
                 tutor.set_status(format!(" - Returned {other} instead of 160"));

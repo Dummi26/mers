@@ -24,7 +24,7 @@ pub fn run(tutor: &mut Tutor) {
 // return any enum to return to the menu.
 "));
     loop {
-        match tutor.let_user_make_change().run(vec![]).data {
+        match &tutor.let_user_make_change().run(vec![]).data().0 {
             VDataEnum::EnumVariant(..) => break,
             other => {
                 tutor.set_status(format!(" - Returned {other} instead of an enum."));

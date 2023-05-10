@@ -27,7 +27,7 @@ fn compute_sum(a int b int) {
 ",
     ));
     loop {
-        match tutor.let_user_make_change().run(vec![]).data {
+        match &tutor.let_user_make_change().run(vec![]).data().0 {
             VDataEnum::Int(15) => break,
             other => {
                 tutor.set_status(format!(" - Returned {} instead of 15.", other));

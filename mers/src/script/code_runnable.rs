@@ -8,17 +8,12 @@ use super::{
     val_type::{VSingleType, VType},
 };
 
-type Am<T> = Arc<Mutex<T>>;
-fn am<T>(i: T) -> Am<T> {
-    Arc::new(Mutex::new(i))
-}
-
 #[derive(Clone, Debug)]
 pub struct RBlock {
     pub statements: Vec<RStatement>,
 }
 impl RBlock {
-    pub fn run(&self, vars: &Vec<Am<VData>>, info: &GSInfo) -> VData {
+    pub fn run(&self, vars: &mut Vec<VData>, info: &GSInfo) -> VData {
         let mut last = None;
         for statement in &self.statements {
             last = Some(statement.run(vars, info));
@@ -48,7 +43,7 @@ pub struct RFunction {
     pub block: RBlock,
 }
 impl RFunction {
-    pub fn run(&self, vars: &Vec<Am<VData>>, info: &GSInfo) -> VData {
+    pub fn run(&self, vars: &mut Vec<VData>, info: &GSInfo) -> VData {
         self.block.run(vars, info)
     }
     pub fn out(&self, input_types: &Vec<VSingleType>) -> VType {
@@ -91,19 +86,22 @@ pub struct RStatement {
     pub force_output_type: Option<VType>,
 }
 impl RStatement {
-    pub fn run(&self, vars: &Vec<Am<VData>>, info: &GSInfo) -> VData {
+    pub fn run(&self, vars: &mut Vec<VData>, info: &GSInfo) -> VData {
         let out = self.statement.run(vars, info);
         if let Some((v, derefs)) = self.output_to {
-            let mut val = vars[v].clone();
-            for _ in 0..derefs {
-                let v = if let VDataEnum::Reference(v) = &val.lock().unwrap().data {
-                    v.clone()
+            let mut val = dereference_n(&mut vars[v], derefs);
+            fn dereference_n(d: &mut VData, n: usize) -> VData {
+                if n > 0 {
+                    if let VDataEnum::Reference(v) = &mut d.data.lock().unwrap().0 {
+                        dereference_n(v, n - 1)
+                    } else {
+                        unreachable!("dereferencing something that isn't a reference in assignment")
+                    }
                 } else {
-                    unreachable!("dereferencing something that isn't a reference in assignment")
-                };
-                val = v;
+                    d.clone_mut()
+                }
             }
-            *val.lock().unwrap() = out;
+            val.assign(out.inner());
             VDataEnum::Tuple(vec![]).to()
         } else {
             out
@@ -142,7 +140,7 @@ pub enum RStatementEnum {
     EnumVariant(usize, RStatement),
 }
 impl RStatementEnum {
-    pub fn run(&self, vars: &Vec<Am<VData>>, info: &GSInfo) -> VData {
+    pub fn run(&self, vars: &mut Vec<VData>, info: &GSInfo) -> VData {
         match self {
             Self::Value(v) => v.clone(),
             Self::Tuple(v) => {
@@ -164,14 +162,16 @@ impl RStatementEnum {
             }
             Self::Variable(v, _, is_ref) => {
                 if *is_ref {
-                    VDataEnum::Reference(vars[*v].clone()).to()
+                    // shared mutability (clone_mut)
+                    VDataEnum::Reference(vars[*v].clone_mut()).to()
                 } else {
-                    vars[*v].lock().unwrap().clone()
+                    // Copy on Write (clone)
+                    vars[*v].clone()
                 }
             }
             Self::FunctionCall(func, args) => {
                 for (i, input) in func.inputs.iter().enumerate() {
-                    *vars[*input].lock().unwrap() = args[i].run(vars, info);
+                    vars[*input] = args[i].run(vars, info);
                 }
                 func.run(vars, info)
             }
@@ -180,8 +180,8 @@ impl RStatementEnum {
                 .run_fn(*fnid, args.iter().map(|arg| arg.run(vars, info)).collect()),
             Self::Block(b) => b.run(vars, info),
             Self::If(c, t, e) => {
-                if let VDataEnum::Bool(v) = c.run(vars, info).data {
-                    if v {
+                if let VDataEnum::Bool(v) = &c.run(vars, info).data().0 {
+                    if *v {
                         t.run(vars, info)
                     } else {
                         if let Some(e) = e {
@@ -196,7 +196,7 @@ impl RStatementEnum {
             }
             Self::Loop(c) => loop {
                 // loops will break if the value matches.
-                if let Some(break_val) = c.run(vars, info).data.matches() {
+                if let Some(break_val) = c.run(vars, info).inner().matches() {
                     break break_val;
                 }
             },
@@ -204,17 +204,17 @@ impl RStatementEnum {
                 // matching values also break with value from a for loop.
                 let c = c.run(vars, info);
                 let mut vars = vars.clone();
-                let in_loop = |vars: &mut Vec<Arc<Mutex<VData>>>, c| {
-                    vars[*v] = Arc::new(Mutex::new(c));
-                    b.run(&vars, info)
+                let in_loop = |vars: &mut Vec<VData>, c| {
+                    vars[*v] = c;
+                    b.run(vars, info)
                 };
 
                 let mut oval = VDataEnum::Tuple(vec![]).to();
-                match c.data {
+                match &c.data().0 {
                     VDataEnum::Int(v) => {
-                        for i in 0..v {
+                        for i in 0..*v {
                             if let Some(v) =
-                                in_loop(&mut vars, VDataEnum::Int(i).to()).data.matches()
+                                in_loop(&mut vars, VDataEnum::Int(i).to()).inner().matches()
                             {
                                 oval = v;
                                 break;
@@ -225,7 +225,7 @@ impl RStatementEnum {
                         for ch in v.chars() {
                             if let Some(v) =
                                 in_loop(&mut vars, VDataEnum::String(ch.to_string()).to())
-                                    .data
+                                    .inner()
                                     .matches()
                             {
                                 oval = v;
@@ -235,15 +235,15 @@ impl RStatementEnum {
                     }
                     VDataEnum::Tuple(v) | VDataEnum::List(_, v) => {
                         for v in v {
-                            if let Some(v) = in_loop(&mut vars, v).data.matches() {
+                            if let Some(v) = in_loop(&mut vars, v.clone()).inner().matches() {
                                 oval = v;
                                 break;
                             }
                         }
                     }
                     VDataEnum::Function(f) => loop {
-                        if let Some(v) = f.run(&vars, info).data.matches() {
-                            if let Some(v) = in_loop(&mut vars, v).data.matches() {
+                        if let Some(v) = f.run(&mut vars, info).inner().matches() {
+                            if let Some(v) = in_loop(&mut vars, v).inner().matches() {
                                 oval = v;
                                 break;
                             }
@@ -270,10 +270,10 @@ impl RStatementEnum {
             Self::Match(match_on, cases) => 'm: {
                 for (case_condition, case_action) in cases {
                     // [t] => Some(t), t => Some(t), [] | false => None
-                    if let Some(v) = case_condition.run(vars, info).data.matches() {
-                        let og = { std::mem::replace(&mut *vars[*match_on].lock().unwrap(), v) };
+                    if let Some(v) = case_condition.run(vars, info).inner().matches() {
+                        let og = { std::mem::replace(&mut vars[*match_on], v) };
                         let res = case_action.run(vars, info);
-                        *vars[*match_on].lock().unwrap() = og;
+                        vars[*match_on] = og;
                         break 'm res;
                     }
                 }
@@ -377,17 +377,19 @@ impl RScript {
     }
     pub fn run(&self, args: Vec<String>) -> VData {
         let mut vars = Vec::with_capacity(self.info.vars);
-        vars.push(am(VDataEnum::List(
-            VSingleType::String.into(),
-            args.into_iter()
-                .map(|v| VDataEnum::String(v).to())
-                .collect(),
-        )
-        .to()));
+        vars.push(
+            VDataEnum::List(
+                VSingleType::String.into(),
+                args.into_iter()
+                    .map(|v| VDataEnum::String(v).to())
+                    .collect(),
+            )
+            .to(),
+        );
         for _i in 1..self.info.vars {
-            vars.push(am(VDataEnum::Tuple(vec![]).to()));
+            vars.push(VDataEnum::Tuple(vec![]).to());
         }
-        self.main.run(&vars, &self.info)
+        self.main.run(&mut vars, &self.info)
     }
     pub fn info(&self) -> &GSInfo {
         &self.info

@@ -44,7 +44,7 @@ switch! first {
 list.get(8)
 "));
     loop {
-        match tutor.let_user_make_change().run(vec![]).data {
+        match &tutor.let_user_make_change().run(vec![]).data().0 {
             VDataEnum::Tuple(v) if !v.is_empty() => {
                 break;
             }

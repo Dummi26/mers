@@ -910,8 +910,8 @@ pub mod implementation {
                             let args = [out].into_iter().chain(args.into_iter()).collect();
                             SStatementEnum::FunctionCall(func, args).to()
                         }
-                        SStatementEnum::Value(vd) => match vd.data {
-                            VDataEnum::Int(i) => SStatementEnum::IndexFixed(out, i as _).to(),
+                        SStatementEnum::Value(vd) => match &vd.data().0 {
+                            VDataEnum::Int(i) => SStatementEnum::IndexFixed(out, *i as _).to(),
                             _ => {
                                 let mut context = vec![];
                                 if chain_length > 0 {

@@ -57,41 +57,41 @@ fn main() {
         .unwrap()
         .1;
     my_lib.callbacks.run_function.consuming = Some(Box::new(move |msg| {
-        if let VDataEnum::String(url) = &msg.msg.args[0].data {
-            let url = url.clone();
-            std::thread::spawn(move || {
-                let r = match reqwest::blocking::get(url) {
-                    Ok(response) => match response.text() {
-                        Ok(text) => VDataEnum::String(text).to(),
-                        Err(e) => VDataEnum::EnumVariant(
-                            err_general,
-                            Box::new(
-                                VDataEnum::EnumVariant(
-                                    err_getting_response_text,
-                                    Box::new(VDataEnum::String(e.to_string()).to()),
-                                )
-                                .to(),
-                            ),
-                        )
-                        .to(),
-                    },
+        let url = if let VDataEnum::String(url) = &msg.msg.args[0].data().0 {
+            url.clone()
+        } else {
+            unreachable!()
+        };
+        std::thread::spawn(move || {
+            let r = match reqwest::blocking::get(url) {
+                Ok(response) => match response.text() {
+                    Ok(text) => VDataEnum::String(text).to(),
                     Err(e) => VDataEnum::EnumVariant(
                         err_general,
                         Box::new(
                             VDataEnum::EnumVariant(
-                                err_building_request,
+                                err_getting_response_text,
                                 Box::new(VDataEnum::String(e.to_string()).to()),
                             )
                             .to(),
                         ),
                     )
                     .to(),
-                };
-                msg.respond(r)
-            });
-        } else {
-            unreachable!()
-        }
+                },
+                Err(e) => VDataEnum::EnumVariant(
+                    err_general,
+                    Box::new(
+                        VDataEnum::EnumVariant(
+                            err_building_request,
+                            Box::new(VDataEnum::String(e.to_string()).to()),
+                        )
+                        .to(),
+                    ),
+                )
+                .to(),
+            };
+            msg.respond(r)
+        });
     }));
     // because we handle all callbacks, this never returns Err(unhandeled message).
     // it returns Ok(()) if mers exits (i/o error in stdin/stdout), so we also exit if that happens.

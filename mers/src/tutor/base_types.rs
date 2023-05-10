@@ -54,7 +54,7 @@ switch! words_in_string {}
 true
 "));
     loop {
-        match tutor.let_user_make_change().run(vec![]).data {
+        match &tutor.let_user_make_change().run(vec![]).data().0 {
             VDataEnum::Tuple(v) if v.is_empty() => {
                 tutor.set_status(format!(" - Returned an empty tuple."));
                 tutor.update(None);

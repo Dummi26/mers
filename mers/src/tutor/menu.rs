@@ -24,9 +24,9 @@ go_to()
 ",
         ));
         loop {
-            match tutor.let_user_make_change().run(vec![]).data {
-                VDataEnum::Int(pos) if pos != 0 => {
-                    tutor.current_pos = (pos.max(0) as usize).min(MAX_POS);
+            match &tutor.let_user_make_change().run(vec![]).data().0 {
+                VDataEnum::Int(pos) if *pos != 0 => {
+                    tutor.current_pos = ((*pos).max(0) as usize).min(MAX_POS);
                     match tutor.current_pos {
                         0 => continue,
                         1 => super::base_comments::run(&mut tutor),

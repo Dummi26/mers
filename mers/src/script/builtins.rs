@@ -76,6 +76,7 @@ pub enum BuiltinFunction {
     Pop,
     Remove,
     Get,
+    GetRef,
     Len,
     // String
     Contains,
@@ -138,6 +139,7 @@ impl BuiltinFunction {
             "pop" => Self::Pop,
             "remove" => Self::Remove,
             "get" => Self::Get,
+            "get_ref" => Self::GetRef,
             "len" => Self::Len,
             "contains" => Self::Contains,
             "starts_with" => Self::StartsWith,
@@ -443,7 +445,7 @@ impl BuiltinFunction {
                 }
             }
             // TODO! finish this
-            Self::Get | Self::Len => true,
+            Self::Get | Self::GetRef | Self::Len => true,
             Self::Substring => {
                 if input.len() >= 2 && input.len() <= 3 {
                     let (s, start) = (&input[0], &input[1]);
@@ -598,6 +600,26 @@ impl BuiltinFunction {
                     unreachable!("get, pop or remove called without args")
                 }
             }
+            Self::GetRef => {
+                if let Some(v) = input.first() {
+                    VType {
+                        types: vec![
+                            VSingleType::Tuple(vec![]),
+                            VSingleType::Tuple(vec![{
+                                let mut v = v.get_any(info).expect("cannot use get on this type");
+                                v.types = v
+                                    .types
+                                    .into_iter()
+                                    .map(|v| VSingleType::Reference(Box::new(v)))
+                                    .collect();
+                                v
+                            }]),
+                        ],
+                    }
+                } else {
+                    unreachable!("get, pop or remove called without args")
+                }
+            }
             Self::Exit => VType { types: vec![] }, // doesn't return
             Self::FsList => VType {
                 types: vec![
@@ -726,67 +748,87 @@ impl BuiltinFunction {
             },
         }
     }
-    pub fn run(
-        &self,
-        args: &Vec<RStatement>,
-        vars: &Vec<Arc<Mutex<VData>>>,
-        info: &GSInfo,
-    ) -> VData {
+    pub fn run(&self, args: &Vec<RStatement>, vars: &mut Vec<VData>, info: &GSInfo) -> VData {
         match self {
-            Self::Assume1 => match args[0].run(vars, info).data {
-                VDataEnum::Tuple(mut v) => {
-                    if let Some(v) = v.pop() {
-                        v
-                    } else {
-                        panic!(
-                            "ASSUMPTION FAILED: assume1 :: {}",
-                            if args.len() > 1 {
-                                if let VDataEnum::String(v) = args[1].run(vars, info).data {
-                                    v
+            Self::Assume1 => {
+                let mut a0 = args[0].run(vars, info);
+                a0.make_mut();
+                let o = match &mut a0.data.lock().unwrap().0 {
+                    VDataEnum::Tuple(v) => Some({
+                        if let Some(v) = v.pop() {
+                            v
+                        } else {
+                            let msg = if args.len() > 1 {
+                                let a1 = args[1].run(vars, info);
+                                let a1 = a1.data();
+                                if let VDataEnum::String(v) = &a1.0 {
+                                    Some(v.to_owned())
                                 } else {
-                                    String::new()
+                                    None
                                 }
                             } else {
-                                String::new()
-                            },
-                        );
-                    }
+                                None
+                            };
+                            if let Some(m) = msg {
+                                panic!("ASSUMPTION FAILED: assume1 :: {m}");
+                            } else {
+                                panic!("ASSUMPTION FAILED: assume1");
+                            }
+                        }
+                    }),
+                    _ => None,
+                };
+                if let Some(o) = o {
+                    o
+                } else {
+                    a0
                 }
-                v => v.to(),
-            },
+            }
             Self::AssumeNoEnum => {
-                let data = args[0].run(vars, info);
-                match data.data {
-                    VDataEnum::EnumVariant(..) => panic!(
-                        "ASSUMPTION FAILED: assume_no_enum :: found {} :: {}",
-                        data.gsi(info.clone()),
-                        if args.len() > 1 {
-                            if let VDataEnum::String(v) = args[1].run(vars, info).data {
-                                v
+                let msg = if args.len() > 1 {
+                    if let VDataEnum::String(v) = args[1].run(vars, info).inner() {
+                        Some(v.to_owned())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+                let a0 = args[0].run(vars, info);
+                let a0d = a0.data();
+                match &a0d.0 {
+                    VDataEnum::EnumVariant(..) => {
+                        drop(a0d);
+                        panic!(
+                            "ASSUMPTION FAILED: assume_no_enum :: found {}{}",
+                            a0.gsi(info.clone()),
+                            if let Some(m) = msg {
+                                format!(" :: {m}")
                             } else {
                                 String::new()
                             }
-                        } else {
-                            String::new()
-                        }
-                    ),
-                    d => d.to(),
+                        )
+                    }
+                    _ => {
+                        drop(a0d);
+                        a0
+                    }
                 }
             }
             Self::NoEnum => args[0].run(vars, info).noenum(),
-            Self::Matches => match args[0].run(vars, info).data.matches() {
+            Self::Matches => match args[0].run(vars, info).inner().matches() {
                 Some(v) => VDataEnum::Tuple(vec![v]).to(),
                 None => VDataEnum::Tuple(vec![]).to(),
             },
             Self::Clone => {
-                if let VDataEnum::Reference(r) = args[0].run(vars, info).data {
-                    r.lock().unwrap().clone()
+                if let VDataEnum::Reference(r) = &args[0].run(vars, info).data().0 {
+                    r.clone()
                 } else {
                     unreachable!()
                 }
             }
             BuiltinFunction::Print => {
-                if let VDataEnum::String(arg) = args[0].run(vars, info).data {
+                if let VDataEnum::String(arg) = &args[0].run(vars, info).data().0 {
                     print!("{}", arg);
                     VDataEnum::Tuple(vec![]).to()
                 } else {
@@ -794,7 +836,7 @@ impl BuiltinFunction {
                 }
             }
             BuiltinFunction::Println => {
-                if let VDataEnum::String(arg) = args[0].run(vars, info).data {
+                if let VDataEnum::String(arg) = &args[0].run(vars, info).data().0 {
                     #[cfg(not(feature = "nushell_plugin"))]
                     println!("{}", arg);
                     #[cfg(feature = "nushell_plugin")]
@@ -831,13 +873,13 @@ impl BuiltinFunction {
                 VDataEnum::String(args[0].run(vars, info).gsi(info.clone()).to_string()).to()
             }
             BuiltinFunction::Format => {
-                if let VDataEnum::String(mut text) = args.first().unwrap().run(vars, info).data {
+                if let VDataEnum::String(mut text) = args.first().unwrap().run(vars, info).inner() {
                     for (i, arg) in args.iter().skip(1).enumerate() {
                         text = text.replace(
                             &format!("{{{i}}}"),
                             &format!(
                                 "{}",
-                                if let VDataEnum::String(v) = arg.run(vars, info).data {
+                                if let VDataEnum::String(v) = &arg.run(vars, info).data().0 {
                                     v
                                 } else {
                                     unreachable!()
@@ -852,7 +894,7 @@ impl BuiltinFunction {
             }
             BuiltinFunction::ParseInt => {
                 if args.len() == 1 {
-                    if let VDataEnum::String(s) = args[0].run(vars, info).data {
+                    if let VDataEnum::String(s) = &args[0].run(vars, info).data().0 {
                         if let Ok(s) = s.parse() {
                             VDataEnum::Int(s).to()
                         } else {
@@ -867,7 +909,7 @@ impl BuiltinFunction {
             }
             BuiltinFunction::ParseFloat => {
                 if args.len() == 1 {
-                    if let VDataEnum::String(s) = args[0].run(vars, info).data {
+                    if let VDataEnum::String(s) = &args[0].run(vars, info).data().0 {
                         if let Ok(s) = s.parse() {
                             VDataEnum::Float(s).to()
                         } else {
@@ -882,13 +924,13 @@ impl BuiltinFunction {
             }
             BuiltinFunction::Run => {
                 if args.len() >= 1 {
-                    if let VDataEnum::Function(f) = args[0].run(vars, info).data {
+                    if let VDataEnum::Function(f) = &args[0].run(vars, info).data().0 {
                         if f.inputs.len() != args.len() - 1 {
                             unreachable!()
                         }
                         for (i, var) in f.inputs.iter().enumerate() {
                             let val = args[i + 1].run(vars, info);
-                            *vars[*var].lock().unwrap() = val;
+                            vars[*var] = val;
                         }
                         f.run(vars, info)
                     } else {
@@ -900,7 +942,7 @@ impl BuiltinFunction {
             }
             BuiltinFunction::Thread => {
                 if args.len() >= 1 {
-                    if let VDataEnum::Function(f) = args[0].run(vars, info).data {
+                    if let VDataEnum::Function(f) = args[0].run(vars, info).inner() {
                         if f.inputs.len() != args.len() - 1 {
                             unreachable!()
                         }
@@ -910,13 +952,13 @@ impl BuiltinFunction {
                         for (i, var) in f.inputs.iter().enumerate() {
                             let val = args[i + 1].run(vars, info);
                             run_input_types.push(val.out_single());
-                            thread_vars[*var] = Arc::new(Mutex::new(val));
+                            thread_vars[*var] = val;
                         }
                         let out_type = f.out(&run_input_types);
                         let libs = info.clone();
                         VDataEnum::Thread(
                             VDataThreadEnum::Running(std::thread::spawn(move || {
-                                f.run(&thread_vars, &libs)
+                                f.run(&mut thread_vars, &libs)
                             }))
                             .to(),
                             out_type,
@@ -931,7 +973,7 @@ impl BuiltinFunction {
             }
             BuiltinFunction::Await => {
                 if args.len() == 1 {
-                    if let VDataEnum::Thread(t, _) = args[0].run(vars, info).data {
+                    if let VDataEnum::Thread(t, _) = &args[0].run(vars, info).data().0 {
                         t.get()
                     } else {
                         unreachable!()
@@ -942,9 +984,9 @@ impl BuiltinFunction {
             }
             BuiltinFunction::Sleep => {
                 if args.len() == 1 {
-                    match args[0].run(vars, info).data {
-                        VDataEnum::Int(v) => std::thread::sleep(Duration::from_secs(v as _)),
-                        VDataEnum::Float(v) => std::thread::sleep(Duration::from_secs_f64(v)),
+                    match &args[0].run(vars, info).data().0 {
+                        VDataEnum::Int(v) => std::thread::sleep(Duration::from_secs(*v as _)),
+                        VDataEnum::Float(v) => std::thread::sleep(Duration::from_secs_f64(*v)),
                         _ => unreachable!(),
                     }
                     VDataEnum::Tuple(vec![]).to()
@@ -954,8 +996,8 @@ impl BuiltinFunction {
             }
             Self::Exit => {
                 if let Some(s) = args.first() {
-                    if let VDataEnum::Int(v) = s.run(vars, info).data {
-                        std::process::exit(v as _);
+                    if let VDataEnum::Int(v) = &s.run(vars, info).data().0 {
+                        std::process::exit(*v as _);
                     } else {
                         std::process::exit(1);
                     }
@@ -965,7 +1007,7 @@ impl BuiltinFunction {
             }
             Self::FsList => {
                 if args.len() > 0 {
-                    if let VDataEnum::String(path) = args[0].run(vars, info).data {
+                    if let VDataEnum::String(path) = &args[0].run(vars, info).data().0 {
                         if args.len() > 1 {
                             eprintln!("NOT YET IMPLEMENTED (TODO!): fs_list advanced filters")
                         }
@@ -1003,7 +1045,7 @@ impl BuiltinFunction {
             }
             Self::FsRead => {
                 if args.len() > 0 {
-                    if let VDataEnum::String(path) = args[0].run(vars, info).data {
+                    if let VDataEnum::String(path) = &args[0].run(vars, info).data().0 {
                         match std::fs::read(path) {
                             Ok(data) => VDataEnum::List(
                                 VSingleType::Int.into(),
@@ -1027,9 +1069,10 @@ impl BuiltinFunction {
             }
             Self::FsWrite => {
                 if args.len() > 1 {
-                    if let (VDataEnum::String(path), VDataEnum::List(_, data)) =
-                        (args[0].run(vars, info).data, args[1].run(vars, info).data)
-                    {
+                    if let (VDataEnum::String(path), VDataEnum::List(_, data)) = (
+                        &args[0].run(vars, info).data().0,
+                        &args[1].run(vars, info).data().0,
+                    ) {
                         if let Some(bytes) = vdata_to_bytes(&data) {
                             let file_path: PathBuf = path.into();
                             if let Some(p) = file_path.parent() {
@@ -1057,7 +1100,7 @@ impl BuiltinFunction {
             }
             Self::BytesToString => {
                 if args.len() == 1 {
-                    if let VDataEnum::List(_, byte_data) = args[0].run(vars, info).data {
+                    if let VDataEnum::List(_, byte_data) = &args[0].run(vars, info).data().0 {
                         if let Some(bytes) = vdata_to_bytes(&byte_data) {
                             match String::from_utf8(bytes) {
                                 Ok(v) => VDataEnum::String(v).to(),
@@ -1092,7 +1135,7 @@ impl BuiltinFunction {
             }
             Self::StringToBytes => {
                 if args.len() == 1 {
-                    if let VDataEnum::String(s) = args[0].run(vars, info).data {
+                    if let VDataEnum::String(s) = &args[0].run(vars, info).data().0 {
                         VDataEnum::List(
                             VSingleType::Int.into(),
                             s.bytes().map(|v| VDataEnum::Int(v as isize).to()).collect(),
@@ -1107,12 +1150,12 @@ impl BuiltinFunction {
             }
             Self::RunCommand | Self::RunCommandGetBytes => {
                 if args.len() > 0 {
-                    if let VDataEnum::String(s) = args[0].run(vars, info).data {
+                    if let VDataEnum::String(s) = &args[0].run(vars, info).data().0 {
                         let mut command = std::process::Command::new(s);
                         if args.len() > 1 {
-                            if let VDataEnum::List(_, args) = args[1].run(vars, info).data {
+                            if let VDataEnum::List(_, args) = &args[1].run(vars, info).data().0 {
                                 for arg in args {
-                                    if let VDataEnum::String(v) = arg.data {
+                                    if let VDataEnum::String(v) = &arg.data().0 {
                                         command.arg(v);
                                     } else {
                                         unreachable!("run_command second arg not [string].")
@@ -1172,19 +1215,19 @@ impl BuiltinFunction {
                 }
             }
             Self::Not => {
-                if let VDataEnum::Bool(v) = args[0].run(vars, info).data {
+                if let VDataEnum::Bool(v) = &args[0].run(vars, info).data().0 {
                     VDataEnum::Bool(!v).to()
                 } else {
                     unreachable!()
                 }
             }
             Self::And => {
-                if let VDataEnum::Bool(a) = args[0].run(vars, info).data {
-                    if a == false {
+                if let VDataEnum::Bool(a) = &args[0].run(vars, info).data().0 {
+                    if *a == false {
                         VDataEnum::Bool(false).to()
                     } else {
-                        if let VDataEnum::Bool(b) = args[1].run(vars, info).data {
-                            VDataEnum::Bool(b).to()
+                        if let VDataEnum::Bool(b) = &args[1].run(vars, info).data().0 {
+                            VDataEnum::Bool(*b).to()
                         } else {
                             unreachable!()
                         }
@@ -1194,12 +1237,12 @@ impl BuiltinFunction {
                 }
             }
             Self::Or => {
-                if let VDataEnum::Bool(a) = args[0].run(vars, info).data {
-                    if a == true {
+                if let VDataEnum::Bool(a) = &args[0].run(vars, info).data().0 {
+                    if *a == true {
                         VDataEnum::Bool(true).to()
                     } else {
-                        if let VDataEnum::Bool(b) = args[1].run(vars, info).data {
-                            VDataEnum::Bool(b).to()
+                        if let VDataEnum::Bool(b) = &args[1].run(vars, info).data().0 {
+                            VDataEnum::Bool(*b).to()
                         } else {
                             unreachable!()
                         }
@@ -1210,7 +1253,10 @@ impl BuiltinFunction {
             }
             Self::Add => {
                 if args.len() == 2 {
-                    match (args[0].run(vars, info).data, args[1].run(vars, info).data) {
+                    match (
+                        args[0].run(vars, info).inner(),
+                        args[1].run(vars, info).inner(),
+                    ) {
                         (VDataEnum::String(mut a), VDataEnum::String(b)) => {
                             a.push_str(b.as_str());
                             VDataEnum::String(a).to()
@@ -1231,13 +1277,16 @@ impl BuiltinFunction {
             }
             Self::Sub => {
                 if args.len() == 2 {
-                    match (args[0].run(vars, info).data, args[1].run(vars, info).data) {
+                    match (
+                        &args[0].run(vars, info).data().0,
+                        &args[1].run(vars, info).data().0,
+                    ) {
                         (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a - b).to(),
                         (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Float(a as f64 - b).to()
+                            VDataEnum::Float(*a as f64 - *b).to()
                         }
                         (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Float(a - b as f64).to()
+                            VDataEnum::Float(*a - *b as f64).to()
                         }
                         (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Float(a - b).to(),
                         _ => unreachable!("sub: not a number"),
@@ -1248,13 +1297,16 @@ impl BuiltinFunction {
             }
             Self::Mul => {
                 if args.len() == 2 {
-                    match (args[0].run(vars, info).data, args[1].run(vars, info).data) {
+                    match (
+                        &args[0].run(vars, info).data().0,
+                        &args[1].run(vars, info).data().0,
+                    ) {
                         (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a * b).to(),
                         (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Float(a as f64 * b).to()
+                            VDataEnum::Float(*a as f64 * b).to()
                         }
                         (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Float(a * b as f64).to()
+                            VDataEnum::Float(a * *b as f64).to()
                         }
                         (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Float(a * b).to(),
                         _ => unreachable!("mul: not a number"),
@@ -1265,13 +1317,16 @@ impl BuiltinFunction {
             }
             Self::Div => {
                 if args.len() == 2 {
-                    match (args[0].run(vars, info).data, args[1].run(vars, info).data) {
+                    match (
+                        &args[0].run(vars, info).data().0,
+                        &args[1].run(vars, info).data().0,
+                    ) {
                         (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a / b).to(),
                         (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Float(a as f64 / b).to()
+                            VDataEnum::Float(*a as f64 / b).to()
                         }
                         (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Float(a / b as f64).to()
+                            VDataEnum::Float(a / *b as f64).to()
                         }
                         (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Float(a / b).to(),
                         _ => unreachable!("div: not a number"),
@@ -1282,13 +1337,16 @@ impl BuiltinFunction {
             }
             Self::Mod => {
                 if args.len() == 2 {
-                    match (args[0].run(vars, info).data, args[1].run(vars, info).data) {
+                    match (
+                        &args[0].run(vars, info).data().0,
+                        &args[1].run(vars, info).data().0,
+                    ) {
                         (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a % b).to(),
                         (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Float(a as f64 % b).to()
+                            VDataEnum::Float(*a as f64 % b).to()
                         }
                         (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Float(a % b as f64).to()
+                            VDataEnum::Float(a % *b as f64).to()
                         }
                         (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Float(a % b).to(),
                         _ => unreachable!("mod: not a number"),
@@ -1299,23 +1357,26 @@ impl BuiltinFunction {
             }
             Self::Pow => {
                 if args.len() == 2 {
-                    match (args[0].run(vars, info).data, args[1].run(vars, info).data) {
-                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(if b == 0 {
+                    match (
+                        &args[0].run(vars, info).data().0,
+                        &args[1].run(vars, info).data().0,
+                    ) {
+                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(if *b == 0 {
                             1
-                        } else if b > 0 {
-                            a.pow(b as _)
+                        } else if *b > 0 {
+                            (*a).pow(*b as _)
                         } else {
                             0
                         })
                         .to(),
                         (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Float((a as f64).powf(b)).to()
+                            VDataEnum::Float((*a as f64).powf(*b)).to()
                         }
                         (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Float(a.powi(b as _)).to()
+                            VDataEnum::Float((*a).powi(*b as _)).to()
                         }
                         (VDataEnum::Float(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Float(a.powf(b)).to()
+                            VDataEnum::Float((*a).powf(*b)).to()
                         }
                         _ => unreachable!("pow: not a number"),
                     }
@@ -1332,15 +1393,18 @@ impl BuiltinFunction {
             }
             Self::Gt => {
                 if args.len() == 2 {
-                    match (args[0].run(vars, info).data, args[1].run(vars, info).data) {
-                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(a > b).to(),
+                    match (
+                        &args[0].run(vars, info).data().0,
+                        &args[1].run(vars, info).data().0,
+                    ) {
+                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(*a > *b).to(),
                         (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Bool(a as f64 > b).to()
+                            VDataEnum::Bool(*a as f64 > *b).to()
                         }
                         (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Bool(a > b as f64).to()
+                            VDataEnum::Bool(*a > *b as f64).to()
                         }
-                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Bool(a > b).to(),
+                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Bool(*a > *b).to(),
                         _ => unreachable!("gt: not a number"),
                     }
                 } else {
@@ -1349,15 +1413,18 @@ impl BuiltinFunction {
             }
             Self::Lt => {
                 if args.len() == 2 {
-                    match (args[0].run(vars, info).data, args[1].run(vars, info).data) {
-                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(a < b).to(),
+                    match (
+                        &args[0].run(vars, info).data().0,
+                        &args[1].run(vars, info).data().0,
+                    ) {
+                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(*a < *b).to(),
                         (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Bool((a as f64) < b).to()
+                            VDataEnum::Bool((*a as f64) < *b).to()
                         }
                         (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Bool(a < b as f64).to()
+                            VDataEnum::Bool(*a < *b as f64).to()
                         }
-                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Bool(a < b).to(),
+                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Bool(*a < *b).to(),
                         _ => unreachable!("lt: not a number"),
                     }
                 } else {
@@ -1366,15 +1433,20 @@ impl BuiltinFunction {
             }
             Self::Gtoe => {
                 if args.len() == 2 {
-                    match (args[0].run(vars, info).data, args[1].run(vars, info).data) {
-                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(a >= b).to(),
+                    match (
+                        &args[0].run(vars, info).data().0,
+                        &args[1].run(vars, info).data().0,
+                    ) {
+                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(*a >= *b).to(),
                         (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Bool(a as f64 >= b).to()
+                            VDataEnum::Bool(*a as f64 >= *b).to()
                         }
                         (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Bool(a >= b as f64).to()
+                            VDataEnum::Bool(*a >= *b as f64).to()
                         }
-                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Bool(a >= b).to(),
+                        (VDataEnum::Float(a), VDataEnum::Float(b)) => {
+                            VDataEnum::Bool(*a >= *b).to()
+                        }
                         _ => unreachable!("gtoe: not a number"),
                     }
                 } else {
@@ -1383,15 +1455,20 @@ impl BuiltinFunction {
             }
             Self::Ltoe => {
                 if args.len() == 2 {
-                    match (args[0].run(vars, info).data, args[1].run(vars, info).data) {
-                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(a <= b).to(),
+                    match (
+                        &args[0].run(vars, info).data().0,
+                        &args[1].run(vars, info).data().0,
+                    ) {
+                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(*a <= *b).to(),
                         (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Bool(a as f64 <= b).to()
+                            VDataEnum::Bool(*a as f64 <= *b).to()
                         }
                         (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Bool(a <= b as f64).to()
+                            VDataEnum::Bool(*a <= *b as f64).to()
                         }
-                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Bool(a <= b).to(),
+                        (VDataEnum::Float(a), VDataEnum::Float(b)) => {
+                            VDataEnum::Bool(*a <= *b).to()
+                        }
                         _ => unreachable!("ltoe: not a number"),
                     }
                 } else {
@@ -1400,16 +1477,19 @@ impl BuiltinFunction {
             }
             Self::Min => {
                 if args.len() == 2 {
-                    match (args[0].run(vars, info).data, args[1].run(vars, info).data) {
-                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a.min(b)).to(),
+                    match (
+                        &args[0].run(vars, info).data().0,
+                        &args[1].run(vars, info).data().0,
+                    ) {
+                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int((*a).min(*b)).to(),
                         (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Float((a as f64).min(b)).to()
+                            VDataEnum::Float((*a as f64).min(*b)).to()
                         }
                         (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Float(a.min(b as f64)).to()
+                            VDataEnum::Float((*a).min(*b as f64)).to()
                         }
                         (VDataEnum::Float(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Float(a.min(b)).to()
+                            VDataEnum::Float((*a).min(*b)).to()
                         }
                         _ => unreachable!("min: not a number"),
                     }
@@ -1419,16 +1499,19 @@ impl BuiltinFunction {
             }
             Self::Max => {
                 if args.len() == 2 {
-                    match (args[0].run(vars, info).data, args[1].run(vars, info).data) {
-                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a.max(b)).to(),
+                    match (
+                        &args[0].run(vars, info).data().0,
+                        &args[1].run(vars, info).data().0,
+                    ) {
+                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int((*a).max(*b)).to(),
                         (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Float((a as f64).max(b)).to()
+                            VDataEnum::Float((*a as f64).max(*b)).to()
                         }
                         (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Float(a.max(b as f64)).to()
+                            VDataEnum::Float((*a).max(*b as f64)).to()
                         }
                         (VDataEnum::Float(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Float(a.max(b)).to()
+                            VDataEnum::Float((*a).max(*b)).to()
                         }
                         _ => unreachable!("max: not a number"),
                     }
@@ -1438,8 +1521,9 @@ impl BuiltinFunction {
             }
             Self::Push => {
                 if args.len() == 2 {
-                    if let VDataEnum::Reference(v) = args[0].run(vars, info).data {
-                        if let VDataEnum::List(_, v) = &mut v.lock().unwrap().data {
+                    // Since this is a reference, it is safe to assume that make_mut() would do nothing.
+                    if let VDataEnum::Reference(v) = &args[0].run(vars, info).data().0 {
+                        if let VDataEnum::List(_, v) = &mut v.data().0 {
                             v.push(args[1].run(vars, info));
                         }
                         VDataEnum::Tuple(vec![]).to()
@@ -1452,11 +1536,13 @@ impl BuiltinFunction {
             }
             Self::Insert => {
                 if args.len() == 3 {
-                    if let (VDataEnum::Reference(v), VDataEnum::Int(i)) =
-                        (args[0].run(vars, info).data, args[2].run(vars, info).data)
-                    {
-                        if let VDataEnum::List(_, v) = &mut v.lock().unwrap().data {
-                            v.insert(i as _, args[1].run(vars, info));
+                    // this being a reference means we wont need to call make_mut() later, so a .as_ref() borrow is enough.
+                    if let (VDataEnum::Reference(v), VDataEnum::Int(i)) = (
+                        &args[0].run(vars, info).data().0,
+                        &args[2].run(vars, info).data().0,
+                    ) {
+                        if let VDataEnum::List(_, v) = &mut v.data().0 {
+                            v.insert(*i as _, args[1].run(vars, info));
                         }
                         VDataEnum::Tuple(vec![]).to()
                     } else {
@@ -1468,8 +1554,9 @@ impl BuiltinFunction {
             }
             Self::Pop => {
                 if args.len() == 1 {
-                    if let VDataEnum::Reference(v) = args[0].run(vars, info).data {
-                        if let VDataEnum::List(_, v) = &mut v.lock().unwrap().data {
+                    // this being a reference means we wont need to call make_mut() later, so a .as_ref() borrow is enough.
+                    if let VDataEnum::Reference(v) = &args[0].run(vars, info).data().0 {
+                        if let VDataEnum::List(_, v) = &mut v.data.lock().unwrap().0 {
                             if let Some(v) = v.pop() {
                                 VDataEnum::Tuple(vec![v])
                             } else {
@@ -1488,12 +1575,14 @@ impl BuiltinFunction {
             }
             Self::Remove => {
                 if args.len() == 2 {
-                    if let (VDataEnum::Reference(v), VDataEnum::Int(i)) =
-                        (args[0].run(vars, info).data, args[1].run(vars, info).data)
-                    {
-                        if let VDataEnum::List(_, v) = &mut v.lock().unwrap().data {
-                            if v.len() > i as _ && i >= 0 {
-                                let v = v.remove(i as _);
+                    // this being a reference means we wont need to call make_mut() later, so a .as_ref() borrow is enough.
+                    if let (VDataEnum::Reference(v), VDataEnum::Int(i)) = (
+                        &args[0].run(vars, info).data().0,
+                        &args[1].run(vars, info).data().0,
+                    ) {
+                        if let VDataEnum::List(_, v) = &mut v.data.lock().unwrap().0 {
+                            if *i >= 0 && v.len() > *i as _ {
+                                let v = v.remove(*i as _);
                                 VDataEnum::Tuple(vec![v]).to()
                             } else {
                                 VDataEnum::Tuple(vec![]).to()
@@ -1510,21 +1599,22 @@ impl BuiltinFunction {
             }
             Self::Get => {
                 if args.len() == 2 {
-                    if let (container, VDataEnum::Int(i)) =
-                        (args[0].run(vars, info).data, args[1].run(vars, info).data)
-                    {
-                        if i >= 0 {
+                    if let (container, VDataEnum::Int(i)) = (
+                        &args[0].run(vars, info).data().0,
+                        &args[1].run(vars, info).data().0,
+                    ) {
+                        if *i >= 0 {
                             match match container {
-                                VDataEnum::Reference(v) => match &v.lock().unwrap().data {
+                                VDataEnum::Reference(v) => match &v.data().0 {
                                     VDataEnum::List(_, v) | VDataEnum::Tuple(v) => {
-                                        v.get(i as usize).map(|v| v.clone())
+                                        v.get(*i as usize).map(|v| v.clone())
                                     }
                                     _ => unreachable!(
                                         "get: reference to something other than list/tuple"
                                     ),
                                 },
                                 VDataEnum::List(_, v) | VDataEnum::Tuple(v) => {
-                                    v.get(i as usize).map(|v| v.clone())
+                                    v.get(*i as usize).map(|v| v.clone())
                                 }
                                 _ => unreachable!("get: not a reference/list/tuple"),
                             } {
@@ -1541,9 +1631,40 @@ impl BuiltinFunction {
                     unreachable!("get: not 2 args")
                 }
             }
+            Self::GetRef => {
+                if args.len() == 2 {
+                    if let (VDataEnum::Reference(container), VDataEnum::Int(i)) = (
+                        &args[0].run(vars, info).data().0,
+                        &args[1].run(vars, info).data().0,
+                    ) {
+                        if *i >= 0 {
+                            // we can get mutably because this is the content of a reference
+                            match match &mut container.data().0 {
+                                VDataEnum::List(_, v) | VDataEnum::Tuple(v) => {
+                                    if let Some(v) = v.get_mut(*i as usize) {
+                                        Some(VDataEnum::Reference(v.clone_mut()).to())
+                                    } else {
+                                        None
+                                    }
+                                }
+                                _ => unreachable!("get: not a reference/list/tuple"),
+                            } {
+                                Some(v) => VDataEnum::Tuple(vec![v]).to(),
+                                None => VDataEnum::Tuple(vec![]).to(),
+                            }
+                        } else {
+                            VDataEnum::Tuple(vec![]).to()
+                        }
+                    } else {
+                        unreachable!("get_ref: not a reference and index")
+                    }
+                } else {
+                    unreachable!("get: not 2 args")
+                }
+            }
             Self::Len => {
                 if args.len() == 1 {
-                    VDataEnum::Int(match args[0].run(vars, info).data {
+                    VDataEnum::Int(match &args[0].run(vars, info).data().0 {
                         VDataEnum::String(v) => v.len(),
                         VDataEnum::Tuple(v) => v.len(),
                         VDataEnum::List(_, v) => v.len(),
@@ -1556,8 +1677,8 @@ impl BuiltinFunction {
             }
             Self::Contains => {
                 if args.len() == 2 {
-                    if let VDataEnum::String(a1) = args[0].run(vars, info).data {
-                        if let VDataEnum::String(a2) = args[1].run(vars, info).data {
+                    if let VDataEnum::String(a1) = &args[0].run(vars, info).data().0 {
+                        if let VDataEnum::String(a2) = &args[1].run(vars, info).data().0 {
                             VDataEnum::Bool(a1.contains(a2.as_str())).to()
                         } else {
                             unreachable!()
@@ -1571,8 +1692,8 @@ impl BuiltinFunction {
             }
             Self::StartsWith => {
                 if args.len() == 2 {
-                    if let VDataEnum::String(a1) = args[0].run(vars, info).data {
-                        if let VDataEnum::String(a2) = args[1].run(vars, info).data {
+                    if let VDataEnum::String(a1) = &args[0].run(vars, info).data().0 {
+                        if let VDataEnum::String(a2) = &args[1].run(vars, info).data().0 {
                             VDataEnum::Bool(a1.starts_with(a2.as_str())).to()
                         } else {
                             unreachable!()
@@ -1586,8 +1707,8 @@ impl BuiltinFunction {
             }
             Self::EndsWith => {
                 if args.len() == 2 {
-                    if let VDataEnum::String(a1) = args[0].run(vars, info).data {
-                        if let VDataEnum::String(a2) = args[1].run(vars, info).data {
+                    if let VDataEnum::String(a1) = &args[0].run(vars, info).data().0 {
+                        if let VDataEnum::String(a2) = &args[1].run(vars, info).data().0 {
                             VDataEnum::Bool(a1.ends_with(a2.as_str())).to()
                         } else {
                             unreachable!()
@@ -1622,41 +1743,38 @@ impl BuiltinFunction {
                             VDataEnum::Tuple(vec![]).to()
                         }
                     }
-                    match (find_in.data, pat.data) {
-                        (VDataEnum::String(a), VDataEnum::String(b)) => find(&a, &b),
-                        (VDataEnum::String(a), VDataEnum::Reference(b)) => {
-                            match &b.lock().unwrap().data {
-                                VDataEnum::String(b) => find(&a, b),
-                                _ => unreachable!(),
-                            }
-                        }
-                        (VDataEnum::Reference(a), VDataEnum::String(b)) => {
-                            match &a.lock().unwrap().data {
-                                VDataEnum::String(a) => find(a, &b),
-                                _ => unreachable!(),
-                            }
-                        }
+                    let o = match (&find_in.data().0, &pat.data().0) {
+                        (VDataEnum::String(a), VDataEnum::String(b)) => find(a, b),
+                        (VDataEnum::String(a), VDataEnum::Reference(b)) => match &b.data().0 {
+                            VDataEnum::String(b) => find(a, b),
+                            _ => unreachable!(),
+                        },
+                        (VDataEnum::Reference(a), VDataEnum::String(b)) => match &a.data().0 {
+                            VDataEnum::String(a) => find(a, b),
+                            _ => unreachable!(),
+                        },
                         (VDataEnum::Reference(a), VDataEnum::Reference(b)) => {
-                            if Arc::ptr_eq(&a, &b) {
+                            if a.ptr_eq(b) {
                                 // point to the same string
                                 // (this is required because a.lock() would cause b.lock() to wait indefinitely if you pass a two references to the same string here)
                                 VDataEnum::Int(0).to()
                             } else {
-                                match (&a.lock().unwrap().data, &b.lock().unwrap().data) {
+                                match (&a.data().0, &b.data().0) {
                                     (VDataEnum::String(a), VDataEnum::String(b)) => find(a, b),
                                     _ => unreachable!(),
                                 }
                             }
                         }
                         _ => unreachable!(),
-                    }
+                    };
+                    o
                 } else {
                     unreachable!()
                 }
             }
             Self::Trim => {
                 if args.len() == 1 {
-                    if let VDataEnum::String(a) = args[0].run(vars, info).data {
+                    if let VDataEnum::String(a) = &args[0].run(vars, info).data().0 {
                         VDataEnum::String(a.trim().to_string()).to()
                     } else {
                         unreachable!()
@@ -1667,18 +1785,18 @@ impl BuiltinFunction {
             }
             Self::Substring => {
                 if args.len() >= 2 {
-                    if let VDataEnum::String(a) = args[0].run(vars, info).data {
+                    if let VDataEnum::String(a) = &args[0].run(vars, info).data().0 {
                         if args.len() > 3 {
                             unreachable!()
                         }
-                        let left = if let VDataEnum::Int(left) = args[1].run(vars, info).data {
-                            left
+                        let left = if let VDataEnum::Int(left) = &args[1].run(vars, info).data().0 {
+                            *left
                         } else {
                             unreachable!()
                         };
                         let len = if args.len() == 3 {
-                            if let VDataEnum::Int(len) = args[2].run(vars, info).data {
-                                Some(len)
+                            if let VDataEnum::Int(len) = &args[2].run(vars, info).data().0 {
+                                Some(*len)
                             } else {
                                 unreachable!()
                             }
@@ -1714,20 +1832,21 @@ impl BuiltinFunction {
             }
             Self::Replace => {
                 if let (VDataEnum::String(a), VDataEnum::String(b), VDataEnum::String(c)) = (
-                    args[0].run(vars, info).data,
-                    args[1].run(vars, info).data,
-                    args[2].run(vars, info).data,
+                    &args[0].run(vars, info).data().0,
+                    &args[1].run(vars, info).data().0,
+                    &args[2].run(vars, info).data().0,
                 ) {
-                    VDataEnum::String(a.replace(&b, &c)).to()
+                    VDataEnum::String(a.replace(b, c)).to()
                 } else {
                     unreachable!()
                 }
             }
             Self::Regex => {
                 if args.len() == 2 {
-                    if let (VDataEnum::String(a), VDataEnum::String(regex)) =
-                        (args[0].run(vars, info).data, args[1].run(vars, info).data)
-                    {
+                    if let (VDataEnum::String(a), VDataEnum::String(regex)) = (
+                        &args[0].run(vars, info).data().0,
+                        &args[1].run(vars, info).data().0,
+                    ) {
                         match regex::Regex::new(regex.as_str()) {
                             Ok(regex) => VDataEnum::List(
                                 VSingleType::String.to(),
@@ -1757,9 +1876,9 @@ impl BuiltinFunction {
 fn vdata_to_bytes(vd: &Vec<VData>) -> Option<Vec<u8>> {
     let mut bytes = Vec::with_capacity(vd.len());
     for b in vd {
-        if let VDataEnum::Int(b) = b.data {
-            bytes.push(if 0 <= b && b <= u8::MAX as isize {
-                b as u8
+        if let VDataEnum::Int(b) = &b.data().0 {
+            bytes.push(if 0 <= *b && *b <= u8::MAX as isize {
+                *b as u8
             } else if b.is_negative() {
                 0
             } else {

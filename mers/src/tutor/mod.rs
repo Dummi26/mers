@@ -45,7 +45,7 @@ false
         i_name: None,
     };
     loop {
-        if let VDataEnum::Bool(true) = tutor.let_user_make_change().run(vec![]).data {
+        if let VDataEnum::Bool(true) = &tutor.let_user_make_change().run(vec![]).data().0 {
             break;
         }
     }
