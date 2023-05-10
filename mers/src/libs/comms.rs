@@ -123,8 +123,8 @@ pub mod run_function {
 
 // implementations of ByteData for other data
 
-type UsizeConstLen = u32;
-type IsizeConstLen = i32;
+type UsizeConstLen = u64;
+type IsizeConstLen = i64;
 
 impl ByteDataA for usize {
     fn as_byte_data(&self, vec: &mut Vec<u8>) {
