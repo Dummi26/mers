@@ -315,11 +315,13 @@ pub fn stype(t: &mut VSingleType, ginfo: &mut GlobalScriptInfo) -> Result<(), To
         }
         VSingleType::EnumVariant(_, t) => stypes(t, ginfo)?,
         VSingleType::CustomTypeS(name) => {
-            *t = VSingleType::CustomType(if let Some(v) = ginfo.custom_type_names.get(name) {
-                *v
-            } else {
-                return Err(ToRunnableError::UnknownType(name.to_owned()));
-            })
+            *t = VSingleType::CustomType(
+                if let Some(v) = ginfo.custom_type_names.get(&name.to_lowercase()) {
+                    *v
+                } else {
+                    return Err(ToRunnableError::UnknownType(name.to_owned()));
+                },
+            )
         }
         VSingleType::CustomType(_) => (),
     }
@@ -603,7 +605,7 @@ fn statement(
             }, statement(s, ginfo, linfo)?),
             SStatementEnum::TypeDefinition(name, t) => {
                 // insert to name map has to happen before stypes()
-                ginfo.custom_type_names.insert(name.to_owned(), ginfo.custom_types.len());
+                ginfo.custom_type_names.insert(name.to_lowercase(), ginfo.custom_types.len());
                 let mut t = t.to_owned();
                 stypes(&mut t, ginfo)?;
                 ginfo.custom_types.push(t);
