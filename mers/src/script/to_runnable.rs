@@ -652,11 +652,11 @@ fn statement(
                     ));
                 }
                 linfo.vars.insert(opt.clone(), (ginfo.vars, out));
-                statement.output_to = Some((ginfo.vars, 0));
+                statement.output_to = Some((ginfo.vars, 0, true));
                 ginfo.vars += 1;
             } else {
                 // mutate existing variable
-                statement.output_to = Some((*var_id, *derefs));
+                statement.output_to = Some((*var_id, *derefs, false));
             }
         } else {
             let mut out = statement.out(ginfo);
@@ -672,7 +672,7 @@ fn statement(
                 }
             }
             linfo.vars.insert(opt.clone(), (ginfo.vars, out));
-            statement.output_to = Some((ginfo.vars, *derefs));
+            statement.output_to = Some((ginfo.vars, *derefs, true));
             ginfo.vars += 1;
         }
     }
