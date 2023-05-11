@@ -24,6 +24,8 @@ impl VData {
                 return;
             }
         }
+        #[cfg(debug_assertions)]
+        eprintln!("VData: assign: overwriting my previous Arc because it was immutable.");
         *self = new_val.to();
     }
     pub fn inner_replace(&mut self, new_val: VDataEnum) -> VDataEnum {
@@ -39,14 +41,20 @@ impl VData {
     }
     /// returns the contained VDataEnum. May or may not clone.
     pub fn inner(self) -> VDataEnum {
-        self.data().0.clone()
+        // Arc::unwrap_or_clone(self.data).lock().unwrap().0
+        let o = match Arc::try_unwrap(self.data) {
+            Ok(v) => std::mem::replace(&mut v.lock().unwrap().0, VDataEnum::Bool(false)),
+            Err(e) => e.lock().unwrap().0.clone(),
+        };
+        o
     }
     /// ensures self is mutable, then returns a new instance of VData that is also mutable and uses the same Arc<Mutex<_>>.
     pub fn clone_mut(&mut self) -> Self {
         // if not mutable, copy and set to mutable.
         self.make_mut();
         // now, both self and the returned value are set to mutable and share the same mutex.
-        self.clone_mut_assume()
+        let o = self.clone_mut_assume();
+        o
     }
     /// like clone_mut, but assumes self is already mutable, and therefor does not need to mutate self
     /// as the Arc<Mutex<_>> will stay the same.
@@ -61,9 +69,17 @@ impl VData {
     /// makes self mutable. might clone.
     pub fn make_mut(&mut self) -> &mut Self {
         {
-            let mut s = self.data.lock().unwrap();
+            let mut s = self.data();
             if !s.1 {
-                *s = (s.0.clone(), true);
+                if Arc::strong_count(&self.data) > 1 {
+                    // not mutable yet - clone the value to avoid modifying an immutable one.
+                    #[cfg(debug_assertions)]
+                    eprintln!("VData: actually copying value due to mutation of an immutable shared value. (strong count: {})", Arc::strong_count(&self.data));
+                    *s = (s.0.clone(), true);
+                } else {
+                    // value was immutable, but not shared, so we can just make it mutable.
+                    s.1 = true;
+                }
             }
         }
         self
@@ -74,13 +90,39 @@ impl VData {
 }
 impl Clone for VData {
     fn clone(&self) -> Self {
+        #[cfg(debug_assertions)]
+        eprint!("VData: Clone: ");
         let mut d = self.data.lock().unwrap();
-        // set to immutable, locking the data as-is.
-        d.1 = false;
-        // then return the same arc (-> avoid cloning)
-        Self {
-            data: Arc::clone(&self.data),
-        }
+        let o = if d.1 {
+            if Arc::strong_count(&self.data) > 1 {
+                // mutable, copy the value to avoid accidentally modifying it.
+                #[cfg(debug_assertions)]
+                eprint!(
+                    "copying value due to clone of a mutable shared value. (strong count: {})",
+                    Arc::strong_count(&self.data)
+                );
+                d.0.clone().to()
+            } else {
+                // mutable, but not shared. just change it to not being mutable.
+                #[cfg(debug_assertions)]
+                eprint!("setting mutable value to immutable to avoid copying. clone will happen when value is used mutably.");
+                d.1 = false;
+                // then return the same arc (-> avoid cloning)
+                Self {
+                    data: Arc::clone(&self.data),
+                }
+            }
+        } else {
+            #[cfg(debug_assertions)]
+            eprint!("immutably cloning immutable value. no copy necessary.");
+            // immutable, return the same arc (-> avoid cloning)
+            Self {
+                data: Arc::clone(&self.data),
+            }
+        };
+        #[cfg(debug_assertions)]
+        eprintln!();
+        o
     }
 }
 impl Debug for VData {
