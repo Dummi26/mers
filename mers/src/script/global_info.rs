@@ -6,6 +6,7 @@ use super::{builtins, val_type::VType};
 
 pub type GSInfo = Arc<GlobalScriptInfo>;
 
+#[derive(Debug)]
 pub struct GlobalScriptInfo {
     pub vars: usize,
 

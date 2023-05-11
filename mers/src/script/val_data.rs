@@ -24,8 +24,8 @@ impl VData {
                 return;
             }
         }
-        #[cfg(debug_assertions)]
-        eprintln!("VData: assign: overwriting my previous Arc because it was immutable.");
+        // #[cfg(debug_assertions)]
+        // eprintln!("VData: assign: overwriting my previous Arc because it was immutable.");
         *self = new_val.to();
     }
     pub fn inner_replace(&mut self, new_val: VDataEnum) -> VDataEnum {
@@ -90,22 +90,18 @@ impl VData {
 }
 impl Clone for VData {
     fn clone(&self) -> Self {
-        #[cfg(debug_assertions)]
-        eprint!("VData: Clone: ");
         let mut d = self.data.lock().unwrap();
         let o = if d.1 {
             if Arc::strong_count(&self.data) > 1 {
                 // mutable, copy the value to avoid accidentally modifying it.
                 #[cfg(debug_assertions)]
-                eprint!(
-                    "copying value due to clone of a mutable shared value. (strong count: {})",
+                eprintln!(
+                    "VData: Clone: copying value due to clone of a mutable shared value. (strong count: {})",
                     Arc::strong_count(&self.data)
                 );
                 d.0.clone().to()
             } else {
                 // mutable, but not shared. just change it to not being mutable.
-                #[cfg(debug_assertions)]
-                eprint!("setting mutable value to immutable to avoid copying. clone will happen when value is used mutably.");
                 d.1 = false;
                 // then return the same arc (-> avoid cloning)
                 Self {
@@ -113,15 +109,11 @@ impl Clone for VData {
                 }
             }
         } else {
-            #[cfg(debug_assertions)]
-            eprint!("immutably cloning immutable value. no copy necessary.");
             // immutable, return the same arc (-> avoid cloning)
             Self {
                 data: Arc::clone(&self.data),
             }
         };
-        #[cfg(debug_assertions)]
-        eprintln!();
         o
     }
 }
@@ -227,6 +219,13 @@ impl VDataEnum {
     pub fn to(self) -> VData {
         VData {
             data: Arc::new(Mutex::new((self, true))),
+        }
+    }
+    pub fn deref(self) -> Option<VData> {
+        if let Self::Reference(r) = self {
+            Some(r)
+        } else {
+            None
         }
     }
 }

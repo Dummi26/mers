@@ -63,6 +63,7 @@ fn parse_mers_code(file: &mut File) -> Result<RScript, MacroError> {
     }
 }
 
+#[derive(Debug)]
 pub enum Macro {
     /// Compiles and executes the provided mers code at compile-time and inserts the value
     StaticMers(VData),

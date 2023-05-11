@@ -19,3 +19,21 @@ fn map_string_to_int(list [string ...] func fn((string int))) {
 for v ["1" "2" "5" "-10" ...].map_string_to_int((s string) s.parse_int().assume1("list contained strings that can't be parsed to an int!")) {
     debug(v)
 }
+
+
+// returns an iterator to iteratively compute square numbers
+// using the fact that (n+1)^2 = n^2 + 2n + 1
+fn square_numbers() {
+    i = 0
+    val = 0
+    () {
+        val = val + { 2 * i } + 1
+        i = i + 1
+        [val]
+    }
+}
+
+for n square_numbers() {
+    println(n.to_string())
+    n >= 100
+}

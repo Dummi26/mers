@@ -1,0 +1,8 @@
+&a = "value"
+&list = ["a" "b" "c" ...]
+&elem = &list.get_ref(1)
+switch! elem {
+    [&string] elem.0 = "z"
+    [] {}
+}
+list.debug()

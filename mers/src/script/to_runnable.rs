@@ -36,6 +36,7 @@ pub enum ToRunnableError {
         found: VType,
         problematic: VType,
     },
+    CannotAssignTo(VType, VType),
     CaseForceButTypeNotCovered(VType),
     MatchConditionInvalidReturn(VType),
     NotIndexableFixed(VType, usize),
@@ -129,6 +130,14 @@ impl ToRunnableError {
                     }
                     write!(f, ".")
                 }
+                Self::CannotAssignTo(val, target) => {
+                    write!(f, "Cannot assign type ")?;
+                    val.fmtgs(f, info)?;
+                    write!(f, " to ")?;
+                    target.fmtgs(f, info)?;
+                    write!(f, ".")?;
+                    Ok(())
+                },
                 Self::ForLoopContainerHasNoInnerTypes => {
                     write!(f, "For loop: container had no inner types, cannot iterate.")
                 }
@@ -332,7 +341,16 @@ fn statement(
     ginfo: &mut GlobalScriptInfo,
     linfo: &mut LInfo,
 ) -> Result<RStatement, ToRunnableError> {
-    let mut statement = match &*s.statement {
+    statement_adv(s, ginfo, linfo, None)
+}
+fn statement_adv(
+    s: &SStatement,
+    ginfo: &mut GlobalScriptInfo,
+    linfo: &mut LInfo,
+    // if Some((t, is_init)), the statement creates by this function is the left side of an assignment, meaning it can create variables. t is the type that will be assigned to it.
+    to_be_assigned_to: Option<(VType, &mut bool)>,
+) -> Result<RStatement, ToRunnableError> {
+    let mut state = match &*s.statement {
             SStatementEnum::Value(v) => RStatementEnum::Value(v.clone()),
             SStatementEnum::Tuple(v) | SStatementEnum::List(v) => {
                 let mut w = Vec::with_capacity(v.len());
@@ -346,11 +364,18 @@ fn statement(
                 }
             }
             SStatementEnum::Variable(v, is_ref) => {
+                if !linfo.vars.contains_key(v) {
+                    if let Some((t, is_init)) = to_be_assigned_to {
+                        *is_init = true;
+                        linfo.vars.insert(v.to_owned(), (ginfo.vars, t));
+                        ginfo.vars += 1;
+                    }
+                }
                 if let Some(var) = linfo.vars.get(v) {
                     RStatementEnum::Variable(var.0, {
                         let mut v = var.1.clone(); stypes(&mut v, ginfo)?; v }, *is_ref)
                 } else {
-                    return Err(ToRunnableError::UseOfUndefinedVariable(v.clone()));
+                        return Err(ToRunnableError::UseOfUndefinedVariable(v.clone()));
                 }
             }
             SStatementEnum::FunctionCall(v, args) => {
@@ -620,61 +645,103 @@ fn statement(
     if let Some(force_opt) = &s.force_output_type {
         let mut force_opt = force_opt.to_owned();
         stypes(&mut force_opt, ginfo)?;
-        let real_output_type = statement.out(ginfo);
+        let real_output_type = state.out(ginfo);
         let problematic_types = real_output_type.fits_in(&force_opt, ginfo);
         if problematic_types.is_empty() {
-            statement.force_output_type = Some(force_opt);
+            state.force_output_type = Some(force_opt);
         } else {
             return Err(ToRunnableError::StatementRequiresOutputTypeToBeAButItActuallyOutputsBWhichDoesNotFitInA(force_opt.clone(), real_output_type, VType { types: problematic_types }));
         }
     }
     if let Some((opt, derefs)) = &s.output_to {
-        if let Some((var_id, var_out)) = linfo.vars.get(opt) {
-            let out = statement.out(ginfo);
-            let mut var_derefd = var_out.clone();
-            for _ in 0..*derefs {
-                var_derefd = if let Some(v) = var_derefd.dereference() {
-                    v
-                } else {
-                    return Err(ToRunnableError::CannotDereferenceTypeNTimes(
-                        var_out.clone(),
-                        *derefs,
-                        var_derefd,
-                    ));
-                }
-            }
-            let inv_types = out.fits_in(&var_derefd, ginfo);
-            if !inv_types.is_empty() {
-                eprintln!("Warn: shadowing variable {opt} because statement's output type {out} does not fit in the original variable's {var_out}. This might become an error in the future, or it might stop shadowing the variiable entirely - for stable scripts, avoid this by giving the variable a different name.");
-                if *derefs != 0 {
-                    return Err(ToRunnableError::CannotDeclareVariableWithDereference(
-                        opt.clone(),
-                    ));
-                }
-                linfo.vars.insert(opt.clone(), (ginfo.vars, out));
-                statement.output_to = Some((ginfo.vars, 0, true));
-                ginfo.vars += 1;
+        let mut is_init = false;
+        let optr = statement_adv(
+            opt,
+            ginfo,
+            linfo,
+            if *derefs == 0 {
+                Some((state.out(ginfo), &mut is_init))
             } else {
-                // mutate existing variable
-                statement.output_to = Some((*var_id, *derefs, false));
+                None
+            },
+        )?;
+        let mut opt_type = optr.out(ginfo);
+        for _ in 0..*derefs {
+            if let Some(deref_type) = optr.out(ginfo).dereference() {
+                opt_type = deref_type;
+            } else {
+                return Err(ToRunnableError::CannotDereferenceTypeNTimes(
+                    optr.out(ginfo),
+                    *derefs,
+                    opt_type,
+                ));
             }
-        } else {
-            let mut out = statement.out(ginfo);
-            for _ in 0..*derefs {
-                out = if let Some(v) = out.dereference() {
-                    v
-                } else {
-                    return Err(ToRunnableError::CannotDereferenceTypeNTimes(
-                        statement.out(ginfo),
-                        *derefs,
-                        out,
-                    ));
-                }
-            }
-            linfo.vars.insert(opt.clone(), (ginfo.vars, out));
-            statement.output_to = Some((ginfo.vars, *derefs, true));
-            ginfo.vars += 1;
         }
+        let opt_type_assign = match opt_type.dereference() {
+            Some(v) => v,
+            None => {
+                return Err(ToRunnableError::CannotDereferenceTypeNTimes(
+                    optr.out(ginfo),
+                    derefs + 1,
+                    opt_type,
+                ))
+            }
+        };
+        if state.out(ginfo).fits_in(&opt_type_assign, ginfo).is_empty() {
+            state.output_to = Some((Box::new(optr), *derefs, is_init));
+        } else {
+            return Err(ToRunnableError::CannotAssignTo(
+                state.out(ginfo),
+                opt_type_assign,
+            ));
+        }
+        //
+        // if let Some((var_id, var_out)) = linfo.vars.get(opt) {
+        //     let out = state.out(ginfo);
+        //     let mut var_derefd = var_out.clone();
+        //     for _ in 0..*derefs {
+        //         var_derefd = if let Some(v) = var_derefd.dereference() {
+        //             v
+        //         } else {
+        //             return Err(ToRunnableError::CannotDereferenceTypeNTimes(
+        //                 var_out.clone(),
+        //                 *derefs,
+        //                 var_derefd,
+        //             ));
+        //         }
+        //     }
+        //     let inv_types = out.fits_in(&var_derefd, ginfo);
+        //     if !inv_types.is_empty() {
+        //         eprintln!("Warn: shadowing variable {opt} because statement's output type {out} does not fit in the original variable's {var_out}. This might become an error in the future, or it might stop shadowing the variiable entirely - for stable scripts, avoid this by giving the variable a different name.");
+        //         if *derefs != 0 {
+        //             return Err(ToRunnableError::CannotDeclareVariableWithDereference(
+        //                 opt.clone(),
+        //             ));
+        //         }
+        //         linfo.vars.insert(opt.clone(), (ginfo.vars, out));
+        //         state.output_to = Some((ginfo.vars, 0, true));
+        //         ginfo.vars += 1;
+        //     } else {
+        //         // mutate existing variable
+        //         state.output_to = Some((*var_id, *derefs, false));
+        //     }
+        // } else {
+        //     let mut out = state.out(ginfo);
+        //     for _ in 0..*derefs {
+        //         out = if let Some(v) = out.dereference() {
+        //             v
+        //         } else {
+        //             return Err(ToRunnableError::CannotDereferenceTypeNTimes(
+        //                 state.out(ginfo),
+        //                 *derefs,
+        //                 out,
+        //             ));
+        //         }
+        //     }
+        //     linfo.vars.insert(opt.clone(), (ginfo.vars, out));
+        //     state.output_to = Some((ginfo.vars, *derefs, true));
+        //     ginfo.vars += 1;
+        // }
     }
-    Ok(statement)
+    Ok(state)
 }

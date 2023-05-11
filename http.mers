@@ -12,6 +12,6 @@ sleep(0.5)
 http_get("https:\//github.com/").assume_no_enum()
 println("got github start page as html")
 
-// t.await()
+t.await()
 
 http_get("not a url").debug()

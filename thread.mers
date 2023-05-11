@@ -11,10 +11,12 @@ progress = 0
 calculator = (max int) {
     sum = 0
     for i max {
-        i = i.add(1)
-        sum = sum.add(i)
+        i = i + 1
+        // println("i: {0}".format(i.to_string()))
+        println("i: {0} s: {1}".format(i.to_string() sum.to_string()))
+        sum = sum + i + 1
         if fake_delay sleep(1)
-        progress = i.mul(100).div(max)
+        v = i * 100 / max
     }
     "the sum of all numbers from 0 to {0} is {1}!".format(max.to_string() sum.to_string())
 }
@@ -26,7 +28,7 @@ slow_calculation_thread = calculator.thread(if fake_delay 10 else 20000000)
 loop {
     sleep(1)
     println("{0}%".format(progress.to_string()))
-    progress.eq(100) // break from the loop
+    progress == 100 // break from the loop
 }
 
 // use await() to get the result from the thread. if the thread is still running, this will block until the thread finishes.

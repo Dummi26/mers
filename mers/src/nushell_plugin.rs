@@ -120,10 +120,7 @@ impl Plugin for MersNuPlugin {
             }
             Err(e) => Value::Error {
                 error: Box::new(ShellError::IncorrectValue {
-                    msg: format!(
-                        "Couldn't compile mers, error: {}",
-                        e.with_file(&file)
-                    ),
+                    msg: format!("Couldn't compile mers, error: {}", e.with_file(&file)),
                     span: source_span,
                 }),
             },

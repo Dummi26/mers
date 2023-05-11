@@ -2,6 +2,7 @@ use std::fmt::{self, Display, Formatter, Pointer};
 
 use super::{code_macro::Macro, global_info::GlobalScriptInfo, val_data::VData, val_type::VType};
 
+#[derive(Debug)]
 pub enum SStatementEnum {
     Value(VData),
     Tuple(Vec<SStatement>),
@@ -30,8 +31,9 @@ impl SStatementEnum {
     }
 }
 
+#[derive(Debug)]
 pub struct SStatement {
-    pub output_to: Option<(String, usize)>,
+    pub output_to: Option<(Box<SStatement>, usize)>,
     pub statement: Box<SStatementEnum>,
     pub force_output_type: Option<VType>,
 }
@@ -44,8 +46,8 @@ impl SStatement {
             force_output_type: None,
         }
     }
-    pub fn output_to(mut self, var: String, derefs: usize) -> Self {
-        self.output_to = Some((var, derefs));
+    pub fn output_to(mut self, statement: SStatement, derefs: usize) -> Self {
+        self.output_to = Some((Box::new(statement), derefs));
         self
     }
     // forces the statement's output to fit in a certain type.
@@ -56,6 +58,7 @@ impl SStatement {
 }
 
 /// A block of code is a collection of statements.
+#[derive(Debug)]
 pub struct SBlock {
     pub statements: Vec<SStatement>,
 }
@@ -66,6 +69,7 @@ impl SBlock {
 }
 
 // A function is a block of code that starts with some local variables as inputs and returns some value as its output. The last statement in the block will be the output.
+#[derive(Debug)]
 pub struct SFunction {
     pub inputs: Vec<(String, VType)>,
     pub block: SBlock,

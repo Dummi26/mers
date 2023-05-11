@@ -1,8 +1,10 @@
 list = [1 2 3 4 5 6 7 8 9 ...]
 
-second = &list.get_ref(2).assume1()
-second.debug()
-*second = 24
-second.debug()
+// second = &list.get_ref(2).assume1()
+// second.debug()
+// *second = 24
+// second.debug()
+
+&list.get_ref(2).assume1() = 24
 
 list.debug()

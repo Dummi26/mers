@@ -128,6 +128,8 @@ fn normal_main() {
     };
     match parsing::parse::parse(&mut file) {
         Ok(script) => {
+            #[cfg(debug_assertions)]
+            eprintln!("{script:#?}");
             println!(" - - - - -");
             let start = Instant::now();
             let out = script.run(std::env::args().skip(2).collect());

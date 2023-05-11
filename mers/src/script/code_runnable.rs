@@ -82,32 +82,23 @@ impl RFunction {
 #[derive(Clone, Debug)]
 pub struct RStatement {
     // (_, _, is_init)
-    pub output_to: Option<(usize, usize, bool)>,
+    pub output_to: Option<(Box<RStatement>, usize, bool)>,
     statement: Box<RStatementEnum>,
     pub force_output_type: Option<VType>,
 }
 impl RStatement {
     pub fn run(&self, vars: &mut Vec<VData>, info: &GSInfo) -> VData {
         let out = self.statement.run(vars, info);
-        if let Some((v, derefs, is_init)) = self.output_to {
-            // let mut parent = None;
-            let mut val = &mut vars[v];
-            fn deref(n: usize, val: &mut VData, is_init: bool, out: VData) {
-                if n == 0 {
-                    if is_init {
-                        *val = out.inner().to();
-                    } else {
-                        val.assign(out.inner());
-                    }
-                } else {
-                    if let VDataEnum::Reference(r) = &mut val.data().0 {
-                        deref(n - 1, r, is_init, out)
-                    } else {
-                        unreachable!("cannot derefence: not a reference.");
-                    }
-                }
+        if let Some((v, derefs, is_init)) = &self.output_to {
+            let mut val = v.run(vars, info);
+            // even if 0 derefs, deref once because it *has* to end on a reference (otherwise writing to it would be unacceptable as the value might not expect to be modified)
+            for _ in 0..(derefs + 1) {
+                val = match val.inner().deref() {
+                    Some(v) => v,
+                    None => unreachable!("can't dereference..."),
+                };
             }
-            deref(derefs, val, is_init, out);
+            val.assign(out.inner());
             VDataEnum::Tuple(vec![]).to()
         } else {
             out
@@ -370,6 +361,7 @@ impl RStatementEnum {
     }
 }
 
+#[derive(Debug)]
 pub struct RScript {
     main: RFunction,
     info: GSInfo,

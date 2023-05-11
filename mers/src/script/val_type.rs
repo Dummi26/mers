@@ -100,6 +100,7 @@ impl VType {
             None
         }
     }
+    /// returns Some(t) where t is the type you get from dereferencing self or None if self contains even a single type that cannot be dereferenced.
     pub fn dereference(&self) -> Option<Self> {
         let mut out = Self::empty();
         for t in self.types.iter() {

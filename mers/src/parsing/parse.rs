@@ -148,6 +148,9 @@ pub fn parse(file: &mut File) -> Result<RScript, Error> {
         Err(e) => return Err((e.into(), ginfo.to_arc()).into()),
     };
 
+    #[cfg(debug_assertions)]
+    eprintln!("{func:#?}");
+
     ginfo.libs = match parse_step_libs_load(libs, &mut ginfo) {
         Ok(v) => v,
         Err(e) => return Err((e.into(), ginfo.to_arc()).into()),
@@ -533,11 +536,12 @@ pub mod implementation {
     }
 
     pub(crate) fn parse_statement(file: &mut File) -> Result<SStatement, ParseError> {
-        parse_statement_adv(file, false)
+        parse_statement_adv(file, false, 0)
     }
     pub(crate) fn parse_statement_adv(
         file: &mut File,
         is_part_of_chain_already: bool,
+        chain_level: usize,
     ) -> Result<SStatement, ParseError> {
         file.skip_whitespaces();
         let err_start_of_statement = *file.get_pos();
@@ -589,37 +593,6 @@ pub mod implementation {
                 };
                 match nchar {
                     Some(':') => {
-                        let file_pos_before_pot_type = *file.get_pos();
-                        let parsed_type = parse_type(file);
-                        file.skip_whitespaces();
-                        if let Some('=') = file.next() {
-                            let err_equals_sign = *file.get_pos();
-                            let start = start.trim();
-                            let derefs = start.chars().take_while(|c| *c == '*').count();
-                            match parse_statement(file) {
-                            Ok(v) => break v
-                                .output_to(start[derefs..].to_owned(), derefs)
-                                .force_output_type(Some(match parsed_type {
-                                    Ok(v) => v,
-                                    Err(mut e) => {
-                                        e.context.push((
-                                            format!("interpreted this as an assignment to a variable with the format <var>::<var_type> = <statement>"), Some((err_start_of_statement, Some(err_equals_sign)))
-                                        ));
-                                        return Err(e);
-                                    }
-                                })),
-                            Err(mut e) => {
-                                e.context.push((
-                                    format!(
-                                        "statement was supposed to be assigned to variable {start}"
-                                    ),
-                                    Some((err_start_of_statement, Some(err_equals_sign))),
-                                ));
-                                return Err(e);
-                            }
-                        }
-                        }
-                        file.set_pos(file_pos_before_pot_type);
                         return Ok(SStatement::new(SStatementEnum::EnumVariant(
                             start,
                             parse_statement(file)?,
@@ -636,25 +609,6 @@ pub mod implementation {
                             });
                         }
                         file.skip_whitespaces();
-                        // var = statement
-                        if let Some('=') = file.peek() {
-                            file.next();
-                            let err_equals_sign = *file.get_pos();
-                            let start = start.trim();
-                            let derefs = start.chars().take_while(|c| *c == '*').count();
-                            match parse_statement(file) {
-                                Ok(v) => break v.output_to(start[derefs..].to_owned(), derefs),
-                                Err(mut e) => {
-                                    e.context.push((
-                                        format!(
-                                        "statement was supposed to be assigned to variable {start}"
-                                    ),
-                                        Some((err_start_of_statement, Some(err_equals_sign))),
-                                    ));
-                                    return Err(e);
-                                }
-                            };
-                        }
                         // parse normal statement
                         let start = start.trim();
                         match start {
@@ -889,23 +843,21 @@ pub mod implementation {
             }
         };
         let err_end_of_original_statement = *file.get_pos();
-        file.skip_whitespaces();
-        if !file[file.get_pos().current_char_index..].starts_with("..") {
-            // dot chain syntax only works if there is only one dot
-            if let Some('.') = file.peek() {
-                // consume the dot (otherwise, a.b.c syntax will break in certain cases)
-                file.next();
-            }
-            if !is_part_of_chain_already {
-                let mut chain_length = 0;
-                let mut err_end_of_prev = err_end_of_original_statement;
-                while let Some('.') =
-                    file.get_char(file.get_pos().current_char_index.saturating_sub(1))
+        // special characters that can follow a statement (loop because these can be chained)
+        loop {
+            file.skip_whitespaces();
+            out = match (chain_level, file.peek()) {
+                (0..=200, Some('.'))
+                    if !matches!(
+                        file.get_char(file.get_pos().current_char_index + 1),
+                        Some('.')
+                    ) =>
                 {
+                    file.next();
                     let err_start_of_wrapper = *file.get_pos();
-                    let wrapper = parse_statement_adv(file, true)?;
+                    let wrapper = parse_statement_adv(file, true, 250)?;
                     let err_end_of_wrapper = *file.get_pos();
-                    out = match *wrapper.statement {
+                    match *wrapper.statement {
                         SStatementEnum::FunctionCall(func, args) => {
                             let args = [out].into_iter().chain(args.into_iter()).collect();
                             SStatementEnum::FunctionCall(func, args).to()
@@ -913,67 +865,131 @@ pub mod implementation {
                         SStatementEnum::Value(vd) => match &vd.data().0 {
                             VDataEnum::Int(i) => SStatementEnum::IndexFixed(out, *i as _).to(),
                             _ => {
-                                let mut context = vec![];
-                                if chain_length > 0 {
-                                    context.push((
-                                        format!(
-                                            "this is the {} wrapping statement in a chain.",
-                                            match chain_length {
-                                                1 => format!("second"),
-                                                2 => format!("third"),
-                                                // NOTE: this technically breaks at 21, but I don't care.
-                                                len => format!("{}th", len + 1),
-                                            }
-                                        ),
-                                        None,
-                                    ));
-                                }
-                                context.push((
-                                    format!("the statement that was supposed to be wrapped"),
-                                    Some((err_start_of_statement, Some(err_end_of_prev))),
-                                ));
                                 return Err(ParseError {
                                     err: ParseErrors::CannotUseFixedIndexingWithThisType(vd.out()),
                                     location: err_start_of_wrapper,
                                     location_end: Some(err_end_of_wrapper),
-                                    context,
+                                    context: vec![(
+                                        format!("this is a wrapping statement (a.f(), a.0, etc.).",),
+                                        None,
+                                    )],
                                     info: None,
                                 });
                             }
                         },
                         other => {
-                            let mut context = vec![];
-                            if chain_length > 0 {
-                                context.push((
-                                    format!(
-                                        "this is the {} wrapping statement in a chain.",
-                                        match chain_length {
-                                            1 => format!("second"),
-                                            2 => format!("third"),
-                                            // NOTE: this technically breaks at 21, but I don't care.
-                                            len => format!("{}th", len + 1),
-                                        }
-                                    ),
-                                    None,
-                                ));
-                            }
-                            context.push((
-                                format!("the statement that was supposed to be wrapped"),
-                                Some((err_start_of_statement, Some(err_end_of_prev))),
-                            ));
                             return Err(ParseError {
                                 err: ParseErrors::CannotWrapWithThisStatement(other),
                                 location: err_start_of_wrapper,
                                 location_end: Some(err_end_of_wrapper),
-                                context,
+                                context: vec![(
+                                    format!("this is a wrapping statement (a.f(), a.0, etc.).",),
+                                    None,
+                                )],
                                 info: None,
                             });
                         }
-                    };
-                    err_end_of_prev = err_end_of_wrapper;
-                    chain_length += 1;
+                    }
                 }
-            }
+                (0..=100, Some('+')) => {
+                    file.next();
+                    SStatementEnum::FunctionCall(
+                        "add".to_owned(),
+                        // AMONG
+                        vec![out, parse_statement_adv(file, true, 100)?],
+                    )
+                    .to()
+                }
+                (0..=100, Some('-')) => {
+                    file.next();
+                    SStatementEnum::FunctionCall(
+                        "sub".to_owned(),
+                        // US
+                        vec![out, parse_statement_adv(file, true, 100)?],
+                    )
+                    .to()
+                }
+                (0..=100, Some('*')) => {
+                    file.next();
+                    SStatementEnum::FunctionCall(
+                        "mul".to_owned(),
+                        vec![out, parse_statement_adv(file, true, 100)?],
+                    )
+                    .to()
+                }
+                (0..=100, Some('/')) => {
+                    file.next();
+                    SStatementEnum::FunctionCall(
+                        "div".to_owned(),
+                        // RED SUSSY MOGUS MAN
+                        vec![out, parse_statement_adv(file, true, 100)?],
+                    )
+                    .to()
+                }
+                (0..=100, Some('%')) => {
+                    file.next();
+                    SStatementEnum::FunctionCall(
+                        "mod".to_owned(),
+                        vec![out, parse_statement_adv(file, true, 100)?],
+                    )
+                    .to()
+                }
+                (0..=50, Some('>')) => {
+                    file.next();
+                    SStatementEnum::FunctionCall(
+                        if let Some('=') = file.peek() {
+                            file.next();
+                            "gtoe".to_owned()
+                        } else {
+                            "gt".to_owned()
+                        },
+                        vec![out, parse_statement_adv(file, true, 50)?],
+                    )
+                    .to()
+                }
+                (0..=50, Some('<')) => {
+                    file.next();
+                    SStatementEnum::FunctionCall(
+                        if let Some('=') = file.peek() {
+                            file.next();
+                            "ltoe".to_owned()
+                        } else {
+                            "lt".to_owned()
+                        },
+                        vec![out, parse_statement_adv(file, true, 50)?],
+                    )
+                    .to()
+                }
+                (0..=50, Some('='))
+                    if matches!(
+                        file.get_char(file.get_pos().current_char_index + 1),
+                        Some('=')
+                    ) =>
+                {
+                    file.next();
+                    file.next();
+                    SStatementEnum::FunctionCall(
+                        "eq".to_owned(),
+                        vec![out, parse_statement_adv(file, true, 50)?],
+                    )
+                    .to()
+                }
+                (0..=10, Some('=')) => {
+                    file.next();
+                    match out.statement.as_mut() {
+                        SStatementEnum::Variable(name, r) => {
+                            if name.starts_with("*") {
+                                *name = name[1..].to_owned();
+                            } else {
+                                *r = true
+                            }
+                        }
+                        _ => {}
+                    }
+                    parse_statement(file)?.output_to(out, 0)
+                }
+                _ => break,
+            };
         }
         Ok(out)
     }
