@@ -176,8 +176,8 @@ impl VType {
             t.enum_variants(enum_variants);
         }
     }
-    pub fn contains(&self, t: &VSingleType) -> bool {
-        self.types.contains(t)
+    pub fn contains(&self, t: &VSingleType, info: &GlobalScriptInfo) -> bool {
+        self.types.iter().any(|s| t.fits_in(s, info))
     }
     pub fn noenum(self) -> Self {
         let mut o = Self { types: vec![] };

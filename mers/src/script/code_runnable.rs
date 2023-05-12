@@ -58,13 +58,13 @@ impl RFunction {
             })
             .expect("invalid args for function! possible issue with type-checker if this can be reached! feel free to report a bug.")
     }
-    pub fn out_vt(&self, input_types: &Vec<VType>) -> VType {
+    pub fn out_vt(&self, input_types: &Vec<VType>, info: &GlobalScriptInfo) -> VType {
         let mut out = VType { types: vec![] };
         for (itype, otype) in self.input_output_map.iter() {
             if itype
                 .iter()
                 .zip(input_types.iter())
-                .all(|(expected, got)| got.contains(expected))
+                .all(|(expected, got)| got.contains(expected, info))
             {
                 out = out | otype;
             }
@@ -305,7 +305,9 @@ impl RStatementEnum {
                     t.clone()
                 }
             }
-            Self::FunctionCall(f, args) => f.out_vt(&args.iter().map(|v| v.out(info)).collect()),
+            Self::FunctionCall(f, args) => {
+                f.out_vt(&args.iter().map(|v| v.out(info)).collect(), info)
+            }
             Self::LibFunction(.., out) => out.clone(),
             Self::Block(b) => b.out(info),
             Self::If(_, a, b) => {

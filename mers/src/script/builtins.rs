@@ -553,7 +553,7 @@ impl BuiltinFunction {
                             for (i, o) in io {
                                 if i.iter()
                                     .zip(input.iter().skip(1))
-                                    .all(|(i, input)| input.contains(i))
+                                    .all(|(i, input)| input.contains(i, info))
                                 {
                                     out = out | o;
                                 }
@@ -694,8 +694,8 @@ impl BuiltinFunction {
                     let mut might_be_string = false;
                     if let Self::Add = self {
                         match (
-                            input[0].contains(&VSingleType::String),
-                            input[1].contains(&VSingleType::String),
+                            input[0].contains(&VSingleType::String, info),
+                            input[1].contains(&VSingleType::String, info),
                         ) {
                             (true, true) => might_be_string = true,
                             (true, false) | (false, true) => unreachable!(),
@@ -704,12 +704,12 @@ impl BuiltinFunction {
                     }
                     let o = match (
                         (
-                            input[0].contains(&VSingleType::Int),
-                            input[0].contains(&VSingleType::Float),
+                            input[0].contains(&VSingleType::Int, info),
+                            input[0].contains(&VSingleType::Float, info),
                         ),
                         (
-                            input[1].contains(&VSingleType::Int),
-                            input[1].contains(&VSingleType::Float),
+                            input[1].contains(&VSingleType::Int, info),
+                            input[1].contains(&VSingleType::Float, info),
                         ),
                     ) {
                         ((true, false), (true, false)) => VSingleType::Int.to(),
