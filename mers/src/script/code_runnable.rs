@@ -276,7 +276,7 @@ impl RStatementEnum {
                 }
                 VDataEnum::Tuple(vec![]).to()
             }
-            Self::IndexFixed(st, i) => st.run(vars, info).get(*i).unwrap(),
+            Self::IndexFixed(st, i) => st.run(vars, info).get(*i, false).unwrap(),
             Self::EnumVariant(e, v) => VDataEnum::EnumVariant(*e, Box::new(v.run(vars, info))).to(),
         }
     }

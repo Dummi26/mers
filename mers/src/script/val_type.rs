@@ -177,7 +177,7 @@ impl VType {
         }
     }
     pub fn contains(&self, t: &VSingleType, info: &GlobalScriptInfo) -> bool {
-        self.types.iter().any(|s| t.fits_in(s, info))
+        t.fits_in_type(self, info)
     }
     pub fn noenum(self) -> Self {
         let mut o = Self { types: vec![] };
