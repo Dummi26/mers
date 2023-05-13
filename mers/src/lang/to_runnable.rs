@@ -1,17 +1,17 @@
 use std::{
     collections::HashMap,
     fmt::{Debug, Display},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 use crate::{
-    libs,
-    script::{
+    lang::{
         builtins,
         global_info::GlobalScriptInfo,
-        val_data::VDataEnum,
+        val_data::{VData, VDataEnum},
         val_type::{VSingleType, VType},
     },
+    libs,
 };
 
 use super::{
@@ -158,7 +158,7 @@ impl ToRunnableError {
 // Local, used to keep local variables separated
 #[derive(Clone)]
 struct LInfo {
-    vars: HashMap<String, (usize, VType)>,
+    vars: HashMap<String, (Arc<Mutex<VData>>, VType)>,
     fns: HashMap<String, Arc<RFunction>>,
 }
 
@@ -200,7 +200,7 @@ fn get_all_functions(
     s: &SFunction,
     ginfo: &mut GlobalScriptInfo,
     linfo: &mut LInfo,
-    input_vars: &Vec<usize>,
+    input_vars: &Vec<Arc<Mutex<VData>>>,
     inputs: &mut Vec<VSingleType>,
     out: &mut Vec<(Vec<VSingleType>, VType)>,
 ) -> Result<(), ToRunnableError> {
@@ -240,12 +240,12 @@ fn function(
     for (iname, itype) in &s.inputs {
         let mut itype = itype.to_owned();
         stypes(&mut itype, ginfo)?;
+        let var = Arc::new(Mutex::new(VData::new_placeholder()));
         linfo
             .vars
-            .insert(iname.clone(), (ginfo.vars, itype.clone()));
-        input_vars.push(ginfo.vars);
+            .insert(iname.clone(), (Arc::clone(&var), itype.clone()));
+        input_vars.push(var);
         input_types.push(itype);
-        ginfo.vars += 1;
     }
     let mut all_outs = vec![];
     get_all_functions(
@@ -367,13 +367,19 @@ fn statement_adv(
                 if !linfo.vars.contains_key(v) {
                     if let Some((t, is_init)) = to_be_assigned_to {
                         *is_init = true;
-                        linfo.vars.insert(v.to_owned(), (ginfo.vars, t));
-                        ginfo.vars += 1;
+                        linfo.vars.insert(v.to_owned(), (Arc::new(Mutex::new(VData::new_placeholder())), t));
                     }
                 }
                 if let Some(var) = linfo.vars.get(v) {
-                    RStatementEnum::Variable(var.0, {
-                        let mut v = var.1.clone(); stypes(&mut v, ginfo)?; v }, *is_ref)
+                    RStatementEnum::Variable(
+                        Arc::clone(&var.0),
+                        {
+                            let mut v = var.1.clone();
+                            stypes(&mut v, ginfo)?;
+                            v
+                        },
+                        *is_ref
+                    )
                 } else {
                         return Err(ToRunnableError::UseOfUndefinedVariable(v.clone()));
                 }
@@ -442,7 +448,7 @@ fn statement_adv(
                 } else {
                     // anonymous function => return as value
                     RStatementEnum::Value(
-                        VDataEnum::Function(function(f, ginfo, linfo.clone())?).to(),
+                        VDataEnum::Function(Arc::new(function(f, ginfo, linfo.clone())?)).to(),
                     )
                 }
             }
@@ -479,11 +485,10 @@ fn statement_adv(
                 if inner.types.is_empty() {
                     return Err(ToRunnableError::ForLoopContainerHasNoInnerTypes);
                 }
+                let for_loop_var = Arc::new(Mutex::new(VData::new_placeholder()));
                 linfo
                     .vars
-                    .insert(v.clone(), (ginfo.vars, inner));
-                let for_loop_var = ginfo.vars;
-                ginfo.vars += 1;
+                    .insert(v.clone(), (Arc::clone(&for_loop_var), inner));
                 let block = statement(&b, ginfo, &mut linfo)?;
                 let o = RStatementEnum::For(for_loop_var, container, block);
                 o

@@ -8,8 +8,6 @@ pub type GSInfo = Arc<GlobalScriptInfo>;
 
 #[derive(Debug)]
 pub struct GlobalScriptInfo {
-    pub vars: usize,
-
     pub libs: Vec<libs::Lib>,
     pub lib_fns: HashMap<String, (usize, usize)>,
 
@@ -28,7 +26,6 @@ impl GlobalScriptInfo {
 impl Default for GlobalScriptInfo {
     fn default() -> Self {
         Self {
-            vars: 0,
             libs: vec![],
             lib_fns: HashMap::new(),
             enum_variants: Self::default_enum_variants(),

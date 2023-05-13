@@ -1,8 +1,8 @@
 use std::{path::PathBuf, thread::JoinHandle, time::Instant};
 
 use crate::{
+    lang::{code_runnable::RScript, global_info::GSInfo, val_data::VDataEnum},
     parsing::{self, file::File, parse::ScriptError},
-    script::{code_runnable::RScript, global_info::GSInfo, val_data::VDataEnum},
 };
 
 mod base_comments;
@@ -45,7 +45,7 @@ false
         i_name: None,
     };
     loop {
-        if let VDataEnum::Bool(true) = &tutor.let_user_make_change().run(vec![]).data().0 {
+        if let VDataEnum::Bool(true) = tutor.let_user_make_change().run(vec![]).inner_cloned() {
             break;
         }
     }

@@ -1,4 +1,4 @@
-use crate::script::{
+use crate::lang::{
     val_data::{VData, VDataEnum},
     val_type::{VSingleType, VType},
 };
@@ -58,7 +58,7 @@ impl From<run_function::Message> for Message {
 // implementations for the message/response pairs
 
 pub mod run_function {
-    use crate::script::val_data::VData;
+    use crate::lang::val_data::VData;
 
     use super::{ByteData, ByteDataA, MessageResponse, RespondableMessage};
 
@@ -461,7 +461,7 @@ impl ByteData for VSingleType {
 }
 impl ByteDataA for VData {
     fn as_byte_data(&self, vec: &mut Vec<u8>) {
-        self.data().0.as_byte_data(vec)
+        self.operate_on_data_immut(|v| v.as_byte_data(vec))
     }
 }
 impl ByteData for VData {

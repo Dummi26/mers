@@ -6,11 +6,11 @@ use std::{fs, time::Instant};
 use notify::Watcher as FsWatcher;
 
 mod interactive_mode;
+mod lang;
 mod libs;
 #[cfg(feature = "nushell_plugin")]
 mod nushell_plugin;
 mod parsing;
-mod script;
 mod tutor;
 
 fn main() {

@@ -11,13 +11,13 @@ use std::{
 };
 
 use crate::{
-    libs::comms::{ByteData, ByteDataA},
-    parsing::{file::File, parse},
-    script::{
+    lang::{
         global_info::GlobalScriptInfo,
         val_data::{VData, VDataEnum},
         val_type::VType,
     },
+    libs::comms::{ByteData, ByteDataA},
+    parsing::{file::File, parse},
 };
 
 use self::comms::{MessageResponse, RespondableMessage};
@@ -93,9 +93,9 @@ impl Lib {
             for (_name, func) in registered_fns.iter_mut() {
                 for (args, out) in func.iter_mut() {
                     for t in args.iter_mut() {
-                        crate::script::to_runnable::stypes(t, &mut ginfo);
+                        crate::lang::to_runnable::stypes(t, &mut ginfo);
                     }
-                    crate::script::to_runnable::stypes(out, &mut ginfo);
+                    crate::lang::to_runnable::stypes(out, &mut ginfo);
                 }
             }
             for (name, id) in ginfo.enum_variants {

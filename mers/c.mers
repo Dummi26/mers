@@ -1,0 +1,4 @@
+list = [1 ...]
+b = list
+&list.pop()
+list

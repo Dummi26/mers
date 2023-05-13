@@ -4,11 +4,11 @@ use nu_plugin::{serve_plugin, MsgPackSerializer, Plugin};
 use nu_protocol::{PluginExample, PluginSignature, ShellError, Span, Spanned, SyntaxShape, Value};
 
 use crate::{
-    parsing,
-    script::{
+    lang::{
         global_info::GlobalScriptInfo,
         val_data::{VData, VDataEnum},
     },
+    parsing,
 };
 
 pub fn main() {

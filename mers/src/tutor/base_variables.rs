@@ -1,4 +1,4 @@
-use crate::script::val_data::VDataEnum;
+use crate::lang::val_data::VDataEnum;
 
 use super::Tutor;
 
@@ -18,7 +18,7 @@ five_less = sub(my_first_variable 5) // 10
 ",
     ));
     loop {
-        match &tutor.let_user_make_change().run(vec![]).data().0 {
+        match tutor.let_user_make_change().run(vec![]).inner_cloned() {
             VDataEnum::String(name) if !name.is_empty() => {
                 tutor.i_name = Some(name.to_owned());
                 break;

@@ -1,4 +1,4 @@
-use crate::script::val_data::VDataEnum;
+use crate::lang::val_data::VDataEnum;
 
 use super::Tutor;
 
@@ -35,7 +35,7 @@ mul()
 ",
     ));
     loop {
-        match &tutor.let_user_make_change().run(vec![]).data().0 {
+        match tutor.let_user_make_change().run(vec![]).inner_cloned() {
             VDataEnum::Int(160) => break,
             other => {
                 tutor.set_status(format!(" - Returned {other} instead of 160"));

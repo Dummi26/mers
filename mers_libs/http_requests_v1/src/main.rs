@@ -57,8 +57,8 @@ fn main() {
         .unwrap()
         .1;
     my_lib.callbacks.run_function.consuming = Some(Box::new(move |msg| {
-        let url = if let VDataEnum::String(url) = &msg.msg.args[0].data().0 {
-            url.clone()
+        let url = if let VDataEnum::String(url) = msg.msg.args[0].inner_cloned() {
+            url
         } else {
             unreachable!()
         };

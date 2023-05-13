@@ -1,4 +1,4 @@
-use crate::script::val_data::VDataEnum;
+use crate::lang::val_data::VDataEnum;
 
 use super::Tutor;
 
@@ -14,7 +14,7 @@ pub fn run(tutor: &mut Tutor) {
 ",
     ));
     loop {
-        match &tutor.let_user_make_change().run(vec![]).data().0 {
+        match tutor.let_user_make_change().run(vec![]).inner_cloned() {
             VDataEnum::Bool(true) => break,
             other => {
                 tutor.set_status(format!(" - Returned {} instead of true.", other));

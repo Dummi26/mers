@@ -1,4 +1,4 @@
-use crate::script::val_data::VDataEnum;
+use crate::lang::val_data::VDataEnum;
 
 use super::Tutor;
 
@@ -44,7 +44,7 @@ switch! first {
 list.get(8)
 "));
     loop {
-        match &tutor.let_user_make_change().run(vec![]).data().0 {
+        match tutor.let_user_make_change().run(vec![]).inner_cloned() {
             VDataEnum::Tuple(v) if !v.is_empty() => {
                 break;
             }

@@ -1,8 +1,7 @@
 use std::{fmt::Debug, process::Command, sync::Arc};
 
 use crate::{
-    libs,
-    script::{
+    lang::{
         code_macro::MacroError,
         code_parsed::*,
         code_runnable::RScript,
@@ -11,6 +10,7 @@ use crate::{
         val_data::VDataEnum,
         val_type::{VSingleType, VType},
     },
+    libs,
 };
 
 use super::file::File;
@@ -785,7 +785,7 @@ pub mod implementation {
                             }
                             "!" => {
                                 break SStatementEnum::Macro(
-                                    match crate::script::code_macro::parse_macro(file) {
+                                    match crate::lang::code_macro::parse_macro(file) {
                                         Ok(v) => v,
                                         Err(e) => {
                                             return Err(ParseError {
@@ -862,11 +862,17 @@ pub mod implementation {
                             let args = [out].into_iter().chain(args.into_iter()).collect();
                             SStatementEnum::FunctionCall(func, args).to()
                         }
-                        SStatementEnum::Value(vd) => match &vd.data().0 {
-                            VDataEnum::Int(i) => SStatementEnum::IndexFixed(out, *i as _).to(),
-                            _ => {
+                        SStatementEnum::Value(vd) => {
+                            if let Some(i) = vd.operate_on_data_immut(|v| match v {
+                                VDataEnum::Int(i) => Some(*i as _),
+                                _ => None,
+                            }) {
+                                SStatementEnum::IndexFixed(out, i).to()
+                            } else {
                                 return Err(ParseError {
-                                    err: ParseErrors::CannotUseFixedIndexingWithThisType(vd.out()),
+                                    err: ParseErrors::CannotUseFixedIndexingWithThisType(
+                                        vd.out_single().to(),
+                                    ),
                                     location: err_start_of_wrapper,
                                     location_end: Some(err_end_of_wrapper),
                                     context: vec![(
@@ -876,7 +882,7 @@ pub mod implementation {
                                     info: None,
                                 });
                             }
-                        },
+                        }
                         other => {
                             return Err(ParseError {
                                 err: ParseErrors::CannotWrapWithThisStatement(other),
@@ -970,6 +976,20 @@ pub mod implementation {
                     file.next();
                     SStatementEnum::FunctionCall(
                         "eq".to_owned(),
+                        vec![out, parse_statement_adv(file, true, 50)?],
+                    )
+                    .to()
+                }
+                (0..=50, Some('!'))
+                    if matches!(
+                        file.get_char(file.get_pos().current_char_index + 1),
+                        Some('=')
+                    ) =>
+                {
+                    file.next();
+                    file.next();
+                    SStatementEnum::FunctionCall(
+                        "ne".to_owned(),
                         vec![out, parse_statement_adv(file, true, 50)?],
                     )
                     .to()

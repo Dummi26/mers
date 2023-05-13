@@ -6,7 +6,7 @@ t = thread(() {
     println("got words from word list!")
 })
 
-sleep(0.5)
+sleep(0.1)
 
 // this will finish before the thread does.
 http_get("https:\//github.com/").assume_no_enum()

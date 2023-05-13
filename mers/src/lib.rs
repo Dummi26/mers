@@ -1,20 +1,20 @@
 #![allow(unused)]
 #![allow(dead_code)]
 
+mod lang;
 mod libs;
 mod parsing;
-mod script;
 
+pub use lang::{val_data::*, val_type::*};
 pub use libs::{
     comms::{ByteData, ByteDataA, Message, RespondableMessage},
     inlib::MyLib,
 };
 pub use parsing::*;
-pub use script::{val_data::*, val_type::*};
 
 pub mod prelude {
     pub use super::{
-        script::{val_data::*, val_type::*},
+        lang::{val_data::*, val_type::*},
         MyLib, RespondableMessage,
     };
 }

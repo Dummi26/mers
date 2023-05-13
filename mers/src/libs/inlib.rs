@@ -3,7 +3,7 @@ use std::{
     io::{BufRead, Stdin, StdinLock, Stdout, StdoutLock, Write},
 };
 
-use crate::script::{val_data::VData, val_type::VType};
+use crate::lang::{val_data::VData, val_type::VType};
 
 use super::{
     comms::{self, ByteData, ByteDataA, Message, MessageResponse, RespondableMessage},

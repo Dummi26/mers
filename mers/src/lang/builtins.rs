@@ -64,6 +64,7 @@ pub enum BuiltinFunction {
     Mod,
     Pow,
     Eq,
+    Ne,
     Gt,
     Lt,
     Gtoe,
@@ -128,6 +129,7 @@ impl BuiltinFunction {
             "mod" => Self::Mod,
             "pow" => Self::Pow,
             "eq" => Self::Eq,
+            "ne" => Self::Ne,
             "lt" => Self::Lt,
             "gt" => Self::Gt,
             "ltoe" => Self::Ltoe,
@@ -330,7 +332,7 @@ impl BuiltinFunction {
                     false
                 }
             }
-            Self::Eq => input.len() == 2,
+            Self::Eq | Self::Ne => input.len() == 2,
             Self::Add => {
                 input.len() == 2 && {
                     let num = VType {
@@ -728,7 +730,9 @@ impl BuiltinFunction {
                     unreachable!("called add/sub/mul/div/mod/pow with args != 2")
                 }
             }
-            Self::Eq | Self::Lt | Self::Gt | Self::Ltoe | Self::Gtoe => VSingleType::Bool.to(),
+            Self::Eq | Self::Ne | Self::Lt | Self::Gt | Self::Ltoe | Self::Gtoe => {
+                VSingleType::Bool.to()
+            }
             Self::Push | Self::Insert => VSingleType::Tuple(vec![]).into(),
             Self::Len => VSingleType::Int.into(),
             Self::Contains | Self::StartsWith | Self::EndsWith => VSingleType::Bool.into(),
@@ -748,95 +752,99 @@ impl BuiltinFunction {
             },
         }
     }
-    pub fn run(&self, args: &Vec<RStatement>, vars: &mut Vec<VData>, info: &GSInfo) -> VData {
+    pub fn run(&self, args: &Vec<RStatement>, info: &GSInfo) -> VData {
         match self {
             Self::Assume1 => {
-                let mut a0 = args[0].run(vars, info);
-                a0.make_mut();
-                let o = match &mut a0.data.lock().unwrap().0 {
-                    VDataEnum::Tuple(v) => Some({
-                        if let Some(v) = v.pop() {
-                            v
+                let mut a0 = args[0].run(info);
+                match a0.operate_on_data_immut(|v| {
+                    if let VDataEnum::Tuple(v) = v {
+                        if let Some(v) = v.get(0) {
+                            Ok(Some(v.clone_data()))
                         } else {
-                            let msg = if args.len() > 1 {
-                                let a1 = args[1].run(vars, info);
-                                let a1 = a1.data();
-                                if let VDataEnum::String(v) = &a1.0 {
+                            Err(())
+                        }
+                    } else {
+                        Ok(None)
+                    }
+                }) {
+                    Ok(Some(v)) => v,
+                    Ok(None) => a0,
+                    Err(()) => {
+                        let msg = if args.len() > 1 {
+                            args[1].run(info).operate_on_data_immut(|v| {
+                                if let VDataEnum::String(v) = v {
                                     Some(v.to_owned())
                                 } else {
                                     None
                                 }
-                            } else {
-                                None
-                            };
-                            if let Some(m) = msg {
-                                panic!("ASSUMPTION FAILED: assume1 :: {m}");
-                            } else {
-                                panic!("ASSUMPTION FAILED: assume1");
-                            }
+                            })
+                        } else {
+                            None
+                        };
+                        if let Some(m) = msg {
+                            panic!("ASSUMPTION FAILED: assume1 :: {m}");
+                        } else {
+                            panic!("ASSUMPTION FAILED: assume1");
                         }
-                    }),
-                    _ => None,
-                };
-                if let Some(o) = o {
-                    o
-                } else {
-                    a0
+                    }
                 }
             }
             Self::AssumeNoEnum => {
-                let msg = if args.len() > 1 {
-                    if let VDataEnum::String(v) = args[1].run(vars, info).inner() {
-                        Some(v.to_owned())
+                let a0 = args[0].run(info);
+                let was_ok = a0.operate_on_data_immut(|v| match v {
+                    VDataEnum::EnumVariant(..) => false,
+                    _ => true,
+                });
+                if was_ok {
+                    a0
+                } else {
+                    let msg = if args.len() > 1 {
+                        args[1].run(info).operate_on_data_immut(|v| {
+                            if let VDataEnum::String(v) = v {
+                                Some(v.to_owned())
+                            } else {
+                                None
+                            }
+                        })
                     } else {
                         None
-                    }
-                } else {
-                    None
-                };
-                let a0 = args[0].run(vars, info);
-                let a0d = a0.data();
-                match &a0d.0 {
-                    VDataEnum::EnumVariant(..) => {
-                        drop(a0d);
-                        panic!(
-                            "ASSUMPTION FAILED: assume_no_enum :: found {}{}",
-                            a0.gsi(info.clone()),
-                            if let Some(m) = msg {
-                                format!(" :: {m}")
-                            } else {
-                                String::new()
-                            }
-                        )
-                    }
-                    _ => {
-                        drop(a0d);
-                        a0
-                    }
+                    };
+                    panic!(
+                        "ASSUMPTION FAILED: assume_no_enum :: found {}{}",
+                        a0.gsi(info.clone()),
+                        if let Some(m) = msg {
+                            format!(" :: {m}")
+                        } else {
+                            String::new()
+                        }
+                    );
                 }
             }
-            Self::NoEnum => args[0].run(vars, info).noenum(),
-            Self::Matches => match args[0].run(vars, info).inner().matches() {
+            Self::NoEnum => args[0].run(info).noenum(),
+            Self::Matches => match args[0].run(info).matches() {
                 Some(v) => VDataEnum::Tuple(vec![v]).to(),
                 None => VDataEnum::Tuple(vec![]).to(),
             },
-            Self::Clone => {
-                if let VDataEnum::Reference(r) = &args[0].run(vars, info).data().0 {
-                    r.clone()
+            Self::Clone => args[0].run(info).operate_on_data_immut(|v| {
+                if let VDataEnum::Reference(r) = v {
+                    r.clone_data()
                 } else {
                     unreachable!()
                 }
-            }
-            BuiltinFunction::Print => {
-                if let VDataEnum::String(arg) = &args[0].run(vars, info).data().0 {
+            }),
+            BuiltinFunction::Print => args[0].run(info).operate_on_data_immut(|v| {
+                if let VDataEnum::String(arg) = v {
+                    #[cfg(not(feature = "nushell_plugin"))]
                     print!("{}", arg);
+                    #[cfg(feature = "nushell_plugin")]
+                    eprint!("{}", arg);
                     VDataEnum::Tuple(vec![]).to()
                 } else {
                     unreachable!("print function called with non-string arg")
                 }
-            }
-            BuiltinFunction::Println => {
-                if let VDataEnum::String(arg) = &args[0].run(vars, info).data().0 {
+            }),
+            BuiltinFunction::Println => args[0].run(info).operate_on_data_immut(|v| {
+                if let VDataEnum::String(arg) = v {
                     #[cfg(not(feature = "nushell_plugin"))]
                     println!("{}", arg);
                     #[cfg(feature = "nushell_plugin")]
@@ -845,9 +853,9 @@ impl BuiltinFunction {
                 } else {
                     unreachable!()
                 }
-            }
+            }),
             BuiltinFunction::Debug => {
-                let val = args[0].run(vars, info);
+                let val = args[0].run(info);
                 #[cfg(not(feature = "nushell_plugin"))]
                 println!(
                     "{} :: {} :: {}",
@@ -870,209 +878,170 @@ impl BuiltinFunction {
                 VDataEnum::String(line.trim_end_matches(['\n', '\r']).to_string()).to()
             }
             BuiltinFunction::ToString => {
-                VDataEnum::String(args[0].run(vars, info).gsi(info.clone()).to_string()).to()
+                VDataEnum::String(args[0].run(info).gsi(info.clone()).to_string()).to()
             }
-            BuiltinFunction::Format => {
-                if let VDataEnum::String(mut text) = args.first().unwrap().run(vars, info).inner() {
+            BuiltinFunction::Format => args[0].run(info).operate_on_data_immut(|v| {
+                if let VDataEnum::String(text) = v {
+                    let mut text = text.to_owned();
                     for (i, arg) in args.iter().skip(1).enumerate() {
-                        text = text.replace(
-                            &format!("{{{i}}}"),
-                            &format!(
-                                "{}",
-                                if let VDataEnum::String(v) = &arg.run(vars, info).data().0 {
-                                    v
-                                } else {
-                                    unreachable!()
-                                }
-                            ),
-                        );
+                        arg.run(info).operate_on_data_immut(|v| {
+                            if let VDataEnum::String(v) = v {
+                                text = text.replace(&format!("{{{i}}}"), v);
+                            } else {
+                                unreachable!()
+                            }
+                        })
                     }
                     VDataEnum::String(text).to()
                 } else {
                     unreachable!()
                 }
-            }
-            BuiltinFunction::ParseInt => {
-                if args.len() == 1 {
-                    if let VDataEnum::String(s) = &args[0].run(vars, info).data().0 {
-                        if let Ok(s) = s.parse() {
-                            VDataEnum::Int(s).to()
-                        } else {
-                            VDataEnum::Tuple(vec![]).to()
-                        }
+            }),
+            BuiltinFunction::ParseInt => args[0].run(info).operate_on_data_immut(|v| {
+                if let VDataEnum::String(s) = v {
+                    if let Ok(s) = s.parse() {
+                        VDataEnum::Int(s).to()
                     } else {
-                        unreachable!("parse arg not string")
+                        VDataEnum::Tuple(vec![]).to()
                     }
                 } else {
-                    unreachable!("parse args != 1")
+                    unreachable!("parse arg not string")
                 }
-            }
-            BuiltinFunction::ParseFloat => {
-                if args.len() == 1 {
-                    if let VDataEnum::String(s) = &args[0].run(vars, info).data().0 {
-                        if let Ok(s) = s.parse() {
-                            VDataEnum::Float(s).to()
-                        } else {
-                            VDataEnum::Tuple(vec![]).to()
-                        }
+            }),
+            BuiltinFunction::ParseFloat => args[0].run(info).operate_on_data_immut(|v| {
+                if let VDataEnum::String(s) = v {
+                    if let Ok(s) = s.parse() {
+                        VDataEnum::Float(s).to()
                     } else {
-                        unreachable!("parse arg not string")
+                        VDataEnum::Tuple(vec![]).to()
                     }
                 } else {
-                    unreachable!("parse args != 1")
+                    unreachable!("parse arg not string")
                 }
-            }
-            BuiltinFunction::Run => {
-                if args.len() >= 1 {
-                    if let VDataEnum::Function(f) = &args[0].run(vars, info).data().0 {
-                        if f.inputs.len() != args.len() - 1 {
-                            unreachable!()
-                        }
-                        for (i, var) in f.inputs.iter().enumerate() {
-                            let val = args[i + 1].run(vars, info);
-                            vars[*var] = val;
-                        }
-                        f.run(vars, info)
-                    } else {
-                        unreachable!()
+            }),
+            BuiltinFunction::Run => args[0].run(info).operate_on_data_immut(|v| {
+                if let VDataEnum::Function(f) = v {
+                    if f.inputs.len() != args.len() - 1 {
+                        unreachable!("wrong input count")
                     }
+                    for (i, var) in f.inputs.iter().enumerate() {
+                        let val = args[i + 1].run(info).clone_data();
+                        *var.lock().unwrap() = val;
+                    }
+                    f.run(info)
                 } else {
                     unreachable!()
                 }
-            }
-            BuiltinFunction::Thread => {
-                if args.len() >= 1 {
-                    if let VDataEnum::Function(f) = args[0].run(vars, info).inner() {
-                        if f.inputs.len() != args.len() - 1 {
-                            unreachable!()
-                        }
-                        // to prevent weird stuff from happening, the function args will be stored in different Arc<Mutex<_>>s. This means that the args are different for each thread, while any variables that are captured from outside will be shared.
-                        let mut thread_vars = vars.clone();
-                        let mut run_input_types = vec![];
-                        for (i, var) in f.inputs.iter().enumerate() {
-                            let val = args[i + 1].run(vars, info);
-                            run_input_types.push(val.out_single());
-                            thread_vars[*var] = val;
-                        }
-                        let out_type = f.out(&run_input_types);
-                        let libs = info.clone();
-                        VDataEnum::Thread(
-                            VDataThreadEnum::Running(std::thread::spawn(move || {
-                                f.run(&mut thread_vars, &libs)
-                            }))
-                            .to(),
-                            out_type,
-                        )
-                        .to()
-                    } else {
-                        unreachable!()
+            }),
+            BuiltinFunction::Thread => args[0].run(info).operate_on_data_immut(|v| {
+                if let VDataEnum::Function(f) = v {
+                    if f.inputs.len() != args.len() - 1 {
+                        unreachable!("wrong input count")
                     }
+                    let mut run_input_types = vec![];
+                    for (i, var) in f.inputs.iter().enumerate() {
+                        let val = args[i + 1].run(info).clone_data();
+                        run_input_types.push(val.out_single());
+                        *var.lock().unwrap() = val;
+                    }
+                    let out_type = f.out(&run_input_types);
+                    let info = Arc::clone(info);
+                    let f = Arc::clone(f);
+                    VDataEnum::Thread(
+                        VDataThreadEnum::Running(std::thread::spawn(move || f.run(&info))).to(),
+                        out_type,
+                    )
+                    .to()
                 } else {
                     unreachable!()
                 }
-            }
-            BuiltinFunction::Await => {
-                if args.len() == 1 {
-                    if let VDataEnum::Thread(t, _) = &args[0].run(vars, info).data().0 {
-                        t.get()
-                    } else {
-                        unreachable!()
-                    }
+            }),
+            BuiltinFunction::Await => args[0].run(info).operate_on_data_immut(|v| {
+                if let VDataEnum::Thread(t, _) = v {
+                    t.get()
                 } else {
                     unreachable!()
                 }
-            }
-            BuiltinFunction::Sleep => {
-                if args.len() == 1 {
-                    match &args[0].run(vars, info).data().0 {
-                        VDataEnum::Int(v) => std::thread::sleep(Duration::from_secs(*v as _)),
-                        VDataEnum::Float(v) => std::thread::sleep(Duration::from_secs_f64(*v)),
-                        _ => unreachable!(),
-                    }
-                    VDataEnum::Tuple(vec![]).to()
-                } else {
-                    unreachable!()
+            }),
+            BuiltinFunction::Sleep => args[0].run(info).operate_on_data_immut(|v| {
+                match v {
+                    VDataEnum::Int(v) => std::thread::sleep(Duration::from_secs(*v as _)),
+                    VDataEnum::Float(v) => std::thread::sleep(Duration::from_secs_f64(*v)),
+                    _ => unreachable!(),
                 }
-            }
+                VDataEnum::Tuple(vec![]).to()
+            }),
             Self::Exit => {
                 if let Some(s) = args.first() {
-                    if let VDataEnum::Int(v) = &s.run(vars, info).data().0 {
-                        std::process::exit(*v as _);
-                    } else {
-                        std::process::exit(1);
-                    }
+                    let code = s.run(info).operate_on_data_immut(|v| {
+                        if let VDataEnum::Int(v) = v {
+                            *v
+                        } else {
+                            1
+                        }
+                    });
+                    std::process::exit(code as _);
                 } else {
                     std::process::exit(1);
                 }
             }
-            Self::FsList => {
-                if args.len() > 0 {
-                    if let VDataEnum::String(path) = &args[0].run(vars, info).data().0 {
-                        if args.len() > 1 {
-                            eprintln!("NOT YET IMPLEMENTED (TODO!): fs_list advanced filters")
-                        }
-                        match std::fs::read_dir(path) {
-                            Ok(entries) => VDataEnum::List(
-                                VSingleType::String.into(),
-                                entries
-                                    .filter_map(|entry| {
-                                        if let Ok(entry) = entry {
-                                            Some(
-                                                VDataEnum::String(
-                                                    entry.path().to_string_lossy().into_owned(),
-                                                )
-                                                .to(),
+            Self::FsList => args[0].run(info).operate_on_data_immut(|v| {
+                if let VDataEnum::String(path) = v {
+                    if args.len() > 1 {
+                        eprintln!("NOT YET IMPLEMENTED (TODO!): fs_list advanced filters")
+                    }
+                    match std::fs::read_dir(path) {
+                        Ok(entries) => VDataEnum::List(
+                            VSingleType::String.into(),
+                            entries
+                                .filter_map(|entry| {
+                                    if let Ok(entry) = entry {
+                                        Some(
+                                            VDataEnum::String(
+                                                entry.path().to_string_lossy().into_owned(),
                                             )
-                                        } else {
-                                            None
-                                        }
-                                    })
-                                    .collect(),
-                            )
-                            .to(),
-                            Err(e) => VDataEnum::EnumVariant(
-                                EV_ERR,
-                                Box::new(VDataEnum::String(e.to_string()).to()),
-                            )
-                            .to(),
-                        }
-                    } else {
-                        unreachable!("fs_list first arg not a string")
+                                            .to(),
+                                        )
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect(),
+                        )
+                        .to(),
+                        Err(e) => VDataEnum::EnumVariant(
+                            EV_ERR,
+                            Box::new(VDataEnum::String(e.to_string()).to()),
+                        )
+                        .to(),
                     }
                 } else {
-                    unreachable!("fs_list without args")
+                    unreachable!("fs_list first arg not a string")
                 }
-            }
-            Self::FsRead => {
-                if args.len() > 0 {
-                    if let VDataEnum::String(path) = &args[0].run(vars, info).data().0 {
-                        match std::fs::read(path) {
-                            Ok(data) => VDataEnum::List(
-                                VSingleType::Int.into(),
-                                data.into_iter()
-                                    .map(|v| VDataEnum::Int(v as _).to())
-                                    .collect(),
-                            )
-                            .to(),
-                            Err(e) => VDataEnum::EnumVariant(
-                                EV_ERR,
-                                Box::new(VDataEnum::String(e.to_string()).to()),
-                            )
-                            .to(),
-                        }
-                    } else {
-                        unreachable!("fs_read first arg not a string")
+            }),
+            Self::FsRead => args[0].run(info).operate_on_data_immut(|v| {
+                if let VDataEnum::String(path) = v {
+                    match std::fs::read(path) {
+                        Ok(data) => VDataEnum::List(
+                            VSingleType::Int.into(),
+                            data.into_iter()
+                                .map(|v| VDataEnum::Int(v as _).to())
+                                .collect(),
+                        )
+                        .to(),
+                        Err(e) => VDataEnum::EnumVariant(
+                            EV_ERR,
+                            Box::new(VDataEnum::String(e.to_string()).to()),
+                        )
+                        .to(),
                     }
                 } else {
-                    unreachable!("fs_read without args")
+                    unreachable!("fs_read first arg not a string")
                 }
-            }
-            Self::FsWrite => {
-                if args.len() > 1 {
-                    if let (VDataEnum::String(path), VDataEnum::List(_, data)) = (
-                        &args[0].run(vars, info).data().0,
-                        &args[1].run(vars, info).data().0,
-                    ) {
+            }),
+            Self::FsWrite => args[0].run(info).operate_on_data_immut(|path| {
+                args[1].run(info).operate_on_data_immut(|bytes| {
+                    if let (VDataEnum::String(path), VDataEnum::List(_, data)) = (path, bytes) {
                         if let Some(bytes) = vdata_to_bytes(&data) {
                             let file_path: PathBuf = path.into();
                             if let Some(p) = file_path.parent() {
@@ -1087,476 +1056,369 @@ impl BuiltinFunction {
                                 .to(),
                             }
                         } else {
-                            unreachable!(
-                                "fs_write first arg not a string or second arg not a [int]"
-                            )
+                            unreachable!("fs_write data arg not a [int]")
                         }
                     } else {
-                        unreachable!("fs_write second arg not a [int]")
+                        unreachable!("fs_write wrong args")
+                    }
+                })
+            }),
+            Self::BytesToString => args[0].run(info).operate_on_data_immut(|v| {
+                if let VDataEnum::List(_, byte_data) = v {
+                    if let Some(bytes) = vdata_to_bytes(&byte_data) {
+                        match String::from_utf8(bytes) {
+                            Ok(v) => VDataEnum::String(v).to(),
+                            Err(e) => {
+                                let err = e.to_string();
+                                VDataEnum::EnumVariant(
+                                    EV_ERR,
+                                    Box::new(
+                                        VDataEnum::Tuple(vec![
+                                            VDataEnum::String(
+                                                String::from_utf8_lossy(&e.into_bytes())
+                                                    .into_owned(),
+                                            )
+                                            .to(),
+                                            VDataEnum::String(err).to(),
+                                        ])
+                                        .to(),
+                                    ),
+                                )
+                                .to()
+                            }
+                        }
+                    } else {
+                        unreachable!("bytes_to_string arg not [int]")
                     }
                 } else {
-                    unreachable!("fs_write without 2 args")
+                    unreachable!("bytes_to_string first arg not [int]")
                 }
-            }
-            Self::BytesToString => {
-                if args.len() == 1 {
-                    if let VDataEnum::List(_, byte_data) = &args[0].run(vars, info).data().0 {
-                        if let Some(bytes) = vdata_to_bytes(&byte_data) {
-                            match String::from_utf8(bytes) {
-                                Ok(v) => VDataEnum::String(v).to(),
-                                Err(e) => {
-                                    let err = e.to_string();
-                                    VDataEnum::EnumVariant(
-                                        EV_ERR,
-                                        Box::new(
-                                            VDataEnum::Tuple(vec![
-                                                VDataEnum::String(
-                                                    String::from_utf8_lossy(&e.into_bytes())
-                                                        .into_owned(),
-                                                )
-                                                .to(),
-                                                VDataEnum::String(err).to(),
-                                            ])
-                                            .to(),
-                                        ),
-                                    )
-                                    .to()
+            }),
+            Self::StringToBytes => args[0].run(info).operate_on_data_immut(|v| {
+                if let VDataEnum::String(s) = v {
+                    VDataEnum::List(
+                        VSingleType::Int.into(),
+                        s.bytes().map(|v| VDataEnum::Int(v as isize).to()).collect(),
+                    )
+                    .to()
+                } else {
+                    unreachable!("string_to_bytes arg not string")
+                }
+            }),
+            Self::RunCommand | Self::RunCommandGetBytes => {
+                args[0].run(info).operate_on_data_immut(|v| {
+                    args[1].run(info).operate_on_data_immut(|v2| {
+                        if let VDataEnum::String(s) = v {
+                            let mut command = std::process::Command::new(s);
+                            if args.len() > 1 {
+                                if let VDataEnum::List(_, args) = v2 {
+                                    for arg in args {
+                                        arg.operate_on_data_immut(|v| {
+                                            if let VDataEnum::String(v) = v {
+                                                command.arg(v);
+                                            } else {
+                                                unreachable!("run_command second arg not [string].")
+                                            }
+                                        })
+                                    }
+                                } else {
+                                    unreachable!("run_command second arg not [string]")
                                 }
+                            }
+                            match command.output() {
+                                Ok(out) => VDataEnum::Tuple(vec![
+                                    if let Some(code) = out.status.code() {
+                                        VDataEnum::Int(code as _)
+                                    } else {
+                                        VDataEnum::Tuple(vec![])
+                                    }
+                                    .to(),
+                                    match self {
+                                        Self::RunCommandGetBytes => VDataEnum::List(
+                                            VSingleType::Int.into(),
+                                            out.stdout
+                                                .iter()
+                                                .map(|v| VDataEnum::Int(*v as _).to())
+                                                .collect(),
+                                        ),
+                                        _ => VDataEnum::String(
+                                            String::from_utf8_lossy(&out.stdout).into_owned(),
+                                        ),
+                                    }
+                                    .to(),
+                                    match self {
+                                        Self::RunCommandGetBytes => VDataEnum::List(
+                                            VSingleType::Int.into(),
+                                            out.stderr
+                                                .iter()
+                                                .map(|v| VDataEnum::Int(*v as _).to())
+                                                .collect(),
+                                        ),
+                                        _ => VDataEnum::String(
+                                            String::from_utf8_lossy(&out.stderr).into_owned(),
+                                        ),
+                                    }
+                                    .to(),
+                                ])
+                                .to(),
+                                Err(e) => VDataEnum::EnumVariant(
+                                    EV_ERR,
+                                    Box::new(VDataEnum::String(e.to_string()).to()),
+                                )
+                                .to(),
                             }
                         } else {
-                            unreachable!("bytes_to_string arg not [int]")
+                            unreachable!("run_command not string arg")
                         }
-                    } else {
-                        unreachable!("bytes_to_string first arg not [int]")
-                    }
-                } else {
-                    unreachable!("bytes_to_string not 1 arg")
-                }
+                    })
+                })
             }
-            Self::StringToBytes => {
-                if args.len() == 1 {
-                    if let VDataEnum::String(s) = &args[0].run(vars, info).data().0 {
-                        VDataEnum::List(
-                            VSingleType::Int.into(),
-                            s.bytes().map(|v| VDataEnum::Int(v as isize).to()).collect(),
-                        )
-                        .to()
-                    } else {
-                        unreachable!("string_to_bytes arg not string")
-                    }
-                } else {
-                    unreachable!("string_to_bytes not 1 arg")
-                }
-            }
-            Self::RunCommand | Self::RunCommandGetBytes => {
-                if args.len() > 0 {
-                    if let VDataEnum::String(s) = &args[0].run(vars, info).data().0 {
-                        let mut command = std::process::Command::new(s);
-                        if args.len() > 1 {
-                            if let VDataEnum::List(_, args) = &args[1].run(vars, info).data().0 {
-                                for arg in args {
-                                    if let VDataEnum::String(v) = &arg.data().0 {
-                                        command.arg(v);
-                                    } else {
-                                        unreachable!("run_command second arg not [string].")
-                                    }
-                                }
-                            } else {
-                                unreachable!("run_command second arg not [string]")
-                            }
-                        }
-                        match command.output() {
-                            Ok(out) => VDataEnum::Tuple(vec![
-                                if let Some(code) = out.status.code() {
-                                    VDataEnum::Int(code as _)
-                                } else {
-                                    VDataEnum::Tuple(vec![])
-                                }
-                                .to(),
-                                match self {
-                                    Self::RunCommandGetBytes => VDataEnum::List(
-                                        VSingleType::Int.into(),
-                                        out.stdout
-                                            .iter()
-                                            .map(|v| VDataEnum::Int(*v as _).to())
-                                            .collect(),
-                                    ),
-                                    _ => VDataEnum::String(
-                                        String::from_utf8_lossy(&out.stdout).into_owned(),
-                                    ),
-                                }
-                                .to(),
-                                match self {
-                                    Self::RunCommandGetBytes => VDataEnum::List(
-                                        VSingleType::Int.into(),
-                                        out.stderr
-                                            .iter()
-                                            .map(|v| VDataEnum::Int(*v as _).to())
-                                            .collect(),
-                                    ),
-                                    _ => VDataEnum::String(
-                                        String::from_utf8_lossy(&out.stderr).into_owned(),
-                                    ),
-                                }
-                                .to(),
-                            ])
-                            .to(),
-                            Err(e) => VDataEnum::EnumVariant(
-                                EV_ERR,
-                                Box::new(VDataEnum::String(e.to_string()).to()),
-                            )
-                            .to(),
-                        }
-                    } else {
-                        unreachable!("run_command not string arg")
-                    }
-                } else {
-                    unreachable!("run_command not 1 arg")
-                }
-            }
-            Self::Not => {
-                if let VDataEnum::Bool(v) = &args[0].run(vars, info).data().0 {
+            Self::Not => args[0].run(info).operate_on_data_immut(|v| {
+                if let VDataEnum::Bool(v) = v {
                     VDataEnum::Bool(!v).to()
                 } else {
                     unreachable!()
                 }
-            }
-            Self::And => {
-                if let VDataEnum::Bool(a) = &args[0].run(vars, info).data().0 {
+            }),
+            Self::And => args[0].run(info).operate_on_data_immut(|a| {
+                if let VDataEnum::Bool(a) = a {
                     if *a == false {
                         VDataEnum::Bool(false).to()
                     } else {
-                        if let VDataEnum::Bool(b) = &args[1].run(vars, info).data().0 {
-                            VDataEnum::Bool(*b).to()
-                        } else {
-                            unreachable!()
-                        }
+                        args[1].run(info).operate_on_data_immut(|b| {
+                            if let VDataEnum::Bool(b) = b {
+                                VDataEnum::Bool(*b).to()
+                            } else {
+                                unreachable!()
+                            }
+                        })
                     }
                 } else {
                     unreachable!()
                 }
-            }
-            Self::Or => {
-                if let VDataEnum::Bool(a) = &args[0].run(vars, info).data().0 {
+            }),
+            Self::Or => args[0].run(info).operate_on_data_immut(|a| {
+                if let VDataEnum::Bool(a) = a {
                     if *a == true {
                         VDataEnum::Bool(true).to()
                     } else {
-                        if let VDataEnum::Bool(b) = &args[1].run(vars, info).data().0 {
-                            VDataEnum::Bool(*b).to()
-                        } else {
-                            unreachable!()
-                        }
+                        args[1].run(info).operate_on_data_immut(|b| {
+                            if let VDataEnum::Bool(b) = b {
+                                VDataEnum::Bool(*b).to()
+                            } else {
+                                unreachable!()
+                            }
+                        })
                     }
                 } else {
                     unreachable!()
                 }
-            }
-            Self::Add => {
-                if args.len() == 2 {
-                    match (
-                        args[0].run(vars, info).inner(),
-                        args[1].run(vars, info).inner(),
-                    ) {
-                        (VDataEnum::String(mut a), VDataEnum::String(b)) => {
-                            a.push_str(b.as_str());
-                            VDataEnum::String(a).to()
-                        }
-                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a + b).to(),
-                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Float(a as f64 + b).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Float(a + b as f64).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Float(a + b).to(),
-                        _ => unreachable!("add: not a number/string"),
+            }),
+            Self::Add => args[0].run(info).operate_on_data_immut(|a| {
+                args[1].run(info).operate_on_data_immut(|b| match (a, b) {
+                    (VDataEnum::String(a), VDataEnum::String(b)) => {
+                        VDataEnum::String(format!("{a}{b}")).to()
                     }
-                } else {
-                    unreachable!("add: not 2 args")
-                }
-            }
-            Self::Sub => {
-                if args.len() == 2 {
-                    match (
-                        &args[0].run(vars, info).data().0,
-                        &args[1].run(vars, info).data().0,
-                    ) {
-                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a - b).to(),
-                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Float(*a as f64 - *b).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Float(*a - *b as f64).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Float(a - b).to(),
-                        _ => unreachable!("sub: not a number"),
+                    (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a + b).to(),
+                    (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                        VDataEnum::Float(*a as f64 + b).to()
                     }
-                } else {
-                    unreachable!("sub: not 2 args")
-                }
-            }
-            Self::Mul => {
-                if args.len() == 2 {
-                    match (
-                        &args[0].run(vars, info).data().0,
-                        &args[1].run(vars, info).data().0,
-                    ) {
-                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a * b).to(),
-                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Float(*a as f64 * b).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Float(a * *b as f64).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Float(a * b).to(),
-                        _ => unreachable!("mul: not a number"),
+                    (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                        VDataEnum::Float(a + *b as f64).to()
                     }
-                } else {
-                    unreachable!("mul: not 2 args")
-                }
-            }
-            Self::Div => {
-                if args.len() == 2 {
-                    match (
-                        &args[0].run(vars, info).data().0,
-                        &args[1].run(vars, info).data().0,
-                    ) {
-                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a / b).to(),
-                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Float(*a as f64 / b).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Float(a / *b as f64).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Float(a / b).to(),
-                        _ => unreachable!("div: not a number"),
+                    (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Float(a + b).to(),
+                    _ => unreachable!("add: not a number/string"),
+                })
+            }),
+            Self::Sub => args[0].run(info).operate_on_data_immut(|a| {
+                args[1].run(info).operate_on_data_immut(|b| match (a, b) {
+                    (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a - b).to(),
+                    (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                        VDataEnum::Float(*a as f64 - *b).to()
                     }
-                } else {
-                    unreachable!("div: not 2 args")
-                }
-            }
-            Self::Mod => {
-                if args.len() == 2 {
-                    match (
-                        &args[0].run(vars, info).data().0,
-                        &args[1].run(vars, info).data().0,
-                    ) {
-                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a % b).to(),
-                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Float(*a as f64 % b).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Float(a % *b as f64).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Float(a % b).to(),
-                        _ => unreachable!("mod: not a number"),
+                    (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                        VDataEnum::Float(*a - *b as f64).to()
                     }
-                } else {
-                    unreachable!("mod: not 2 args")
-                }
-            }
-            Self::Pow => {
-                if args.len() == 2 {
-                    match (
-                        &args[0].run(vars, info).data().0,
-                        &args[1].run(vars, info).data().0,
-                    ) {
-                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(if *b == 0 {
-                            1
-                        } else if *b > 0 {
-                            (*a).pow(*b as _)
-                        } else {
-                            0
-                        })
-                        .to(),
-                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Float((*a as f64).powf(*b)).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Float((*a).powi(*b as _)).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Float((*a).powf(*b)).to()
-                        }
-                        _ => unreachable!("pow: not a number"),
+                    (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Float(a - b).to(),
+                    _ => unreachable!("sub: not a number"),
+                })
+            }),
+            Self::Mul => args[0].run(info).operate_on_data_immut(|a| {
+                args[1].run(info).operate_on_data_immut(|b| match (a, b) {
+                    (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a * b).to(),
+                    (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                        VDataEnum::Float(*a as f64 * b).to()
                     }
-                } else {
-                    unreachable!("pow: not 2 args")
-                }
-            }
-            Self::Eq => {
-                if args.len() == 2 {
-                    VDataEnum::Bool(args[0].run(vars, info) == args[1].run(vars, info)).to()
-                } else {
-                    unreachable!("eq: not 2 args")
-                }
-            }
-            Self::Gt => {
-                if args.len() == 2 {
-                    match (
-                        &args[0].run(vars, info).data().0,
-                        &args[1].run(vars, info).data().0,
-                    ) {
-                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(*a > *b).to(),
-                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Bool(*a as f64 > *b).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Bool(*a > *b as f64).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Bool(*a > *b).to(),
-                        _ => unreachable!("gt: not a number"),
+                    (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                        VDataEnum::Float(a * *b as f64).to()
                     }
-                } else {
-                    unreachable!("gt: not 2 args")
-                }
-            }
-            Self::Lt => {
-                if args.len() == 2 {
-                    match (
-                        &args[0].run(vars, info).data().0,
-                        &args[1].run(vars, info).data().0,
-                    ) {
-                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(*a < *b).to(),
-                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Bool((*a as f64) < *b).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Bool(*a < *b as f64).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Bool(*a < *b).to(),
-                        _ => unreachable!("lt: not a number"),
+                    (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Float(a * b).to(),
+                    _ => unreachable!("mul: not a number"),
+                })
+            }),
+            Self::Div => args[0].run(info).operate_on_data_immut(|a| {
+                args[1].run(info).operate_on_data_immut(|b| match (a, b) {
+                    (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a / b).to(),
+                    (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                        VDataEnum::Float(*a as f64 / b).to()
                     }
-                } else {
-                    unreachable!("lt: not 2 args")
-                }
-            }
-            Self::Gtoe => {
-                if args.len() == 2 {
-                    match (
-                        &args[0].run(vars, info).data().0,
-                        &args[1].run(vars, info).data().0,
-                    ) {
-                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(*a >= *b).to(),
-                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Bool(*a as f64 >= *b).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Bool(*a >= *b as f64).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Bool(*a >= *b).to()
-                        }
-                        _ => unreachable!("gtoe: not a number"),
+                    (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                        VDataEnum::Float(a / *b as f64).to()
                     }
-                } else {
-                    unreachable!("gtoe: not 2 args")
-                }
-            }
-            Self::Ltoe => {
-                if args.len() == 2 {
-                    match (
-                        &args[0].run(vars, info).data().0,
-                        &args[1].run(vars, info).data().0,
-                    ) {
-                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(*a <= *b).to(),
-                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Bool(*a as f64 <= *b).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Bool(*a <= *b as f64).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Bool(*a <= *b).to()
-                        }
-                        _ => unreachable!("ltoe: not a number"),
+                    (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Float(a / b).to(),
+                    _ => unreachable!("div: not a number"),
+                })
+            }),
+            Self::Mod => args[0].run(info).operate_on_data_immut(|a| {
+                args[1].run(info).operate_on_data_immut(|b| match (a, b) {
+                    (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(a % b).to(),
+                    (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                        VDataEnum::Float(*a as f64 % b).to()
                     }
-                } else {
-                    unreachable!("ltoe: not 2 args")
-                }
-            }
-            Self::Min => {
-                if args.len() == 2 {
-                    match (
-                        &args[0].run(vars, info).data().0,
-                        &args[1].run(vars, info).data().0,
-                    ) {
-                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int((*a).min(*b)).to(),
-                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Float((*a as f64).min(*b)).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Float((*a).min(*b as f64)).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Float((*a).min(*b)).to()
-                        }
-                        _ => unreachable!("min: not a number"),
+                    (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                        VDataEnum::Float(a % *b as f64).to()
                     }
-                } else {
-                    unreachable!("min: not 2 args")
-                }
-            }
-            Self::Max => {
-                if args.len() == 2 {
-                    match (
-                        &args[0].run(vars, info).data().0,
-                        &args[1].run(vars, info).data().0,
-                    ) {
-                        (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int((*a).max(*b)).to(),
-                        (VDataEnum::Int(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Float((*a as f64).max(*b)).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Int(b)) => {
-                            VDataEnum::Float((*a).max(*b as f64)).to()
-                        }
-                        (VDataEnum::Float(a), VDataEnum::Float(b)) => {
-                            VDataEnum::Float((*a).max(*b)).to()
-                        }
-                        _ => unreachable!("max: not a number"),
+                    (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Float(a % b).to(),
+                    _ => unreachable!("mod: not a number"),
+                })
+            }),
+            Self::Pow => args[0].run(info).operate_on_data_immut(|a| {
+                args[1].run(info).operate_on_data_immut(|b| match (a, b) {
+                    (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int(if *b == 0 {
+                        1
+                    } else if *b > 0 {
+                        (*a).pow(*b as _)
+                    } else {
+                        0
+                    })
+                    .to(),
+                    (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                        VDataEnum::Float((*a as f64).powf(*b)).to()
                     }
-                } else {
-                    unreachable!("max: not 2 args")
-                }
-            }
-            Self::Push => {
-                if args.len() == 2 {
-                    // Since this is a reference, it is safe to assume that make_mut() would do nothing.
-                    if let VDataEnum::Reference(v) = &args[0].run(vars, info).data().0 {
-                        if let VDataEnum::List(_, v) = &mut v.data().0 {
-                            v.push(args[1].run(vars, info));
+                    (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                        VDataEnum::Float((*a).powi(*b as _)).to()
+                    }
+                    (VDataEnum::Float(a), VDataEnum::Float(b)) => {
+                        VDataEnum::Float((*a).powf(*b)).to()
+                    }
+                    _ => unreachable!("pow: not a number"),
+                })
+            }),
+            Self::Eq => VDataEnum::Bool(args[0].run(info) == args[1].run(info)).to(),
+            Self::Ne => VDataEnum::Bool(args[0].run(info) != args[1].run(info)).to(),
+            Self::Gt => args[0].run(info).operate_on_data_immut(|a| {
+                args[1].run(info).operate_on_data_immut(|b| match (a, b) {
+                    (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(*a > *b).to(),
+                    (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                        VDataEnum::Bool(*a as f64 > *b).to()
+                    }
+                    (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                        VDataEnum::Bool(*a > *b as f64).to()
+                    }
+                    (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Bool(*a > *b).to(),
+                    _ => unreachable!("gt: not a number"),
+                })
+            }),
+            Self::Lt => args[0].run(info).operate_on_data_immut(|a| {
+                args[1].run(info).operate_on_data_immut(|b| match (a, b) {
+                    (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(*a < *b).to(),
+                    (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                        VDataEnum::Bool((*a as f64) < *b).to()
+                    }
+                    (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                        VDataEnum::Bool(*a < *b as f64).to()
+                    }
+                    (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Bool(*a < *b).to(),
+                    _ => unreachable!("lt: not a number"),
+                })
+            }),
+            Self::Gtoe => args[0].run(info).operate_on_data_immut(|a| {
+                args[1].run(info).operate_on_data_immut(|b| match (a, b) {
+                    (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(*a >= *b).to(),
+                    (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                        VDataEnum::Bool(*a as f64 >= *b).to()
+                    }
+                    (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                        VDataEnum::Bool(*a >= *b as f64).to()
+                    }
+                    (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Bool(*a >= *b).to(),
+                    _ => unreachable!("gtoe: not a number"),
+                })
+            }),
+            Self::Ltoe => args[0].run(info).operate_on_data_immut(|a| {
+                args[1].run(info).operate_on_data_immut(|b| match (a, b) {
+                    (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Bool(*a <= *b).to(),
+                    (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                        VDataEnum::Bool(*a as f64 <= *b).to()
+                    }
+                    (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                        VDataEnum::Bool(*a <= *b as f64).to()
+                    }
+                    (VDataEnum::Float(a), VDataEnum::Float(b)) => VDataEnum::Bool(*a <= *b).to(),
+                    _ => unreachable!("ltoe: not a number"),
+                })
+            }),
+            Self::Min => args[0].run(info).operate_on_data_immut(|a| {
+                args[1].run(info).operate_on_data_immut(|b| match (a, b) {
+                    (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int((*a).min(*b)).to(),
+                    (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                        VDataEnum::Float((*a as f64).min(*b)).to()
+                    }
+                    (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                        VDataEnum::Float((*a).min(*b as f64)).to()
+                    }
+                    (VDataEnum::Float(a), VDataEnum::Float(b)) => {
+                        VDataEnum::Float((*a).min(*b)).to()
+                    }
+                    _ => unreachable!("min: not a number"),
+                })
+            }),
+            Self::Max => args[0].run(info).operate_on_data_immut(|a| {
+                args[1].run(info).operate_on_data_immut(|b| match (a, b) {
+                    (VDataEnum::Int(a), VDataEnum::Int(b)) => VDataEnum::Int((*a).max(*b)).to(),
+                    (VDataEnum::Int(a), VDataEnum::Float(b)) => {
+                        VDataEnum::Float((*a as f64).max(*b)).to()
+                    }
+                    (VDataEnum::Float(a), VDataEnum::Int(b)) => {
+                        VDataEnum::Float((*a).max(*b as f64)).to()
+                    }
+                    (VDataEnum::Float(a), VDataEnum::Float(b)) => {
+                        VDataEnum::Float((*a).max(*b)).to()
+                    }
+                    _ => unreachable!("max: not a number"),
+                })
+            }),
+            Self::Push => args[0].run(info).operate_on_data_mut(|list| {
+                if let VDataEnum::Reference(v) = list {
+                    v.operate_on_data_mut(|list| {
+                        if let VDataEnum::List(_, v) = list {
+                            v.push(args[1].run(info));
                         }
                         VDataEnum::Tuple(vec![]).to()
-                    } else {
-                        unreachable!("push: not a reference")
-                    }
+                    })
                 } else {
-                    unreachable!("push: not 2 args")
+                    unreachable!("push: not a reference")
                 }
-            }
-            Self::Insert => {
-                if args.len() == 3 {
-                    // this being a reference means we wont need to call make_mut() later, so a .as_ref() borrow is enough.
-                    if let (VDataEnum::Reference(v), VDataEnum::Int(i)) = (
-                        &args[0].run(vars, info).data().0,
-                        &args[2].run(vars, info).data().0,
-                    ) {
-                        if let VDataEnum::List(_, v) = &mut v.data().0 {
-                            v.insert(*i as _, args[1].run(vars, info));
-                        }
+            }),
+            Self::Insert => args[0].run(info).operate_on_data_mut(|v| {
+                args[1].run(info).operate_on_data_immut(|i| {
+                    // TODO: find out why the fuck this helps
+                    if let (VDataEnum::Reference(v), VDataEnum::Int(i)) = (v, i) {
+                        v.operate_on_data_mut(|v| {
+                            if let VDataEnum::List(_, v) = v {
+                                v.insert(*i as _, args[2].run(info));
+                            }
+                        });
                         VDataEnum::Tuple(vec![]).to()
                     } else {
                         unreachable!("insert: not a reference and index")
                     }
-                } else {
-                    unreachable!("insert: not 3 args")
-                }
-            }
-            Self::Pop => {
-                if args.len() == 1 {
-                    // this being a reference means we wont need to call make_mut() later, so a .as_ref() borrow is enough.
-                    if let VDataEnum::Reference(v) = &args[0].run(vars, info).data().0 {
-                        if let VDataEnum::List(_, v) = &mut v.data.lock().unwrap().0 {
+                })
+            }),
+            Self::Pop => args[0].run(info).operate_on_data_mut(|v| {
+                if let VDataEnum::Reference(v) = v {
+                    v.operate_on_data_mut(|v| {
+                        if let VDataEnum::List(_, v) = v {
                             if let Some(v) = v.pop() {
                                 VDataEnum::Tuple(vec![v])
                             } else {
@@ -1566,53 +1428,44 @@ impl BuiltinFunction {
                         } else {
                             unreachable!("pop: not a list")
                         }
-                    } else {
-                        unreachable!("pop: not a reference")
-                    }
+                    })
                 } else {
-                    unreachable!("pop: not 1 arg")
+                    unreachable!("pop: not a reference")
                 }
-            }
-            Self::Remove => {
-                if args.len() == 2 {
+            }),
+            Self::Remove => args[0].run(info).operate_on_data_mut(|v| {
+                args[1].run(info).operate_on_data_immut(|i|
                     // this being a reference means we wont need to call make_mut() later, so a .as_ref() borrow is enough.
-                    if let (VDataEnum::Reference(v), VDataEnum::Int(i)) = (
-                        &args[0].run(vars, info).data().0,
-                        &args[1].run(vars, info).data().0,
+                    if let (VDataEnum::Reference(v), VDataEnum::Int(i)) = (v, i
                     ) {
-                        if let VDataEnum::List(_, v) = &mut v.data.lock().unwrap().0 {
-                            if *i >= 0 && v.len() > *i as _ {
-                                let v = v.remove(*i as _);
-                                VDataEnum::Tuple(vec![v]).to()
+                        v.operate_on_data_mut(|v| {
+                        if let VDataEnum::List(_, v) = v {
+                                if *i >= 0 && v.len() > *i as _ {
+                                    let v = v.remove(*i as _);
+                                    VDataEnum::Tuple(vec![v]).to()
+                                } else {
+                                    VDataEnum::Tuple(vec![]).to()
+                                }
                             } else {
-                                VDataEnum::Tuple(vec![]).to()
-                            }
-                        } else {
-                            unreachable!("remove: not a list")
-                        }
+                                unreachable!("remove: not a list")
+                        }})
                     } else {
                         unreachable!("remove: not a reference and index")
-                    }
-                } else {
-                    unreachable!("remove: not 2 args")
-                }
-            }
-            Self::Get => {
-                if args.len() == 2 {
-                    if let (container, VDataEnum::Int(i)) = (
-                        &args[0].run(vars, info).data().0,
-                        &args[1].run(vars, info).data().0,
-                    ) {
+                    })
+            }),
+            Self::Get => args[0].run(info).operate_on_data_immut(|container| {
+                args[1].run(info).operate_on_data_immut(|i| {
+                    if let VDataEnum::Int(i) = i {
                         if *i >= 0 {
                             match match container {
-                                VDataEnum::Reference(v) => match &v.data().0 {
+                                VDataEnum::Reference(v) => v.operate_on_data_immut(|v| match v {
                                     VDataEnum::List(_, v) | VDataEnum::Tuple(v) => {
                                         v.get(*i as usize).map(|v| v.clone())
                                     }
                                     _ => unreachable!(
                                         "get: reference to something other than list/tuple"
                                     ),
-                                },
+                                }),
                                 VDataEnum::List(_, v) | VDataEnum::Tuple(v) => {
                                     v.get(*i as usize).map(|v| v.clone())
                                 }
@@ -1627,19 +1480,14 @@ impl BuiltinFunction {
                     } else {
                         unreachable!("get: not a list/tuple/reference and index")
                     }
-                } else {
-                    unreachable!("get: not 2 args")
-                }
-            }
-            Self::GetRef => {
-                if args.len() == 2 {
-                    if let (VDataEnum::Reference(container), VDataEnum::Int(i)) = (
-                        &args[0].run(vars, info).data().0,
-                        &args[1].run(vars, info).data().0,
-                    ) {
+                })
+            }),
+            Self::GetRef => args[0].run(info).operate_on_data_mut(|container| {
+                args[1].run(info).operate_on_data_immut(|i| {
+                    if let (VDataEnum::Reference(container), VDataEnum::Int(i)) = (container, i) {
                         if *i >= 0 {
                             // we can get mutably because this is the content of a reference
-                            match match &mut container.data().0 {
+                            match container.operate_on_data_mut(|container| match container {
                                 VDataEnum::List(_, v) | VDataEnum::Tuple(v) => {
                                     if let Some(v) = v.get_mut(*i as usize) {
                                         Some(VDataEnum::Reference(v.clone_mut()).to())
@@ -1648,7 +1496,7 @@ impl BuiltinFunction {
                                     }
                                 }
                                 _ => unreachable!("get: not a reference/list/tuple"),
-                            } {
+                            }) {
                                 Some(v) => VDataEnum::Tuple(vec![v]).to(),
                                 None => VDataEnum::Tuple(vec![]).to(),
                             }
@@ -1658,27 +1506,25 @@ impl BuiltinFunction {
                     } else {
                         unreachable!("get_ref: not a reference and index")
                     }
-                } else {
-                    unreachable!("get: not 2 args")
-                }
-            }
+                })
+            }),
             Self::Len => {
                 if args.len() == 1 {
-                    VDataEnum::Int(match &args[0].run(vars, info).data().0 {
+                    VDataEnum::Int(args[0].run(info).operate_on_data_immut(|v| match v {
                         VDataEnum::String(v) => v.len(),
                         VDataEnum::Tuple(v) => v.len(),
                         VDataEnum::List(_, v) => v.len(),
                         _ => unreachable!("len: invalid type"),
-                    } as _)
+                    }) as _)
                     .to()
                 } else {
                     unreachable!("len: not 1 arg")
                 }
             }
-            Self::Contains => {
-                if args.len() == 2 {
-                    if let VDataEnum::String(a1) = &args[0].run(vars, info).data().0 {
-                        if let VDataEnum::String(a2) = &args[1].run(vars, info).data().0 {
+            Self::Contains => args[0].run(info).operate_on_data_immut(|a1| {
+                args[1].run(info).operate_on_data_immut(|a2| {
+                    if let VDataEnum::String(a1) = a2 {
+                        if let VDataEnum::String(a2) = a2 {
                             VDataEnum::Bool(a1.contains(a2.as_str())).to()
                         } else {
                             unreachable!()
@@ -1686,14 +1532,12 @@ impl BuiltinFunction {
                     } else {
                         unreachable!()
                     }
-                } else {
-                    unreachable!()
-                }
-            }
-            Self::StartsWith => {
-                if args.len() == 2 {
-                    if let VDataEnum::String(a1) = &args[0].run(vars, info).data().0 {
-                        if let VDataEnum::String(a2) = &args[1].run(vars, info).data().0 {
+                })
+            }),
+            Self::StartsWith => args[0].run(info).operate_on_data_immut(|a1| {
+                args[1].run(info).operate_on_data_immut(|a2| {
+                    if let VDataEnum::String(a1) = a2 {
+                        if let VDataEnum::String(a2) = a2 {
                             VDataEnum::Bool(a1.starts_with(a2.as_str())).to()
                         } else {
                             unreachable!()
@@ -1701,14 +1545,12 @@ impl BuiltinFunction {
                     } else {
                         unreachable!()
                     }
-                } else {
-                    unreachable!()
-                }
-            }
-            Self::EndsWith => {
-                if args.len() == 2 {
-                    if let VDataEnum::String(a1) = &args[0].run(vars, info).data().0 {
-                        if let VDataEnum::String(a2) = &args[1].run(vars, info).data().0 {
+                })
+            }),
+            Self::EndsWith => args[0].run(info).operate_on_data_immut(|a1| {
+                args[1].run(info).operate_on_data_immut(|a2| {
+                    if let VDataEnum::String(a1) = a2 {
+                        if let VDataEnum::String(a2) = a2 {
                             VDataEnum::Bool(a1.ends_with(a2.as_str())).to()
                         } else {
                             unreachable!()
@@ -1716,14 +1558,10 @@ impl BuiltinFunction {
                     } else {
                         unreachable!()
                     }
-                } else {
-                    unreachable!()
-                }
-            }
-            Self::IndexOf => {
-                if args.len() == 2 {
-                    let find_in = args[0].run(vars, info);
-                    let pat = args[1].run(vars, info);
+                })
+            }),
+            Self::IndexOf => args[0].run(info).operate_on_data_immut(|find_in| {
+                args[1].run(info).operate_on_data_immut(|pat| {
                     fn find(find_in: &String, pat: &String) -> VData {
                         if let Some(found_byte_index) = find_in.find(pat) {
                             if let Some(char_index) = find_in.char_indices().enumerate().find_map(
@@ -1743,110 +1581,87 @@ impl BuiltinFunction {
                             VDataEnum::Tuple(vec![]).to()
                         }
                     }
-                    let o = match (&find_in.data().0, &pat.data().0) {
+                    let o = match (find_in, pat) {
                         (VDataEnum::String(a), VDataEnum::String(b)) => find(a, b),
-                        (VDataEnum::String(a), VDataEnum::Reference(b)) => match &b.data().0 {
-                            VDataEnum::String(b) => find(a, b),
-                            _ => unreachable!(),
-                        },
-                        (VDataEnum::Reference(a), VDataEnum::String(b)) => match &a.data().0 {
-                            VDataEnum::String(a) => find(a, b),
-                            _ => unreachable!(),
-                        },
-                        (VDataEnum::Reference(a), VDataEnum::Reference(b)) => {
-                            if a.ptr_eq(b) {
-                                // point to the same string
-                                // (this is required because a.lock() would cause b.lock() to wait indefinitely if you pass a two references to the same string here)
-                                VDataEnum::Int(0).to()
-                            } else {
-                                match (&a.data().0, &b.data().0) {
-                                    (VDataEnum::String(a), VDataEnum::String(b)) => find(a, b),
-                                    _ => unreachable!(),
-                                }
-                            }
-                        }
                         _ => unreachable!(),
                     };
                     o
+                })
+            }),
+            Self::Trim => args[0].run(info).operate_on_data_immut(|a| {
+                if let VDataEnum::String(a) = a {
+                    VDataEnum::String(a.trim().to_string()).to()
                 } else {
                     unreachable!()
                 }
-            }
-            Self::Trim => {
-                if args.len() == 1 {
-                    if let VDataEnum::String(a) = &args[0].run(vars, info).data().0 {
-                        VDataEnum::String(a.trim().to_string()).to()
-                    } else {
+            }),
+            Self::Substring => args[0].run(info).operate_on_data_immut(|a| {
+                if let VDataEnum::String(a) = a {
+                    if args.len() > 3 {
                         unreachable!()
                     }
-                } else {
-                    unreachable!()
-                }
-            }
-            Self::Substring => {
-                if args.len() >= 2 {
-                    if let VDataEnum::String(a) = &args[0].run(vars, info).data().0 {
-                        if args.len() > 3 {
-                            unreachable!()
-                        }
-                        let left = if let VDataEnum::Int(left) = &args[1].run(vars, info).data().0 {
+                    let left = args[1].run(info).operate_on_data_immut(|left| {
+                        if let VDataEnum::Int(left) = left {
                             *left
                         } else {
                             unreachable!()
-                        };
-                        let len = if args.len() == 3 {
-                            if let VDataEnum::Int(len) = &args[2].run(vars, info).data().0 {
+                        }
+                    });
+                    let len = if args.len() == 3 {
+                        args[2].run(info).operate_on_data_immut(|len| {
+                            if let VDataEnum::Int(len) = len {
                                 Some(*len)
                             } else {
                                 unreachable!()
                             }
+                        })
+                    } else {
+                        None
+                    };
+                    let left = if left >= 0 {
+                        left as usize
+                    } else {
+                        (a.len() - 1).saturating_sub(left.abs() as _)
+                    };
+                    if let Some(len) = len {
+                        if len >= 0 {
+                            VDataEnum::String(
+                                a.chars()
+                                    .skip(left)
+                                    .take((len as usize).saturating_sub(left))
+                                    .collect(),
+                            )
+                            .to()
                         } else {
-                            None
-                        };
-                        let left = if left >= 0 { left as usize } else { 0 };
-                        if let Some(len) = len {
-                            if len >= 0 {
-                                VDataEnum::String(
-                                    a.chars()
-                                        .skip(left)
-                                        .take((len as usize).saturating_sub(left))
-                                        .collect(),
-                                )
-                                .to()
-                            } else {
-                                // negative end index => max length
-                                VDataEnum::String(
-                                    a.chars().skip(left).take(len.abs() as usize).collect(),
-                                )
-                                .to()
-                            }
-                        } else {
-                            VDataEnum::String(a.chars().skip(left).collect()).to()
+                            // negative end index => max length
+                            VDataEnum::String(
+                                a.chars().skip(left).take(len.abs() as usize).collect(),
+                            )
+                            .to()
                         }
                     } else {
-                        unreachable!()
+                        VDataEnum::String(a.chars().skip(left).collect()).to()
                     }
                 } else {
                     unreachable!()
                 }
-            }
-            Self::Replace => {
-                if let (VDataEnum::String(a), VDataEnum::String(b), VDataEnum::String(c)) = (
-                    &args[0].run(vars, info).data().0,
-                    &args[1].run(vars, info).data().0,
-                    &args[2].run(vars, info).data().0,
-                ) {
-                    VDataEnum::String(a.replace(b, c)).to()
-                } else {
-                    unreachable!()
-                }
-            }
-            Self::Regex => {
-                if args.len() == 2 {
-                    if let (VDataEnum::String(a), VDataEnum::String(regex)) = (
-                        &args[0].run(vars, info).data().0,
-                        &args[1].run(vars, info).data().0,
-                    ) {
+            }),
+            Self::Replace => args[0].run(info).operate_on_data_immut(|a| {
+                args[1].run(info).operate_on_data_immut(|b| {
+                    args[2].run(info).operate_on_data_immut(|c| {
+                        if let (VDataEnum::String(a), VDataEnum::String(b), VDataEnum::String(c)) =
+                            (a, b, c)
+                        {
+                            VDataEnum::String(a.replace(b, c)).to()
+                        } else {
+                            unreachable!()
+                        }
+                    })
+                })
+            }),
+            Self::Regex => args[0].run(info).operate_on_data_immut(|a| {
+                args[1].run(info).operate_on_data_immut(|regex| {
+                    if let (VDataEnum::String(a), VDataEnum::String(regex)) = (a, regex) {
                         match regex::Regex::new(regex.as_str()) {
                             Ok(regex) => VDataEnum::List(
                                 VSingleType::String.to(),
@@ -1865,10 +1680,8 @@ impl BuiltinFunction {
                     } else {
                         unreachable!()
                     }
-                } else {
-                    unreachable!()
-                }
-            }
+                })
+            }),
         }
     }
 }
@@ -1876,17 +1689,20 @@ impl BuiltinFunction {
 fn vdata_to_bytes(vd: &Vec<VData>) -> Option<Vec<u8>> {
     let mut bytes = Vec::with_capacity(vd.len());
     for b in vd {
-        if let VDataEnum::Int(b) = &b.data().0 {
-            bytes.push(if 0 <= *b && *b <= u8::MAX as isize {
-                *b as u8
-            } else if b.is_negative() {
-                0
+        let b = b.operate_on_data_immut(|b| {
+            if let VDataEnum::Int(b) = b {
+                Some(*b)
             } else {
-                u8::MAX
-            });
+                None
+            }
+        })?;
+        bytes.push(if 0 <= b && b <= u8::MAX as isize {
+            b as u8
+        } else if b.is_negative() {
+            0
         } else {
-            return None;
-        }
+            u8::MAX
+        });
     }
     Some(bytes)
 }

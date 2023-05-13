@@ -25,4 +25,3 @@ for word text.regex("\\S+").assume_no_enum()
         words = rnd()
         sleep(0.75)
     }
-println(" ~ ~ ~ ~ ~ ~ ~ ~ ~ ~")
