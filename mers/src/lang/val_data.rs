@@ -1,5 +1,6 @@
 use std::{
     fmt::{self, Debug, Display, Formatter},
+    ops::Deref,
     sync::{Arc, Mutex, MutexGuard},
 };
 
@@ -8,6 +9,9 @@ use super::{
     global_info::{GSInfo, GlobalScriptInfo},
     val_type::{VSingleType, VType},
 };
+
+#[cfg(debug_assertions)]
+use super::global_info::LogMsg;
 
 #[derive(Debug)]
 pub enum VDataEnum {
@@ -23,8 +27,11 @@ pub enum VDataEnum {
     EnumVariant(usize, Box<VData>),
 }
 
+#[cfg(not(debug_assertions))]
 pub struct VData(Arc<Mutex<VDataInner>>);
-enum VDataInner {
+#[cfg(debug_assertions)]
+pub struct VData(pub Arc<Mutex<VDataInner>>, pub Option<String>);
+pub enum VDataInner {
     Data(usize, Box<VDataEnum>),
     Mut(Arc<Mutex<VData>>),
     ClonedFrom(VData),
@@ -35,7 +42,10 @@ enum VDataInner {
 /// - any Mut will eventually point to a ClonedFrom or a Data variant. It can also point to another Mut.
 impl VDataInner {
     fn to(self) -> VData {
-        VData(Arc::new(Mutex::new(self)))
+        #[cfg(not(debug_assertions))]
+        return VData(Arc::new(Mutex::new(self)));
+        #[cfg(debug_assertions)]
+        return VData(Arc::new(Mutex::new(self)), None);
     }
 }
 impl VDataEnum {
@@ -48,9 +58,17 @@ impl VData {
     pub fn new_placeholder() -> Self {
         VDataEnum::Bool(false).to()
     }
+    #[cfg(debug_assertions)]
+    pub fn new_placeholder_with_name(name: String) -> Self {
+        let mut o = VDataEnum::Bool(false).to();
+        o.1 = Some(name);
+        o
+    }
     /// clones self, retrurning a new instance of self that will always yield the value self had when this function was called.
     /// note to dev: since the actual data is stored in VDataEnum, which either clones data or calls clone() (= clone_data()) on further VData, this automatically borrows all child data as immutable too. rust's Drop::drop() implementation (probably) handles everything for us too, so this can be implemented without thinking about recursion.
     pub fn clone_data(&self) -> Self {
+        // TODO! implement CopyOnWrite. For now, just always copy. This also prevents mut references not existing since in ::Dat(cloned, _), cloned will always stay 0.
+        return self.operate_on_data_immut(|v| v.clone()).to();
         match &mut *self.0.lock().unwrap() {
             VDataInner::Data(cloned, _data) => {
                 *cloned += 1;
@@ -65,7 +83,10 @@ impl VData {
         VDataInner::Mut(Arc::new(Mutex::new(self.clone_arc()))).to()
     }
     fn clone_arc(&self) -> Self {
-        Self(Arc::clone(&self.0))
+        #[cfg(not(debug_assertions))]
+        return Self(Arc::clone(&self.0));
+        #[cfg(debug_assertions)]
+        return Self(Arc::clone(&self.0), self.1.clone());
     }
     pub fn operate_on_data_immut<F, O>(&self, mut func: F) -> O
     where
@@ -80,27 +101,39 @@ impl VData {
     /// runs func on the underlying data.
     /// attempts to get a mutable reference to the data. if this fails, it will (partially) clone the data, then point the VData to the new data,
     /// so that other VDatas pointing to the same original data aren't changed.
-    pub fn operate_on_data_mut<F, O>(&mut self, mut func: F) -> O
+    pub fn operate_on_data_mut<F, O>(&mut self, info: &GlobalScriptInfo, mut func: F) -> O
     where
         F: FnOnce(&mut VDataEnum) -> O,
     {
         let (new_val, o) = {
-            match &mut *self.0.lock().unwrap() {
+            let mut lock = self.0.lock().unwrap();
+            match &mut *lock {
                 VDataInner::Data(count, data) => {
                     if *count == 0 {
                         (None, func(data.as_mut()))
                     } else {
-                        #[cfg(debug_assertions)]
-                        eprintln!("Cloning: data should be modified, but was borrowed immutably.");
                         let mut new_data = data.clone();
                         let o = func(new_data.as_mut());
                         // *self doesn't modify the ::Data, it instead points the value that wraps it to a new ::Data, leaving the old one as it was.
                         // for proof: data is untouched, only the new_data is ever modified.
-                        (Some(VDataInner::Data(0, new_data).to()), o)
+                        let new_vdata = VDataInner::Data(0, new_data).to();
+                        #[cfg(debug_assertions)]
+                        if info.log.vdata_clone.log() {
+                            drop(lock);
+                            info.log.log(LogMsg::VDataClone(
+                                self.1.clone(),
+                                self.inner_cloned(),
+                                Arc::as_ptr(&self.0) as usize,
+                                Arc::as_ptr(&new_vdata.0) as usize,
+                            ));
+                        }
+                        (Some(new_vdata), o)
                     }
                 }
-                VDataInner::Mut(inner) => (None, inner.lock().unwrap().operate_on_data_mut(func)),
-                VDataInner::ClonedFrom(inner) => (None, inner.operate_on_data_mut(func)),
+                VDataInner::Mut(inner) => {
+                    (None, inner.lock().unwrap().operate_on_data_mut(info, func))
+                }
+                VDataInner::ClonedFrom(inner) => (None, inner.operate_on_data_mut(info, func)),
             }
         };
         if let Some(nv) = new_val {
@@ -111,12 +144,13 @@ impl VData {
 
     /// Since operate_on_data_mut can clone, it may be inefficient for just assigning (where we don't care about the previous value, so it doesn't need to be cloned).
     /// This is what this function is for. (TODO: actually make it more efficient instead of using operate_on_data_mut)
-    pub fn assign_data(&mut self, new_data: VDataEnum) {
-        self.operate_on_data_mut(|d| *d = new_data)
+    pub fn assign_data(&mut self, info: &GlobalScriptInfo, new_data: VDataEnum) {
+        let o = self.operate_on_data_mut(info, |d| *d = new_data);
+        o
     }
     /// Assigns the new_data to self. Affects all muts pointing to the same data, but no ClonedFroms.
-    pub fn assign(&mut self, new: VData) {
-        self.assign_data(new.inner_cloned())
+    pub fn assign(&mut self, info: &GlobalScriptInfo, new: VData) {
+        self.assign_data(info, new.inner_cloned())
         // !PROBLEM! If ClonedFrom always has to point to a Data, this may break things!
         // match &mut *self.0.lock().unwrap() {
         //     VDataInner::Data(count, data) => {
@@ -133,9 +167,7 @@ impl Drop for VDataInner {
     fn drop(&mut self) {
         if let Self::ClonedFrom(origin) = self {
             if let Self::Data(ref_count, _data) = &mut *origin.0.lock().unwrap() {
-                eprint!("rc: {}", *ref_count);
-                *ref_count = ref_count.saturating_sub(1);
-                eprintln!(" -> {}", *ref_count);
+                // *ref_count = ref_count.saturating_sub(1);
             }
         }
     }

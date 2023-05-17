@@ -1388,9 +1388,9 @@ impl BuiltinFunction {
                     _ => unreachable!("max: not a number"),
                 })
             }),
-            Self::Push => args[0].run(info).operate_on_data_mut(|list| {
+            Self::Push => args[0].run(info).operate_on_data_mut(info, |list| {
                 if let VDataEnum::Reference(v) = list {
-                    v.operate_on_data_mut(|list| {
+                    v.operate_on_data_mut(info, |list| {
                         if let VDataEnum::List(_, v) = list {
                             v.push(args[1].run(info));
                         }
@@ -1400,11 +1400,11 @@ impl BuiltinFunction {
                     unreachable!("push: not a reference")
                 }
             }),
-            Self::Insert => args[0].run(info).operate_on_data_mut(|v| {
+            Self::Insert => args[0].run(info).operate_on_data_mut(info, |v| {
                 args[1].run(info).operate_on_data_immut(|i| {
                     // TODO: find out why the fuck this helps
                     if let (VDataEnum::Reference(v), VDataEnum::Int(i)) = (v, i) {
-                        v.operate_on_data_mut(|v| {
+                        v.operate_on_data_mut(info, |v| {
                             if let VDataEnum::List(_, v) = v {
                                 v.insert(*i as _, args[2].run(info));
                             }
@@ -1415,9 +1415,9 @@ impl BuiltinFunction {
                     }
                 })
             }),
-            Self::Pop => args[0].run(info).operate_on_data_mut(|v| {
+            Self::Pop => args[0].run(info).operate_on_data_mut(info, |v| {
                 if let VDataEnum::Reference(v) = v {
-                    v.operate_on_data_mut(|v| {
+                    v.operate_on_data_mut(info, |v| {
                         if let VDataEnum::List(_, v) = v {
                             if let Some(v) = v.pop() {
                                 VDataEnum::Tuple(vec![v])
@@ -1433,12 +1433,12 @@ impl BuiltinFunction {
                     unreachable!("pop: not a reference")
                 }
             }),
-            Self::Remove => args[0].run(info).operate_on_data_mut(|v| {
+            Self::Remove => args[0].run(info).operate_on_data_mut(info, |v| {
                 args[1].run(info).operate_on_data_immut(|i|
                     // this being a reference means we wont need to call make_mut() later, so a .as_ref() borrow is enough.
                     if let (VDataEnum::Reference(v), VDataEnum::Int(i)) = (v, i
                     ) {
-                        v.operate_on_data_mut(|v| {
+                        v.operate_on_data_mut(info, |v| {
                         if let VDataEnum::List(_, v) = v {
                                 if *i >= 0 && v.len() > *i as _ {
                                     let v = v.remove(*i as _);
@@ -1482,12 +1482,12 @@ impl BuiltinFunction {
                     }
                 })
             }),
-            Self::GetRef => args[0].run(info).operate_on_data_mut(|container| {
+            Self::GetRef => args[0].run(info).operate_on_data_mut(info, |container| {
                 args[1].run(info).operate_on_data_immut(|i| {
                     if let (VDataEnum::Reference(container), VDataEnum::Int(i)) = (container, i) {
                         if *i >= 0 {
                             // we can get mutably because this is the content of a reference
-                            match container.operate_on_data_mut(|container| match container {
+                            match container.operate_on_data_mut(info, |container| match container {
                                 VDataEnum::List(_, v) | VDataEnum::Tuple(v) => {
                                     if let Some(v) = v.get_mut(*i as usize) {
                                         Some(VDataEnum::Reference(v.clone_mut()).to())

@@ -112,7 +112,14 @@ impl RStatement {
             'init: {
                 if *is_init && *derefs == 0 {
                     if let RStatementEnum::Variable(var, _, _) = v.statement.as_ref() {
-                        *var.lock().unwrap() = out;
+                        let mut varl = var.lock().unwrap();
+                        #[cfg(debug_assertions)]
+                        let varname = varl.1.clone();
+                        *varl = out;
+                        #[cfg(debug_assertions)]
+                        {
+                            varl.1 = varname;
+                        }
                         break 'init;
                     }
                 }
@@ -123,7 +130,7 @@ impl RStatement {
                         None => unreachable!("can't dereference..."),
                     };
                 }
-                val.assign(out);
+                val.assign(info, out);
             }
             VDataEnum::Tuple(vec![]).to()
         } else {
@@ -174,7 +181,7 @@ impl RStatementEnum {
             }
             Self::FunctionCall(func, args) => {
                 for (i, input) in func.inputs.iter().enumerate() {
-                    input.lock().unwrap().assign(args[i].run(info));
+                    input.lock().unwrap().assign(info, args[i].run(info));
                 }
                 func.run(info)
             }

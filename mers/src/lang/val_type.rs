@@ -6,6 +6,9 @@ use std::{
 
 use super::global_info::{self, GSInfo, GlobalScriptInfo};
 
+#[cfg(debug_assertions)]
+use super::global_info::LogMsg;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VType {
     pub types: Vec<VSingleType>,
@@ -151,14 +154,17 @@ impl VType {
 impl VType {
     /// Returns a vec with all types in self that aren't covered by rhs. If the returned vec is empty, self fits in rhs.
     pub fn fits_in(&self, rhs: &Self, info: &GlobalScriptInfo) -> Vec<VSingleType> {
-        #[cfg(debug_assertions)]
-        eprintln!("{} in {}? [VType]", self, rhs);
         let mut no = vec![];
         for t in &self.types {
             // if t doesnt fit in any of rhs's types
             if !t.fits_in_type(rhs, info) {
                 no.push(t.clone())
             }
+        }
+        #[cfg(debug_assertions)]
+        if info.log.vtype_fits_in.log() {
+            info.log
+                .log(LogMsg::VTypeFitsIn(self.clone(), rhs.clone(), no.clone()))
         }
         no
     }
@@ -294,8 +300,6 @@ impl VSingleType {
         }
     }
     pub fn fits_in(&self, rhs: &Self, info: &GlobalScriptInfo) -> bool {
-        #[cfg(debug_assertions)]
-        eprintln!("{self} in {rhs}?");
         let o = match (self, rhs) {
             (Self::Reference(r), Self::Reference(b)) => r.fits_in(b, info),
             (Self::Reference(_), _) | (_, Self::Reference(_)) => false,
@@ -356,7 +360,10 @@ impl VSingleType {
             (Self::Thread(..), _) => false,
         };
         #[cfg(debug_assertions)]
-        eprintln!(" -> {}", o);
+        if info.log.vsingletype_fits_in.log() {
+            info.log
+                .log(LogMsg::VSingleTypeFitsIn(self.clone(), rhs.clone(), o));
+        }
         o
     }
     pub fn fits_in_type(&self, rhs: &VType, info: &GlobalScriptInfo) -> bool {

@@ -136,8 +136,10 @@ impl Error {
 
 /// executes the 4 parse_steps in order: lib_paths => interpret => libs_load => compile
 pub fn parse(file: &mut File) -> Result<RScript, Error> {
-    let mut ginfo = GlobalScriptInfo::default();
-
+    parse_custom_info(file, GlobalScriptInfo::default())
+}
+/// like parse, but GlobalInfo can be something other than Default::default().
+pub fn parse_custom_info(file: &mut File, mut ginfo: GlobalScriptInfo) -> Result<RScript, Error> {
     let libs = match parse_step_lib_paths(file) {
         Ok(v) => v,
         Err(e) => return Err((e.into(), ginfo.to_arc()).into()),

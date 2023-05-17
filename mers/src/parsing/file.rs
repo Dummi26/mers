@@ -216,8 +216,8 @@ impl Iterator for File {
                     }
                     _ => self.pos.current_column += 1,
                 }
-                #[cfg(debug_assertions)]
-                eprint!("{ch}");
+                // #[cfg(debug_assertions)]
+                // eprint!("{ch}");
                 Some(*ch)
             }
             None => None,

@@ -223,6 +223,9 @@ fn get_all_functions(
                 vartype.to()
             }
         }
+        // block is parsed multiple times (this is why we get duplicates in stderr):
+        // - n times for the function args to generate the input-output map
+        // - 1 more time here, where the function args aren't single types
         out.push((
             inputs.clone(),
             block(&s.block, ginfo, linfo.clone())?.out(ginfo),
@@ -367,7 +370,11 @@ fn statement_adv(
                 if !linfo.vars.contains_key(v) {
                     if let Some((t, is_init)) = to_be_assigned_to {
                         *is_init = true;
-                        linfo.vars.insert(v.to_owned(), (Arc::new(Mutex::new(VData::new_placeholder())), t));
+                        #[cfg(not(debug_assertions))]
+                        let var = VData::new_placeholder();
+                        #[cfg(debug_assertions)]
+                        let var = VData::new_placeholder_with_name(v.to_owned());
+                        linfo.vars.insert(v.to_owned(), (Arc::new(Mutex::new(var)), t));
                     }
                 }
                 if let Some(var) = linfo.vars.get(v) {
