@@ -17,36 +17,37 @@ fn get_number_input(question string) {
 
 answer = get_number_input("What is your favorite number?")
 
+answer.debug() // type: int/float/Err(string)
 // switch can be used to branch based on a variables type.
 // switch! indicates that every possible type must be handled.
 switch! answer {
     int {
         println("Entered an integer")
-        answer.debug() // int
+        answer.debug() // type: int
     }
     float {
         println("Entered a decimal number")
-        answer.debug() // float
+        answer.debug() // type: float
     }
     Err(string) println("Input was not a number!")
 }
 
-sleep(2)
+// wait one second
+sleep(1)
 
 
 // function that returns an anonymous function (function object).
 // anonymous functions can be used as iterators in for-loops.
-fn count_up() {
-    count = -1
+fn square_numbers() {
+    i = 0
     () {
-        count = count.add(1)
-        count
+        i = i + 1
+        i * i
     }
 }
 
-for num count_up() {
+for num square_numbers() {
     println(num.to_string())
-    // once num is greater than 60,
-    // the loop stops and returns num.
-    if num.gt(60) num else []
+    // once num is greater than 60, the loop stops.
+    num.gt(50)
 }
