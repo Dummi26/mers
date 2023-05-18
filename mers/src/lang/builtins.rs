@@ -1523,7 +1523,7 @@ impl BuiltinFunction {
             }
             Self::Contains => args[0].run(info).operate_on_data_immut(|a1| {
                 args[1].run(info).operate_on_data_immut(|a2| {
-                    if let VDataEnum::String(a1) = a2 {
+                    if let VDataEnum::String(a1) = a1 {
                         if let VDataEnum::String(a2) = a2 {
                             VDataEnum::Bool(a1.contains(a2.as_str())).to()
                         } else {
@@ -1536,7 +1536,7 @@ impl BuiltinFunction {
             }),
             Self::StartsWith => args[0].run(info).operate_on_data_immut(|a1| {
                 args[1].run(info).operate_on_data_immut(|a2| {
-                    if let VDataEnum::String(a1) = a2 {
+                    if let VDataEnum::String(a1) = a1 {
                         if let VDataEnum::String(a2) = a2 {
                             VDataEnum::Bool(a1.starts_with(a2.as_str())).to()
                         } else {
@@ -1549,7 +1549,7 @@ impl BuiltinFunction {
             }),
             Self::EndsWith => args[0].run(info).operate_on_data_immut(|a1| {
                 args[1].run(info).operate_on_data_immut(|a2| {
-                    if let VDataEnum::String(a1) = a2 {
+                    if let VDataEnum::String(a1) = a1 {
                         if let VDataEnum::String(a2) = a2 {
                             VDataEnum::Bool(a1.ends_with(a2.as_str())).to()
                         } else {

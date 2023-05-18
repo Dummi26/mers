@@ -35,12 +35,12 @@ for line index.regex("\\S*.*").assume_no_enum() {
     if line.starts_with("#") {
         // comment, ignore
     } else if line.starts_with("$") {
-        if line.eq("$welcome_script") {
-            out = out.add(welcome_script)
-        } else if line.eq("$build_script") {
-            out = out.add(build_script)
-        } else if line.eq("$index.html") {
-            out = out.add(index_html)
+        if line == "$welcome_script" {
+            out = out + welcome_script
+        } else if line == "$build_script" {
+            out = out + build_script
+        } else if line == "$index.html" {
+            out = out + index_html
         }
     } else {
         // remove spaces
@@ -51,8 +51,7 @@ for line index.regex("\\S*.*").assume_no_enum() {
                 true // break
             }
         }
-        out = out.add(line.add("\n"))
+        out = out + line + "\n"
     }
 }
-
 fs_write("../index.html" string_to_bytes(out)).assume_no_enum()
