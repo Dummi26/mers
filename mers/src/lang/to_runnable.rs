@@ -19,6 +19,7 @@ use super::{
     code_macro::Macro,
     code_parsed::{SBlock, SFunction, SStatement, SStatementEnum},
     code_runnable::{RBlock, RFunction, RScript, RStatement, RStatementEnum},
+    fmtgs::FormatGs,
     global_info::GSInfo,
 };
 
@@ -51,18 +52,20 @@ impl Debug for ToRunnableError {
     }
 }
 // TODO:
-//  - Don't use {} to format, use .fmtgs(f, info) instead!
+//  - Don't use {} to format, use .fmtgs(f, info, form, file) instead!
 //  - Show location in code where the error was found
 impl Display for ToRunnableError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.fmtgs(f, None)
+        self.fmtgs(f, None, &mut super::fmtgs::FormatInfo::default(), None)
     }
 }
-impl ToRunnableError {
-    pub fn fmtgs(
+impl FormatGs for ToRunnableError {
+    fn fmtgs(
         &self,
         f: &mut std::fmt::Formatter,
         info: Option<&GlobalScriptInfo>,
+        form: &mut super::fmtgs::FormatInfo,
+        file: Option<&crate::parsing::file::File>,
     ) -> std::fmt::Result {
         match self {
                 Self::MainWrongInput => write!(
@@ -75,9 +78,9 @@ impl ToRunnableError {
                 Self::CannotDeclareVariableWithDereference(v) => write!(f, "Cannot declare a variable and dereference it (variable '{v}')."),
                 Self::CannotDereferenceTypeNTimes(og_type, derefs_wanted, last_valid_type) => {
                     write!(f, "Cannot dereference type ")?;
-                    og_type.fmtgs(f, info)?;
+                    og_type.fmtgs(f, info, form, file)?;
                     write!(f, " {derefs_wanted} times (stopped at ")?;
-                    last_valid_type.fmtgs(f, info);
+                    last_valid_type.fmtgs(f, info, form, file);
                     write!(f, ")")?;
                     Ok(())
                 },
@@ -89,28 +92,28 @@ impl ToRunnableError {
                     problematic,
                 } => {
                     write!(f, "Invalid type: Expected ")?;
-                    expected.fmtgs(f, info)?;
+                    expected.fmtgs(f, info, form, file)?;
                     write!(f, " but found ")?;
-                    found.fmtgs(f, info)?;
+                    found.fmtgs(f, info, form, file)?;
                     write!(f, ", which includes ")?;
-                    problematic.fmtgs(f, info)?;
+                    problematic.fmtgs(f, info, form, file)?;
                     write!(f, " which is not covered.")?;
                     Ok(())
                 }
                 Self::CaseForceButTypeNotCovered(v) => {
                     write!(f, "Switch! statement, but not all types covered. Types to cover: ")?;
-                    v.fmtgs(f, info)?;
+                    v.fmtgs(f, info, form, file)?;
                     Ok(())
                 }
                 Self::MatchConditionInvalidReturn(v) => {
                     write!(f, "match statement condition returned ")?;
-                    v.fmtgs(f, info)?;
+                    v.fmtgs(f, info, form, file)?;
                     write!(f, ", which is not necessarily a tuple of size 0 to 1.")?;
                     Ok(())
                 }
                 Self::NotIndexableFixed(t, i) => {
                     write!(f, "Cannot use fixed-index {i} on type ")?;
-                    t.fmtgs(f, info)?;
+                    t.fmtgs(f, info, form, file)?;
                     write!(f, ".")?;
                     Ok(())
                 }
@@ -118,7 +121,7 @@ impl ToRunnableError {
                     write!(f, "Wrong arguments for builtin function \"{}\":", builtin_name)?;
                     for arg in args {
                         write!(f, " ")?;
-                        arg.fmtgs(f, info)?;
+                        arg.fmtgs(f, info, form, file)?;
                     }
                     write!(f, ".")
                 }
@@ -126,15 +129,15 @@ impl ToRunnableError {
                     write!(f, "Wrong arguments for library function {}:", name)?;
                     for arg in args {
                         write!(f, " ")?;
-                        arg.fmtgs(f, info)?;
+                        arg.fmtgs(f, info, form, file)?;
                     }
                     write!(f, ".")
                 }
                 Self::CannotAssignTo(val, target) => {
                     write!(f, "Cannot assign type ")?;
-                    val.fmtgs(f, info)?;
+                    val.fmtgs(f, info, form, file)?;
                     write!(f, " to ")?;
-                    target.fmtgs(f, info)?;
+                    target.fmtgs(f, info, form, file)?;
                     write!(f, ".")?;
                     Ok(())
                 },
@@ -143,11 +146,11 @@ impl ToRunnableError {
                 }
                 Self::StatementRequiresOutputTypeToBeAButItActuallyOutputsBWhichDoesNotFitInA(required, real, problematic) => {
                     write!(f, "the statement requires its output type to be ")?;
-                    required.fmtgs(f, info)?;
+                    required.fmtgs(f, info, form, file)?;
                     write!(f, ", but its real output type is ")?;
-                    real.fmtgs(f, info)?;
+                    real.fmtgs(f, info, form, file)?;
                     write!(f, ", which doesn't fit in the required type because of the problematic types ")?;
-                    problematic.fmtgs(f, info)?;
+                    problematic.fmtgs(f, info, form, file)?;
                     write!(f, ".")?;
                     Ok(())
                 }

@@ -1,6 +1,11 @@
 use std::fmt::{self, Display, Formatter, Pointer};
 
-use super::{code_macro::Macro, global_info::GlobalScriptInfo, val_data::VData, val_type::VType};
+use crate::lang::global_info::ColorFormatMode;
+
+use super::{
+    code_macro::Macro, fmtgs::FormatGs, global_info::GlobalScriptInfo, val_data::VData,
+    val_type::VType,
+};
 
 #[derive(Debug)]
 pub enum SStatementEnum {
@@ -82,101 +87,142 @@ impl SFunction {
 
 //
 
-impl SStatementEnum {
-    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GlobalScriptInfo>) -> fmt::Result {
+impl FormatGs for SStatementEnum {
+    fn fmtgs(
+        &self,
+        f: &mut Formatter,
+        info: Option<&GlobalScriptInfo>,
+        form: &mut super::fmtgs::FormatInfo,
+        file: Option<&crate::parsing::file::File>,
+    ) -> std::fmt::Result {
         match self {
-            Self::Value(v) => v.fmtgs(f, info),
+            Self::Value(v) => v.fmtgs(f, info, form, file),
             Self::Tuple(v) => {
-                write!(f, "[")?;
+                write!(f, "{}", form.open_bracket(info, "[".to_owned()))?;
                 for (i, v) in v.iter().enumerate() {
                     if i > 0 {
                         write!(f, " ")?;
                     }
-                    v.fmtgs(f, info)?;
+                    v.fmtgs(f, info, form, file)?;
                 }
-                write!(f, "]")
+                write!(f, "{}", form.close_bracket(info, "]".to_owned()))
             }
             Self::List(v) => {
-                write!(f, "[")?;
+                write!(f, "{}", form.open_bracket(info, "[".to_owned()))?;
                 for (i, v) in v.iter().enumerate() {
-                    v.fmtgs(f, info)?;
+                    v.fmtgs(f, info, form, file)?;
                     write!(f, " ")?;
                 }
-                write!(f, "...]")
+                write!(f, "{}", form.close_bracket(info, "...]".to_owned()))
             }
             Self::Variable(var, reference) => {
                 if *reference {
-                    write!(f, "&{var}")
-                } else {
-                    write!(f, "{var}")
+                    write!(f, "{}", form.variable_ref_symbol(info, "&".to_owned()))?;
                 }
+                write!(f, "{}", form.variable(info, var.to_owned()))
             }
             Self::FunctionCall(func, args) => {
-                write!(f, "{func}(")?;
-                for arg in args {
-                    arg.fmtgs(f, info)?;
+                write!(
+                    f,
+                    "{}{}",
+                    form.fncall(info, func.to_owned()),
+                    form.open_bracket(info, "(".to_owned())
+                )?;
+                for (i, arg) in args.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, " ");
+                    }
+                    arg.fmtgs(f, info, form, file)?;
                 }
-                write!(f, ")")
+                write!(f, "{}", form.close_bracket(info, ")".to_owned()))
             }
             Self::FunctionDefinition(name, func) => {
                 if let Some(name) = name {
-                    write!(f, "{name}")?;
+                    write!(
+                        f,
+                        "{} {}",
+                        form.fndef_fn(info, "fn".to_owned()),
+                        form.fndef_name(info, name.to_owned())
+                    )?;
                 }
-                func.fmtgs(f, info)
+                func.fmtgs(f, info, form, file)
             }
-            Self::Block(b) => b.fmtgs(f, info),
+            Self::Block(b) => b.fmtgs(f, info, form, file),
             Self::If(condition, yes, no) => {
-                write!(f, "if ")?;
-                condition.fmtgs(f, info)?;
+                write!(f, "{} ", form.if_if(info, "if".to_owned()))?;
+                condition.fmtgs(f, info, form, file)?;
                 write!(f, " ")?;
-                yes.fmtgs(f, info)?;
+                yes.fmtgs(f, info, form, file)?;
                 if let Some(no) = no {
-                    write!(f, " else ")?;
-                    no.fmtgs(f, info)?;
+                    write!(f, " {} ", form.if_else(info, "else".to_owned()))?;
+                    no.fmtgs(f, info, form, file)?;
                 }
                 Ok(())
             }
             Self::Loop(b) => {
-                write!(f, "loop ")?;
-                b.fmtgs(f, info)
+                write!(f, "{} ", form.loop_loop(info, "loop".to_owned()))?;
+                b.fmtgs(f, info, form, file)
             }
             Self::For(var, i, b) => {
-                write!(f, "for {} ", var)?;
-                i.fmtgs(f, info)?;
+                write!(f, "{} {} ", form.loop_for(info, "for".to_owned()), var)?;
+                i.fmtgs(f, info, form, file)?;
                 write!(f, " ")?;
-                b.fmtgs(f, info)
+                b.fmtgs(f, info, form, file)
             }
             Self::Switch(var, arms, force) => {
                 if *force {
-                    writeln!(f, "switch! {var} {{")?;
+                    writeln!(
+                        f,
+                        "{} {var} {}",
+                        form.kw_switch(info, "switch!".to_owned()),
+                        form.open_bracket(info, "{".to_owned())
+                    )?;
                 } else {
-                    writeln!(f, "switch {var} {{")?;
+                    writeln!(
+                        f,
+                        "{} {var} {}",
+                        form.kw_switch(info, "switch".to_owned()),
+                        form.open_bracket(info, "{".to_owned())
+                    )?;
                 }
+                form.go_deeper();
                 for (t, action) in arms {
-                    t.fmtgs(f, info)?;
+                    write!(f, "{}", form.line_prefix())?;
+                    t.fmtgs(f, info, form, file)?;
                     write!(f, " ")?;
-                    action.fmtgs(f, info)?;
+                    action.fmtgs(f, info, form, file)?;
                     writeln!(f)?;
                 }
-                write!(f, "}}")
+                form.go_shallower();
+                write!(f, "{}", form.line_prefix())?;
+                write!(f, "{}", form.close_bracket(info, "}".to_owned()))
             }
             Self::Match(var, arms) => {
-                write!(f, "match {var} {{")?;
+                write!(
+                    f,
+                    "{} {var} {}",
+                    form.kw_match(info, "match".to_owned()),
+                    form.open_bracket(info, "{".to_owned())
+                )?;
+                form.go_deeper();
                 for (condition, action) in arms {
-                    condition.fmtgs(f, info)?;
+                    write!(f, "{}", form.line_prefix())?;
+                    condition.fmtgs(f, info, form, file)?;
                     write!(f, " ")?;
-                    action.fmtgs(f, info)?;
+                    action.fmtgs(f, info, form, file)?;
                     writeln!(f)?;
                 }
-                write!(f, "}}")
+                form.go_shallower();
+                write!(f, "{}", form.line_prefix())?;
+                write!(f, "{}", form.close_bracket(info, "}".to_owned()))
             }
             Self::IndexFixed(statement, index) => {
-                statement.fmtgs(f, info)?;
+                statement.fmtgs(f, info, form, file)?;
                 write!(f, ".{index}")
             }
             Self::EnumVariant(variant, inner) => {
                 write!(f, "{variant}: ")?;
-                inner.fmtgs(f, info)
+                inner.fmtgs(f, info, form, file)
             }
             Self::TypeDefinition(name, t) => write!(f, "type {name} {t}"),
             Self::Macro(m) => {
@@ -187,32 +233,58 @@ impl SStatementEnum {
 }
 impl Display for SStatementEnum {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.fmtgs(f, None)
+        self.fmtgs(f, None, &mut super::fmtgs::FormatInfo::default(), None)
     }
 }
 
-impl SStatement {
-    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GlobalScriptInfo>) -> fmt::Result {
+impl FormatGs for SStatement {
+    fn fmtgs(
+        &self,
+        f: &mut Formatter,
+        info: Option<&GlobalScriptInfo>,
+        form: &mut super::fmtgs::FormatInfo,
+        file: Option<&crate::parsing::file::File>,
+    ) -> std::fmt::Result {
         if let Some((opt, derefs)) = &self.output_to {
-            if let Some(forced_type) = &self.force_output_type {
-                write!(f, "{}{}::", "*".repeat(*derefs), opt)?;
-                forced_type.fmtgs(f, info)?;
-                write!(f, " = ")?;
-            } else {
-                write!(f, "{}{} = ", "*".repeat(*derefs), opt)?;
+            // TODO!
+            match opt.statement.as_ref() {
+                SStatementEnum::Variable(name, is_ref) => {
+                    let derefs = if !is_ref { *derefs + 1 } else { *derefs };
+                    write!(
+                        f,
+                        "{}{} = ",
+                        "*".repeat(derefs),
+                        SStatementEnum::Variable(name.to_owned(), false).with(info, file)
+                    )?;
+                }
+                _ => {
+                    if let Some(forced_type) = &self.force_output_type {
+                        write!(f, "{}{}::", "*".repeat(*derefs), opt.with(info, file))?;
+                        forced_type.fmtgs(f, info, form, file)?;
+                        write!(f, " = ")?;
+                    } else {
+                        write!(f, "{}{} = ", "*".repeat(*derefs), opt.with(info, file))?;
+                    }
+                }
             }
         }
-        self.statement.fmtgs(f, info)
+        self.statement.fmtgs(f, info, form, file)
     }
 }
 impl Display for SStatement {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.fmtgs(f, None)
+        self.fmtgs(f, None, &mut super::fmtgs::FormatInfo::default(), None)
     }
 }
 
-impl SFunction {
-    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GlobalScriptInfo>) -> fmt::Result {
+impl FormatGs for SFunction {
+    fn fmtgs(
+        &self,
+        f: &mut Formatter,
+        info: Option<&GlobalScriptInfo>,
+        form: &mut super::fmtgs::FormatInfo,
+        file: Option<&crate::parsing::file::File>,
+    ) -> std::fmt::Result {
         write!(f, "(")?;
         for (i, (name, t)) in self.inputs.iter().enumerate() {
             if i > 0 {
@@ -220,25 +292,35 @@ impl SFunction {
             } else {
                 write!(f, "{name} ")?;
             }
-            t.fmtgs(f, info)?;
+            t.fmtgs(f, info, form, file)?;
         }
         write!(f, ") ")?;
-        self.block.fmtgs(f, info)
+        self.block.fmtgs(f, info, form, file)
     }
 }
 
-impl SBlock {
-    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GlobalScriptInfo>) -> fmt::Result {
+impl FormatGs for SBlock {
+    fn fmtgs(
+        &self,
+        f: &mut Formatter,
+        info: Option<&GlobalScriptInfo>,
+        form: &mut super::fmtgs::FormatInfo,
+        file: Option<&crate::parsing::file::File>,
+    ) -> std::fmt::Result {
         match self.statements.len() {
             0 => write!(f, "{{}}"),
-            1 => self.statements[0].fmtgs(f, info),
+            // 1 => self.statements[0].fmtgs(f, info, form, file),
             _ => {
-                writeln!(f, "{{")?;
+                writeln!(f, "{}", form.open_bracket(info, "{".to_owned()))?;
+                form.go_deeper();
                 for statement in self.statements.iter() {
-                    statement.fmtgs(f, info)?;
+                    write!(f, "{}", form.line_prefix())?;
+                    statement.fmtgs(f, info, form, file)?;
                     writeln!(f)?;
                 }
-                write!(f, "}}")
+                form.go_shallower();
+                write!(f, "{}", form.line_prefix())?;
+                write!(f, "{}", form.close_bracket(info, "}".to_owned()))
             }
         }
     }

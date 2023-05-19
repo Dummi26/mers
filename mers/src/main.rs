@@ -3,10 +3,12 @@
 
 use std::{fs, time::Instant};
 
+use lang::global_info::ColorFormatMode;
 use lang::global_info::GlobalScriptInfo;
-#[cfg(debug_assertions)]
 use lang::global_info::LogKind;
 use notify::Watcher as FsWatcher;
+
+use crate::lang::fmtgs::FormatGs;
 
 mod interactive_mode;
 mod lang;
@@ -26,6 +28,7 @@ fn main() {
 fn normal_main() {
     let args: Vec<_> = std::env::args().skip(1).collect();
     let mut info = GlobalScriptInfo::default();
+    let mut run = true;
     let mut args_to_skip = 2;
     let mut file = match args.len() {
         0 => {
@@ -52,6 +55,10 @@ fn normal_main() {
                         match ch {
                             'e' => execute = true,
                             'v' => verbose = true,
+                            'f' => {
+                                run = false;
+                                info.log.after_parse.stderr = true;
+                            }
                             'V' => print_version = true,
                             'i' => interactive += 1,
                             't' => teachme = true,
@@ -75,6 +82,11 @@ fn normal_main() {
                                         verbose_args.push(ch);
                                     }
                                 }
+                                'f' => match ch {
+                                    'c' => info.formatter.mode = ColorFormatMode::Colorize,
+                                    'C' => info.formatter.mode = ColorFormatMode::Plain,
+                                    _ => eprintln!("Ignoring f+{ch}. (unknown adv char)"),
+                                },
                                 _ => (),
                             }
                         } else {
@@ -97,9 +109,6 @@ fn normal_main() {
                     return;
                 }
                 if verbose {
-                    #[cfg(not(debug_assertions))]
-                    eprintln!("WARN: Verbose (-v) only works in debug builds!");
-                    #[cfg(debug_assertions)]
                     if verbose_args.is_empty() {
                         fn f() -> LogKind {
                             LogKind {
@@ -187,12 +196,9 @@ fn normal_main() {
     };
     match parsing::parse::parse_custom_info(&mut file, info) {
         Ok(script) => {
-            println!(" - - - - -");
-            let start = Instant::now();
-            let out = script.run(std::env::args().skip(args_to_skip).collect());
-            let elapsed = start.elapsed();
-            println!(" - - - - -");
-            println!("Output ({}s)\n{out}", elapsed.as_secs_f64());
+            if run {
+                script.run(std::env::args().skip(args_to_skip).collect());
+            }
         }
         Err(e) => {
             println!("Couldn't compile:\n{}", e.with_file(&file));

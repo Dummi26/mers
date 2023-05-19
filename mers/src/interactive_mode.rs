@@ -7,6 +7,8 @@ pub mod fs_watcher {
         thread::{self, JoinHandle},
     };
 
+    use crate::lang::fmtgs::FormatGs;
+
     #[derive(Debug)]
     pub struct Error(String);
 

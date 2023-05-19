@@ -4,14 +4,13 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
+use super::global_info::LogMsg;
 use super::{
     code_runnable::RFunction,
+    fmtgs::FormatGs,
     global_info::{GSInfo, GlobalScriptInfo},
     val_type::{VSingleType, VType},
 };
-
-#[cfg(debug_assertions)]
-use super::global_info::LogMsg;
 
 #[derive(Debug)]
 pub enum VDataEnum {
@@ -117,11 +116,13 @@ impl VData {
                         // *self doesn't modify the ::Data, it instead points the value that wraps it to a new ::Data, leaving the old one as it was.
                         // for proof: data is untouched, only the new_data is ever modified.
                         let new_vdata = VDataInner::Data(0, new_data).to();
-                        #[cfg(debug_assertions)]
                         if info.log.vdata_clone.log() {
                             drop(lock);
                             info.log.log(LogMsg::VDataClone(
+                                #[cfg(debug_assertions)]
                                 self.1.clone(),
+                                #[cfg(not(debug_assertions))]
+                                None,
                                 self.inner_cloned(),
                                 Arc::as_ptr(&self.0) as usize,
                                 Arc::as_ptr(&new_vdata.0) as usize,
@@ -187,9 +188,15 @@ impl Clone for VData {
         self.clone_data()
     }
 }
-impl VData {
-    pub fn fmtgs(&self, f: &mut Formatter<'_>, info: Option<&GlobalScriptInfo>) -> fmt::Result {
-        self.operate_on_data_immut(|v| v.fmtgs(f, info))
+impl FormatGs for VData {
+    fn fmtgs(
+        &self,
+        f: &mut Formatter,
+        info: Option<&GlobalScriptInfo>,
+        form: &mut super::fmtgs::FormatInfo,
+        file: Option<&crate::parsing::file::File>,
+    ) -> std::fmt::Result {
+        self.operate_on_data_immut(|v| v.fmtgs(f, info, form, file))
     }
 }
 impl Debug for VData {
@@ -476,7 +483,12 @@ pub mod thread {
 pub struct VDataWInfo(VData, GSInfo);
 impl Display for VDataWInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.0.fmtgs(f, Some(&self.1))
+        self.0.fmtgs(
+            f,
+            Some(&self.1),
+            &mut super::fmtgs::FormatInfo::default(),
+            None,
+        )
     }
 }
 impl VData {
@@ -485,39 +497,51 @@ impl VData {
     }
 }
 
-impl VDataEnum {
-    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GlobalScriptInfo>) -> fmt::Result {
+impl FormatGs for VDataEnum {
+    fn fmtgs(
+        &self,
+        f: &mut Formatter,
+        info: Option<&GlobalScriptInfo>,
+        form: &mut super::fmtgs::FormatInfo,
+        file: Option<&crate::parsing::file::File>,
+    ) -> std::fmt::Result {
         match self {
             Self::Bool(true) => write!(f, "true"),
             Self::Bool(false) => write!(f, "false"),
             Self::Int(v) => write!(f, "{v}"),
             Self::Float(v) => write!(f, "{v}"),
-            Self::String(v) => write!(f, "\"{v}\""),
+            Self::String(v) => write!(
+                f,
+                "{}{}{}",
+                form.value_string_quotes(info, "\"".to_owned()),
+                form.value_string_content(info, v.to_owned()),
+                form.value_string_quotes(info, "\"".to_owned())
+            ),
             Self::Tuple(v) => {
                 write!(f, "[")?;
                 for (i, v) in v.iter().enumerate() {
                     if i > 0 {
                         write!(f, " ")?;
                     }
-                    v.fmtgs(f, info)?;
+                    v.fmtgs(f, info, form, file)?;
                 }
                 write!(f, "]")
             }
             Self::List(_t, v) => {
                 write!(f, "[")?;
                 for (i, v) in v.iter().enumerate() {
-                    v.fmtgs(f, info)?;
+                    v.fmtgs(f, info, form, file)?;
                     write!(f, " ")?;
                 }
                 write!(f, "...]")
             }
             Self::Function(func) => {
-                VSingleType::Function(func.input_output_map.clone()).fmtgs(f, info)
+                VSingleType::Function(func.input_output_map.clone()).fmtgs(f, info, form, file)
             }
             Self::Thread(..) => write!(f, "[TODO] THREAD"),
             Self::Reference(inner) => {
                 write!(f, "&")?;
-                inner.fmtgs(f, info)
+                inner.fmtgs(f, info, form, file)
             }
             Self::EnumVariant(variant, inner) => {
                 if let Some(name) = if let Some(info) = info {
@@ -535,13 +559,13 @@ impl VDataEnum {
                 } else {
                     write!(f, "{variant}: ")?;
                 }
-                inner.fmtgs(f, info)
+                inner.fmtgs(f, info, form, file)
             }
         }
     }
 }
 impl Display for VDataEnum {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.fmtgs(f, None)
+        self.fmtgs(f, None, &mut super::fmtgs::FormatInfo::default(), None)
     }
 }

@@ -4,9 +4,11 @@ use std::{
     ops::BitOr,
 };
 
-use super::global_info::{self, GSInfo, GlobalScriptInfo};
+use super::{
+    fmtgs::FormatGs,
+    global_info::{self, GSInfo, GlobalScriptInfo},
+};
 
-#[cfg(debug_assertions)]
 use super::global_info::LogMsg;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -161,7 +163,6 @@ impl VType {
                 no.push(t.clone())
             }
         }
-        #[cfg(debug_assertions)]
         if info.log.vtype_fits_in.log() {
             info.log
                 .log(LogMsg::VTypeFitsIn(self.clone(), rhs.clone(), no.clone()))
@@ -359,7 +360,6 @@ impl VSingleType {
             (Self::Thread(a), Self::Thread(b)) => a.fits_in(b, info).is_empty(),
             (Self::Thread(..), _) => false,
         };
-        #[cfg(debug_assertions)]
         if info.log.vsingletype_fits_in.log() {
             info.log
                 .log(LogMsg::VSingleTypeFitsIn(self.clone(), rhs.clone(), o));
@@ -393,7 +393,12 @@ impl Into<VType> for VSingleType {
 pub struct VTypeWInfo(VType, GSInfo);
 impl Display for VTypeWInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.0.fmtgs(f, Some(&self.1))
+        self.0.fmtgs(
+            f,
+            Some(&self.1),
+            &mut super::fmtgs::FormatInfo::default(),
+            None,
+        )
     }
 }
 impl VType {
@@ -402,8 +407,14 @@ impl VType {
     }
 }
 
-impl VSingleType {
-    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GlobalScriptInfo>) -> fmt::Result {
+impl FormatGs for VSingleType {
+    fn fmtgs(
+        &self,
+        f: &mut Formatter,
+        info: Option<&GlobalScriptInfo>,
+        form: &mut super::fmtgs::FormatInfo,
+        file: Option<&crate::parsing::file::File>,
+    ) -> std::fmt::Result {
         match self {
             Self::Bool => write!(f, "bool"),
             Self::Int => write!(f, "int"),
@@ -415,13 +426,13 @@ impl VSingleType {
                     if i > 0 {
                         write!(f, " ")?;
                     }
-                    v.fmtgs(f, info)?;
+                    v.fmtgs(f, info, form, file)?;
                 }
                 write!(f, "]")
             }
             Self::List(v) => {
                 write!(f, "[")?;
-                v.fmtgs(f, info)?;
+                v.fmtgs(f, info, form, file)?;
                 write!(f, " ...]")
             }
             Self::Function(func) => {
@@ -429,22 +440,22 @@ impl VSingleType {
                 for (inputs, output) in func {
                     write!(f, "(")?;
                     for i in inputs {
-                        i.fmtgs(f, info)?;
+                        i.fmtgs(f, info, form, file)?;
                         write!(f, " ");
                     }
-                    output.fmtgs(f, info)?;
+                    output.fmtgs(f, info, form, file)?;
                     write!(f, ")")?;
                 }
                 write!(f, ")")
             }
             Self::Thread(out) => {
                 write!(f, "thread(")?;
-                out.fmtgs(f, info)?;
+                out.fmtgs(f, info, form, file)?;
                 write!(f, ")")
             }
             Self::Reference(inner) => {
                 write!(f, "&")?;
-                inner.fmtgs(f, info)
+                inner.fmtgs(f, info, form, file)
             }
             Self::EnumVariant(variant, inner) => {
                 if let Some(name) = if let Some(info) = info {
@@ -462,12 +473,12 @@ impl VSingleType {
                 } else {
                     write!(f, "{variant}(")?;
                 }
-                inner.fmtgs(f, info)?;
+                inner.fmtgs(f, info, form, file)?;
                 write!(f, ")")
             }
             Self::EnumVariantS(name, inner) => {
                 write!(f, "{name}(")?;
-                inner.fmtgs(f, info)?;
+                inner.fmtgs(f, info, form, file)?;
                 write!(f, ")")
             }
             Self::CustomType(t) => {
@@ -510,23 +521,29 @@ impl VSingleType {
 }
 impl Display for VSingleType {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.fmtgs(f, None)
+        self.fmtgs(f, None, &mut super::fmtgs::FormatInfo::default(), None)
     }
 }
 
-impl VType {
-    pub fn fmtgs(&self, f: &mut Formatter, info: Option<&GlobalScriptInfo>) -> fmt::Result {
+impl FormatGs for VType {
+    fn fmtgs(
+        &self,
+        f: &mut Formatter,
+        info: Option<&GlobalScriptInfo>,
+        form: &mut super::fmtgs::FormatInfo,
+        file: Option<&crate::parsing::file::File>,
+    ) -> std::fmt::Result {
         for (i, t) in self.types.iter().enumerate() {
             if i > 0 {
                 write!(f, "/")?;
             }
-            t.fmtgs(f, info)?;
+            t.fmtgs(f, info, form, file)?;
         }
         Ok(())
     }
 }
 impl Display for VType {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.fmtgs(f, None)
+        self.fmtgs(f, None, &mut super::fmtgs::FormatInfo::default(), None)
     }
 }

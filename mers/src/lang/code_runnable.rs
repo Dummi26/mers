@@ -373,7 +373,6 @@ impl RStatementEnum {
     }
 }
 
-#[derive(Debug)]
 pub struct RScript {
     main: RFunction,
     info: GSInfo,

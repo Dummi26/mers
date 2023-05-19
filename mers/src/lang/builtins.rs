@@ -1,4 +1,5 @@
 use std::{
+    io::Write,
     path::PathBuf,
     sync::{Arc, Mutex},
     time::Duration,
@@ -835,9 +836,15 @@ impl BuiltinFunction {
             BuiltinFunction::Print => args[0].run(info).operate_on_data_immut(|v| {
                 if let VDataEnum::String(arg) = v {
                     #[cfg(not(feature = "nushell_plugin"))]
-                    print!("{}", arg);
+                    {
+                        print!("{}", arg);
+                        std::io::stdout().flush();
+                    }
                     #[cfg(feature = "nushell_plugin")]
-                    eprint!("{}", arg);
+                    {
+                        eprint!("{}", arg);
+                        std::io::stderr().flush();
+                    }
                     VDataEnum::Tuple(vec![]).to()
                 } else {
                     unreachable!("print function called with non-string arg")

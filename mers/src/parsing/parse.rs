@@ -5,6 +5,7 @@ use crate::{
         code_macro::MacroError,
         code_parsed::*,
         code_runnable::RScript,
+        fmtgs::{FormatGs, FormatWithGs},
         global_info::{GSInfo, GlobalScriptInfo},
         to_runnable::{self, ToRunnableError},
         val_data::VDataEnum,
@@ -12,6 +13,8 @@ use crate::{
     },
     libs,
 };
+
+use crate::lang::global_info::LogMsg;
 
 use super::file::File;
 
@@ -51,59 +54,30 @@ impl std::fmt::Display for ScriptError {
         }
     }
 }
-pub struct ScriptErrorWithFile<'a>(&'a ScriptError, &'a File);
-pub struct ScriptErrorWithInfo<'a>(&'a ScriptError, &'a GlobalScriptInfo);
-pub struct ScriptErrorWithFileAndInfo<'a>(&'a ScriptError, &'a File, &'a GlobalScriptInfo);
-impl<'a> ScriptError {
-    pub fn with_file(&'a self, file: &'a File) -> ScriptErrorWithFile {
-        ScriptErrorWithFile(self, file)
-    }
-    pub fn with_gsinfo(&'a self, info: &'a GlobalScriptInfo) -> ScriptErrorWithInfo {
-        ScriptErrorWithInfo(self, info)
-    }
-    pub fn with_file_and_gsinfo(
-        &'a self,
-        file: &'a File,
-        info: &'a GlobalScriptInfo,
-    ) -> ScriptErrorWithFileAndInfo {
-        ScriptErrorWithFileAndInfo(self, file, info)
-    }
-}
-impl<'a> std::fmt::Display for ScriptErrorWithFile<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt_custom(f, Some(self.1), None)
-    }
-}
-impl<'a> std::fmt::Display for ScriptErrorWithInfo<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt_custom(f, None, Some(self.1))
-    }
-}
-impl<'a> std::fmt::Display for ScriptErrorWithFileAndInfo<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt_custom(f, Some(self.1), Some(self.2))
-    }
-}
-
-impl ScriptError {
-    fn fmt_custom(
+impl FormatGs for ScriptError {
+    fn fmtgs(
         &self,
-        f: &mut std::fmt::Formatter<'_>,
-        file: Option<&File>,
+        f: &mut std::fmt::Formatter,
         info: Option<&GlobalScriptInfo>,
+        form: &mut crate::lang::fmtgs::FormatInfo,
+        file: Option<&crate::parsing::file::File>,
     ) -> std::fmt::Result {
         match &self {
             ScriptError::CannotFindPathForLibrary(e) => write!(f, "{e}"),
             ScriptError::ParseError(e) => {
                 write!(f, "failed while parsing: ")?;
-                e.fmt_custom(f, file)?;
+                e.fmtgs(f, info, form, file)?;
                 Ok(())
             }
             ScriptError::UnableToLoadLibrary(e) => write!(f, "{e}"),
             ScriptError::ToRunnableError(e) => {
                 write!(f, "failed to compile: ")?;
-                e.fmtgs(f, info);
-                Ok(())
+                e.fmtgs(
+                    f,
+                    info,
+                    &mut crate::lang::fmtgs::FormatInfo::default(),
+                    file,
+                )
             }
         }
     }
@@ -123,14 +97,25 @@ impl From<(ScriptError, GSInfo)> for Error {
         }
     }
 }
-impl Debug for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.err.with_gsinfo(&self.ginfo))
+impl FormatGs for Error {
+    fn fmtgs(
+        &self,
+        f: &mut std::fmt::Formatter,
+        info: Option<&GlobalScriptInfo>,
+        form: &mut crate::lang::fmtgs::FormatInfo,
+        file: Option<&crate::parsing::file::File>,
+    ) -> std::fmt::Result {
+        self.err.fmtgs(f, Some(&self.ginfo), form, file)
     }
 }
-impl Error {
-    pub fn with_file<'a>(&'a self, file: &'a File) -> ScriptErrorWithFileAndInfo<'a> {
-        self.err.with_file_and_gsinfo(file, self.ginfo.as_ref())
+impl Debug for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.err.fmtgs(
+            f,
+            Some(self.ginfo.as_ref()),
+            &mut crate::lang::fmtgs::FormatInfo::default(),
+            None,
+        )
     }
 }
 
@@ -140,18 +125,15 @@ pub fn parse(file: &mut File) -> Result<RScript, Error> {
 }
 /// like parse, but GlobalInfo can be something other than Default::default().
 pub fn parse_custom_info(file: &mut File, mut ginfo: GlobalScriptInfo) -> Result<RScript, Error> {
-    let libs = match parse_step_lib_paths(file) {
+    let libs = match parse_step_lib_paths(file, &ginfo) {
         Ok(v) => v,
         Err(e) => return Err((e.into(), ginfo.to_arc()).into()),
     };
 
-    let func = match parse_step_interpret(file) {
+    let func = match parse_step_interpret(file, &ginfo) {
         Ok(v) => v,
         Err(e) => return Err((e.into(), ginfo.to_arc()).into()),
     };
-
-    #[cfg(debug_assertions)]
-    eprintln!("{func:#?}");
 
     ginfo.libs = match parse_step_libs_load(libs, &mut ginfo) {
         Ok(v) => v,
@@ -174,7 +156,10 @@ impl std::fmt::Display for CannotFindPathForLibrary {
         write!(f, "Couldn't find a path for the library with the path '{}'. Maybe set the MERS_LIB_DIR env variable?", self.0)
     }
 }
-pub fn parse_step_lib_paths(file: &mut File) -> Result<Vec<Command>, CannotFindPathForLibrary> {
+pub fn parse_step_lib_paths(
+    file: &mut File,
+    ginfo: &GlobalScriptInfo,
+) -> Result<Vec<Command>, CannotFindPathForLibrary> {
     let mut libs = vec![];
     loop {
         file.skip_whitespaces();
@@ -198,14 +183,23 @@ pub fn parse_step_lib_paths(file: &mut File) -> Result<Vec<Command>, CannotFindP
     Ok(libs)
 }
 
-pub fn parse_step_interpret(file: &mut File) -> Result<SFunction, ParseError> {
-    Ok(SFunction::new(
+pub fn parse_step_interpret(
+    file: &mut File,
+    ginfo: &GlobalScriptInfo,
+) -> Result<SFunction, ParseError> {
+    let o = SFunction::new(
         vec![(
             "args".to_string(),
             VSingleType::List(VSingleType::String.into()).to(),
         )],
         parse_block_advanced(file, Some(false), true, true, false)?,
-    ))
+    );
+    if ginfo.log.after_parse.log() {
+        ginfo.log.log(LogMsg::AfterParse(
+            o.with_info_and_file(ginfo, &file).to_string(),
+        ));
+    }
+    Ok(o)
 }
 
 #[derive(Debug)]
@@ -242,17 +236,6 @@ pub fn parse_step_compile(
     to_runnable::to_runnable(main_func, ginfo)
 }
 
-pub struct ParseErrorWithFile<'a>(&'a ParseError, &'a File);
-impl<'a> ParseError {
-    pub fn with_file(&'a self, file: &'a File) -> ParseErrorWithFile {
-        ParseErrorWithFile(self, file)
-    }
-}
-impl<'a> std::fmt::Display for ParseErrorWithFile<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt_custom(f, Some(self.1))
-    }
-}
 pub struct ParseError {
     err: ParseErrors,
     // the location of the error
@@ -264,13 +247,15 @@ pub struct ParseError {
     )>,
     info: Option<GlobalScriptInfo>,
 }
-impl ParseError {
-    pub fn fmt_custom(
+impl FormatGs for ParseError {
+    fn fmtgs(
         &self,
-        f: &mut std::fmt::Formatter<'_>,
-        file: Option<&super::file::File>,
+        f: &mut std::fmt::Formatter,
+        info: Option<&GlobalScriptInfo>,
+        form: &mut crate::lang::fmtgs::FormatInfo,
+        file: Option<&crate::parsing::file::File>,
     ) -> std::fmt::Result {
-        self.err.fmtgs(f, self.info.as_ref(), file)?;
+        self.err.fmtgs(f, self.info.as_ref(), form, file)?;
         writeln!(f);
         if let Some(location_end) = self.location_end {
             writeln!(f, "  from {} to {}", self.location, location_end)?;
@@ -308,7 +293,12 @@ impl ParseError {
 }
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.fmt_custom(f, None)
+        self.fmtgs(
+            f,
+            None,
+            &mut crate::lang::fmtgs::FormatInfo::default(),
+            None,
+        )
     }
 }
 pub enum ParseErrors {
@@ -327,12 +317,14 @@ pub enum ParseErrors {
     ErrorParsingFunctionArgs(Box<ParseError>),
     MacroError(MacroError),
 }
-impl ParseErrors {
+
+impl FormatGs for ParseErrors {
     fn fmtgs(
         &self,
         f: &mut std::fmt::Formatter,
         info: Option<&GlobalScriptInfo>,
-        file: Option<&super::file::File>,
+        form: &mut crate::lang::fmtgs::FormatInfo,
+        file: Option<&crate::parsing::file::File>,
     ) -> std::fmt::Result {
         match self {
             Self::StatementCannotStartWith(ch) => {
@@ -360,17 +352,17 @@ impl ParseErrors {
             Self::InvalidType(name) => write!(f, "\"{name}\" is not a type."),
             Self::CannotUseFixedIndexingWithThisType(t) => {
                 write!(f, "cannot use fixed-indexing with type ")?;
-                t.fmtgs(f, info)?;
+                t.fmtgs(f, info, form, file)?;
                 write!(f, ".")
             }
             Self::CannotWrapWithThisStatement(s) => {
                 write!(f, "cannot wrap with this kind of statement: ")?;
-                s.fmtgs(f, info)?;
+                s.fmtgs(f, info, form, file)?;
                 write!(f, ".")
             }
             Self::ErrorParsingFunctionArgs(parse_error) => {
                 write!(f, "error parsing function args: ")?;
-                parse_error.fmt_custom(f, file)
+                parse_error.fmtgs(f, info, form, file)
             }
             Self::MacroError(e) => write!(f, "error in macro: {e}"),
         }
