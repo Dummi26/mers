@@ -100,7 +100,7 @@ impl VData {
     /// runs func on the underlying data.
     /// attempts to get a mutable reference to the data. if this fails, it will (partially) clone the data, then point the VData to the new data,
     /// so that other VDatas pointing to the same original data aren't changed.
-    pub fn operate_on_data_mut<F, O>(&mut self, info: &GlobalScriptInfo, mut func: F) -> O
+    pub fn operate_on_data_mut<F, O>(&mut self, mut func: F) -> O
     where
         F: FnOnce(&mut VDataEnum) -> O,
     {
@@ -116,25 +116,11 @@ impl VData {
                         // *self doesn't modify the ::Data, it instead points the value that wraps it to a new ::Data, leaving the old one as it was.
                         // for proof: data is untouched, only the new_data is ever modified.
                         let new_vdata = VDataInner::Data(0, new_data).to();
-                        if info.log.vdata_clone.log() {
-                            drop(lock);
-                            info.log.log(LogMsg::VDataClone(
-                                #[cfg(debug_assertions)]
-                                self.1.clone(),
-                                #[cfg(not(debug_assertions))]
-                                None,
-                                self.inner_cloned(),
-                                Arc::as_ptr(&self.0) as usize,
-                                Arc::as_ptr(&new_vdata.0) as usize,
-                            ));
-                        }
                         (Some(new_vdata), o)
                     }
                 }
-                VDataInner::Mut(inner) => {
-                    (None, inner.lock().unwrap().operate_on_data_mut(info, func))
-                }
-                VDataInner::ClonedFrom(inner) => (None, inner.operate_on_data_mut(info, func)),
+                VDataInner::Mut(inner) => (None, inner.lock().unwrap().operate_on_data_mut(func)),
+                VDataInner::ClonedFrom(inner) => (None, inner.operate_on_data_mut(func)),
             }
         };
         if let Some(nv) = new_val {
@@ -145,13 +131,13 @@ impl VData {
 
     /// Since operate_on_data_mut can clone, it may be inefficient for just assigning (where we don't care about the previous value, so it doesn't need to be cloned).
     /// This is what this function is for. (TODO: actually make it more efficient instead of using operate_on_data_mut)
-    pub fn assign_data(&mut self, info: &GlobalScriptInfo, new_data: VDataEnum) {
-        let o = self.operate_on_data_mut(info, |d| *d = new_data);
+    pub fn assign_data(&mut self, new_data: VDataEnum) {
+        let o = self.operate_on_data_mut(|d| *d = new_data);
         o
     }
     /// Assigns the new_data to self. Affects all muts pointing to the same data, but no ClonedFroms.
-    pub fn assign(&mut self, info: &GlobalScriptInfo, new: VData) {
-        self.assign_data(info, new.inner_cloned())
+    pub fn assign(&mut self, new: VData) {
+        self.assign_data(new.inner_cloned())
         // !PROBLEM! If ClonedFrom always has to point to a Data, this may break things!
         // match &mut *self.0.lock().unwrap() {
         //     VDataInner::Data(count, data) => {
@@ -243,6 +229,9 @@ impl VData {
     }
     pub fn get(&self, i: usize) -> Option<VData> {
         self.operate_on_data_immut(|v| v.get(i))
+    }
+    pub fn get_ref(&mut self, i: usize) -> Option<VData> {
+        self.operate_on_data_mut(|v| v.get_ref(i))
     }
     pub fn matches(&self) -> Option<Self> {
         match self.operate_on_data_immut(|v| v.matches()) {
@@ -350,8 +339,26 @@ impl VDataEnum {
                 None => None,
             },
             Self::Tuple(v) | Self::List(_, v) => v.get(i).cloned(),
-            Self::Reference(r) => r.get(i),
+            Self::Reference(r) => r.clone_mut().get_ref(i),
             Self::EnumVariant(_, v) => v.get(i),
+        }
+    }
+    /// this is guaranteed to return Self::Reference(_), if it returns Some(_).
+    pub fn get_ref(&mut self, i: usize) -> Option<VData> {
+        Some(Self::Reference(self.get_ref_inner(i)?).to())
+    }
+    pub fn get_ref_inner(&mut self, i: usize) -> Option<VData> {
+        match self {
+            Self::Bool(..)
+            | Self::Int(..)
+            | Self::Float(..)
+            | Self::Function(..)
+            | Self::Thread(..) => None,
+            // TODO: String
+            Self::String(s) => None,
+            Self::Tuple(v) | Self::List(_, v) => v.get(i).map(|v| v.clone_mut()),
+            Self::Reference(r) => r.get_ref(i),
+            Self::EnumVariant(_, v) => v.get_ref(i),
         }
     }
     pub fn matches_ref_bool(&self) -> bool {

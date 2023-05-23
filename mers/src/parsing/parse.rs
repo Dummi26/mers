@@ -732,7 +732,7 @@ pub mod implementation {
                                 // int, float, var
                                 break {
                                     if let Ok(v) = start.parse() {
-                                        if let Some('.') = nchar {
+                                        if !is_part_of_chain_already && nchar == Some('.') {
                                             let pos = *file.get_pos();
                                             file.next();
                                             let mut pot_float = String::new();

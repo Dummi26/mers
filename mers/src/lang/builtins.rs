@@ -78,7 +78,6 @@ pub enum BuiltinFunction {
     Pop,
     Remove,
     Get,
-    GetRef,
     Len,
     // String
     Contains,
@@ -142,7 +141,6 @@ impl BuiltinFunction {
             "pop" => Self::Pop,
             "remove" => Self::Remove,
             "get" => Self::Get,
-            "get_ref" => Self::GetRef,
             "len" => Self::Len,
             "contains" => Self::Contains,
             "starts_with" => Self::StartsWith,
@@ -448,7 +446,7 @@ impl BuiltinFunction {
                 }
             }
             // TODO! finish this
-            Self::Get | Self::GetRef | Self::Len => true,
+            Self::Get | Self::Len => true,
             Self::Substring => {
                 if input.len() >= 2 && input.len() <= 3 {
                     let (s, start) = (&input[0], &input[1]);
@@ -597,26 +595,6 @@ impl BuiltinFunction {
                             VSingleType::Tuple(vec![v
                                 .get_any(info)
                                 .expect("cannot use get on this type")]),
-                        ],
-                    }
-                } else {
-                    unreachable!("get, pop or remove called without args")
-                }
-            }
-            Self::GetRef => {
-                if let Some(v) = input.first() {
-                    VType {
-                        types: vec![
-                            VSingleType::Tuple(vec![]),
-                            VSingleType::Tuple(vec![{
-                                let mut v = v.get_any(info).expect("cannot use get on this type");
-                                v.types = v
-                                    .types
-                                    .into_iter()
-                                    .map(|v| VSingleType::Reference(Box::new(v)))
-                                    .collect();
-                                v
-                            }]),
                         ],
                     }
                 } else {
@@ -1395,9 +1373,9 @@ impl BuiltinFunction {
                     _ => unreachable!("max: not a number"),
                 })
             }),
-            Self::Push => args[0].run(info).operate_on_data_mut(info, |list| {
+            Self::Push => args[0].run(info).operate_on_data_mut(|list| {
                 if let VDataEnum::Reference(v) = list {
-                    v.operate_on_data_mut(info, |list| {
+                    v.operate_on_data_mut(|list| {
                         if let VDataEnum::List(_, v) = list {
                             v.push(args[1].run(info));
                         }
@@ -1407,11 +1385,11 @@ impl BuiltinFunction {
                     unreachable!("push: not a reference")
                 }
             }),
-            Self::Insert => args[0].run(info).operate_on_data_mut(info, |v| {
+            Self::Insert => args[0].run(info).operate_on_data_mut(|v| {
                 args[1].run(info).operate_on_data_immut(|i| {
                     // TODO: find out why the fuck this helps
                     if let (VDataEnum::Reference(v), VDataEnum::Int(i)) = (v, i) {
-                        v.operate_on_data_mut(info, |v| {
+                        v.operate_on_data_mut(|v| {
                             if let VDataEnum::List(_, v) = v {
                                 v.insert(*i as _, args[2].run(info));
                             }
@@ -1422,9 +1400,9 @@ impl BuiltinFunction {
                     }
                 })
             }),
-            Self::Pop => args[0].run(info).operate_on_data_mut(info, |v| {
+            Self::Pop => args[0].run(info).operate_on_data_mut(|v| {
                 if let VDataEnum::Reference(v) = v {
-                    v.operate_on_data_mut(info, |v| {
+                    v.operate_on_data_mut(|v| {
                         if let VDataEnum::List(_, v) = v {
                             if let Some(v) = v.pop() {
                                 VDataEnum::Tuple(vec![v])
@@ -1440,12 +1418,12 @@ impl BuiltinFunction {
                     unreachable!("pop: not a reference")
                 }
             }),
-            Self::Remove => args[0].run(info).operate_on_data_mut(info, |v| {
+            Self::Remove => args[0].run(info).operate_on_data_mut(|v| {
                 args[1].run(info).operate_on_data_immut(|i|
                     // this being a reference means we wont need to call make_mut() later, so a .as_ref() borrow is enough.
                     if let (VDataEnum::Reference(v), VDataEnum::Int(i)) = (v, i
                     ) {
-                        v.operate_on_data_mut(info, |v| {
+                        v.operate_on_data_mut(|v| {
                         if let VDataEnum::List(_, v) = v {
                                 if *i >= 0 && v.len() > *i as _ {
                                     let v = v.remove(*i as _);
@@ -1464,54 +1442,15 @@ impl BuiltinFunction {
                 args[1].run(info).operate_on_data_immut(|i| {
                     if let VDataEnum::Int(i) = i {
                         if *i >= 0 {
-                            match match container {
-                                VDataEnum::Reference(v) => v.operate_on_data_immut(|v| match v {
-                                    VDataEnum::List(_, v) | VDataEnum::Tuple(v) => {
-                                        v.get(*i as usize).map(|v| v.clone())
-                                    }
-                                    _ => unreachable!(
-                                        "get: reference to something other than list/tuple"
-                                    ),
-                                }),
-                                VDataEnum::List(_, v) | VDataEnum::Tuple(v) => {
-                                    v.get(*i as usize).map(|v| v.clone())
-                                }
-                                _ => unreachable!("get: not a reference/list/tuple"),
-                            } {
-                                Some(v) => VDataEnum::Tuple(vec![v]).to(),
-                                None => VDataEnum::Tuple(vec![]).to(),
-                            }
+                            container.get(*i as _).map_or_else(
+                                || VDataEnum::Tuple(vec![]).to(),
+                                |v| VDataEnum::Tuple(vec![v]).to(),
+                            )
                         } else {
                             VDataEnum::Tuple(vec![]).to()
                         }
                     } else {
                         unreachable!("get: not a list/tuple/reference and index")
-                    }
-                })
-            }),
-            Self::GetRef => args[0].run(info).operate_on_data_mut(info, |container| {
-                args[1].run(info).operate_on_data_immut(|i| {
-                    if let (VDataEnum::Reference(container), VDataEnum::Int(i)) = (container, i) {
-                        if *i >= 0 {
-                            // we can get mutably because this is the content of a reference
-                            match container.operate_on_data_mut(info, |container| match container {
-                                VDataEnum::List(_, v) | VDataEnum::Tuple(v) => {
-                                    if let Some(v) = v.get_mut(*i as usize) {
-                                        Some(VDataEnum::Reference(v.clone_mut()).to())
-                                    } else {
-                                        None
-                                    }
-                                }
-                                _ => unreachable!("get: not a reference/list/tuple"),
-                            }) {
-                                Some(v) => VDataEnum::Tuple(vec![v]).to(),
-                                None => VDataEnum::Tuple(vec![]).to(),
-                            }
-                        } else {
-                            VDataEnum::Tuple(vec![]).to()
-                        }
-                    } else {
-                        unreachable!("get_ref: not a reference and index")
                     }
                 })
             }),

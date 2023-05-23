@@ -130,7 +130,7 @@ impl RStatement {
                         None => unreachable!("can't dereference..."),
                     };
                 }
-                val.assign(info, out);
+                val.assign(out);
             }
             VDataEnum::Tuple(vec![]).to()
         } else {
@@ -181,7 +181,7 @@ impl RStatementEnum {
             }
             Self::FunctionCall(func, args) => {
                 for (i, input) in func.inputs.iter().enumerate() {
-                    input.lock().unwrap().assign(info, args[i].run(info));
+                    input.lock().unwrap().assign(args[i].run(info));
                 }
                 func.run(info)
             }
