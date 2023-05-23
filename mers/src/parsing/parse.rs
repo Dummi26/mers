@@ -1008,16 +1008,17 @@ pub mod implementation {
                 // 000 =
                 (0..=0, Some('=')) => {
                     file.next();
-                    match out.statement.as_mut() {
-                        SStatementEnum::Variable(name, r) => {
-                            if name.starts_with("*") {
-                                *name = name[1..].to_owned();
-                            } else {
-                                *r = true
-                            }
-                        }
-                        _ => {}
-                    }
+                    // NOTE: Old code to change `x = 10` to `&x = 10`
+                    // match out.statement.as_mut() {
+                    //     SStatementEnum::Variable(name, r) => {
+                    //         if name.starts_with("*") {
+                    //             *name = name[1..].to_owned();
+                    //         } else {
+                    //             *r = true
+                    //         }
+                    //     }
+                    //     _ => {}
+                    // }
                     // NOTE: Set this 0 to 1 to prevent a = b = c from being valid
                     parse_statement(file)?.output_to(out, 0)
                 }

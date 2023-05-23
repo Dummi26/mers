@@ -38,6 +38,7 @@ impl SStatementEnum {
 
 #[derive(Debug)]
 pub struct SStatement {
+    // if the statement is a Variable (is_ref == false) and it isn't dereferenced, it will be initialized. To modify a variable, it has to be is_ref.
     pub output_to: Option<(Box<SStatement>, usize)>,
     pub statement: Box<SStatementEnum>,
     pub force_output_type: Option<VType>,
@@ -248,25 +249,23 @@ impl FormatGs for SStatement {
         if let Some((opt, derefs)) = &self.output_to {
             // TODO!
             match opt.statement.as_ref() {
-                SStatementEnum::Variable(name, is_ref) => {
-                    let derefs = if !is_ref { *derefs + 1 } else { *derefs };
-                    write!(
-                        f,
-                        "{}{} = ",
-                        "*".repeat(derefs),
-                        SStatementEnum::Variable(name.to_owned(), false).with(info, file)
-                    )?;
-                }
+                // SStatementEnum::Variable(name, is_ref) => {
+                //     let derefs = if !is_ref { *derefs + 1 } else { *derefs };
+                //     write!(
+                //         f,
+                //         "{}{} = ",
+                //         "*".repeat(derefs),
+                //         SStatementEnum::Variable(name.to_owned(), false).with(info, file)
+                //     )?;
+                // }
                 _ => {
-                    if let Some(forced_type) = &self.force_output_type {
-                        write!(f, "{}{}::", "*".repeat(*derefs), opt.with(info, file))?;
-                        forced_type.fmtgs(f, info, form, file)?;
-                        write!(f, " = ")?;
-                    } else {
-                        write!(f, "{}{} = ", "*".repeat(*derefs), opt.with(info, file))?;
-                    }
+                    write!(f, "{}{} = ", "*".repeat(*derefs), opt.with(info, file))?;
                 }
             }
+        }
+        if let Some(force_opt) = &self.force_output_type {
+            write!(f, " -> ")?;
+            force_opt.fmtgs(f, info, form, file)?;
         }
         self.statement.fmtgs(f, info, form, file)
     }

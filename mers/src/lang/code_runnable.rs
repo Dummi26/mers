@@ -100,7 +100,7 @@ impl RFunction {
 
 #[derive(Clone, Debug)]
 pub struct RStatement {
-    // (_, _, is_init)
+    // (_, derefs, is_init)
     pub output_to: Option<(Box<RStatement>, usize, bool)>,
     statement: Box<RStatementEnum>,
     pub force_output_type: Option<VType>,
@@ -110,6 +110,8 @@ impl RStatement {
         let out = self.statement.run(info);
         if let Some((v, derefs, is_init)) = &self.output_to {
             'init: {
+                // assigns a new VData to the variable's Arc<Mutex<_>>, so that threads which have captured the variable at some point
+                // won't be updated with its new value (is_init is set to true for initializations, such as in a loop - this can happen multiple times, but each should be its own variable with the same name)
                 if *is_init && *derefs == 0 {
                     if let RStatementEnum::Variable(var, _, _) = v.statement.as_ref() {
                         let mut varl = var.lock().unwrap();
