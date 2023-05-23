@@ -10,7 +10,7 @@ fn print_linked_list(start elem) {
                 println("[END]")
                 true // break
             }
-            elem start = elem // continue
+            elem &start = elem // continue
         }
     }
     []

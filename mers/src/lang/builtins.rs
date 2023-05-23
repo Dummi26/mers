@@ -587,7 +587,43 @@ impl BuiltinFunction {
                     unreachable!("await called without args")
                 }
             }
-            Self::Pop | Self::Remove | Self::Get => {
+            Self::Pop => {
+                if let Some(v) = input.first() {
+                    if let Some(v) = v.dereference() {
+                        VType {
+                            types: vec![
+                                VSingleType::Tuple(vec![]),
+                                VSingleType::Tuple(vec![v
+                                    .get_any(info)
+                                    .expect("cannot use get on this type")]),
+                            ],
+                        }
+                    } else {
+                        unreachable!("pop called on a non-reference");
+                    }
+                } else {
+                    unreachable!("pop called without args");
+                }
+            }
+            Self::Remove => {
+                if input[1].fits_in(&VSingleType::Int.to(), info).is_empty() {
+                    if let Some(v) = input[0].dereference() {
+                        VType {
+                            types: vec![
+                                VSingleType::Tuple(vec![]),
+                                VSingleType::Tuple(vec![v
+                                    .get_any(info)
+                                    .expect("cannot use get on this type")]),
+                            ],
+                        }
+                    } else {
+                        unreachable!("remove called on a non-reference");
+                    }
+                } else {
+                    unreachable!("remove called, but second arg not an int");
+                }
+            }
+            Self::Get => {
                 if let Some(v) = input.first() {
                     VType {
                         types: vec![
@@ -598,7 +634,7 @@ impl BuiltinFunction {
                         ],
                     }
                 } else {
-                    unreachable!("get, pop or remove called without args")
+                    unreachable!("get called without args")
                 }
             }
             Self::Exit => VType { types: vec![] }, // doesn't return

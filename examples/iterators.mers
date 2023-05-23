@@ -27,8 +27,8 @@ fn square_numbers() {
     i = 0
     val = 0
     () {
-        val = val + { 2 * i } + 1
-        i = i + 1
+        &val = val + { 2 * i } + 1
+        &i = i + 1
         [val]
     }
 }
