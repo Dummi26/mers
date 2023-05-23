@@ -1,0 +1,9 @@
+// NOTE: Might change, but this is the current state of things
+x = 10
+t = thread(() {
+    sleep(0.25)
+    println(x.to_string())
+})
+// if this was x = 20 instead, the thread would still be using the old x = 10 value.
+&x = 20
+t.await()
