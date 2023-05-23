@@ -1,6 +1,0 @@
-list = [1 ...]
-b = list
-&list.pop()
-// &list.push(5)
-println(b.to_string())
-list

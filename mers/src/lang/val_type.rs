@@ -425,7 +425,7 @@ impl VSingleType {
                     }
                 }) || info.custom_types[*t].fits_in(rhs, info).is_empty()
             }
-            _ => rhs.types.iter().any(|t| self.fits_in(t, info)),
+            _ => rhs.types.iter().any(|b| self.fits_in(b, info)),
         }
     }
 }
