@@ -840,8 +840,16 @@ pub mod implementation {
         // special characters that can follow a statement (loop because these can be chained)
         loop {
             file.skip_whitespaces();
+            // most local (a.b)
+            // 010 .
+            // 020 + -
+            // 025 * / %
+            // 050 == != > < >= <=
+            // 200 =
+            // least local (a == b) | -> a.b == c + 2 works as expected
             out = match (chain_level, file.peek()) {
-                (0..=200, Some('.'))
+                // 010 .
+                (0..=10, Some('.'))
                     if !matches!(
                         file.get_char(file.get_pos().current_char_index + 1),
                         Some('.')
@@ -849,7 +857,7 @@ pub mod implementation {
                 {
                     file.next();
                     let err_start_of_wrapper = *file.get_pos();
-                    let wrapper = parse_statement_adv(file, true, 250)?;
+                    let wrapper = parse_statement_adv(file, true, 11)?;
                     let err_end_of_wrapper = *file.get_pos();
                     match *wrapper.statement {
                         SStatementEnum::FunctionCall(func, args) => {
@@ -891,49 +899,52 @@ pub mod implementation {
                         }
                     }
                 }
-                (0..=100, Some('+')) => {
+                // 20 + -
+                (0..=20, Some('+')) => {
                     file.next();
                     SStatementEnum::FunctionCall(
                         "add".to_owned(),
                         // AMONG
-                        vec![out, parse_statement_adv(file, true, 100)?],
+                        vec![out, parse_statement_adv(file, false, 21)?],
                     )
                     .to()
                 }
-                (0..=100, Some('-')) => {
+                (0..=20, Some('-')) => {
                     file.next();
                     SStatementEnum::FunctionCall(
                         "sub".to_owned(),
                         // US
-                        vec![out, parse_statement_adv(file, true, 100)?],
+                        vec![out, parse_statement_adv(file, false, 21)?],
                     )
                     .to()
                 }
-                (0..=100, Some('*')) => {
+                // 025 * / %
+                (0..=25, Some('*')) => {
                     file.next();
                     SStatementEnum::FunctionCall(
                         "mul".to_owned(),
-                        vec![out, parse_statement_adv(file, true, 100)?],
+                        vec![out, parse_statement_adv(file, false, 26)?],
                     )
                     .to()
                 }
-                (0..=100, Some('/')) => {
+                (0..=25, Some('/')) => {
                     file.next();
                     SStatementEnum::FunctionCall(
                         "div".to_owned(),
                         // RED SUSSY MOGUS MAN
-                        vec![out, parse_statement_adv(file, true, 100)?],
+                        vec![out, parse_statement_adv(file, false, 26)?],
                     )
                     .to()
                 }
-                (0..=100, Some('%')) => {
+                (0..=25, Some('%')) => {
                     file.next();
                     SStatementEnum::FunctionCall(
                         "mod".to_owned(),
-                        vec![out, parse_statement_adv(file, true, 100)?],
+                        vec![out, parse_statement_adv(file, false, 26)?],
                     )
                     .to()
                 }
+                // 050 == != > >= < <=
                 (0..=50, Some('>')) => {
                     file.next();
                     SStatementEnum::FunctionCall(
@@ -943,7 +954,7 @@ pub mod implementation {
                         } else {
                             "gt".to_owned()
                         },
-                        vec![out, parse_statement_adv(file, true, 50)?],
+                        vec![out, parse_statement_adv(file, false, 51)?],
                     )
                     .to()
                 }
@@ -956,7 +967,7 @@ pub mod implementation {
                         } else {
                             "lt".to_owned()
                         },
-                        vec![out, parse_statement_adv(file, true, 50)?],
+                        vec![out, parse_statement_adv(file, false, 51)?],
                     )
                     .to()
                 }
@@ -970,7 +981,7 @@ pub mod implementation {
                     file.next();
                     SStatementEnum::FunctionCall(
                         "eq".to_owned(),
-                        vec![out, parse_statement_adv(file, true, 50)?],
+                        vec![out, parse_statement_adv(file, false, 51)?],
                     )
                     .to()
                 }
@@ -984,11 +995,12 @@ pub mod implementation {
                     file.next();
                     SStatementEnum::FunctionCall(
                         "ne".to_owned(),
-                        vec![out, parse_statement_adv(file, true, 50)?],
+                        vec![out, parse_statement_adv(file, false, 51)?],
                     )
                     .to()
                 }
-                (0..=10, Some('=')) => {
+                // 200 =
+                (0..=200, Some('=')) => {
                     file.next();
                     match out.statement.as_mut() {
                         SStatementEnum::Variable(name, r) => {
@@ -1000,6 +1012,7 @@ pub mod implementation {
                         }
                         _ => {}
                     }
+                    // NOTE: Set this 0 to 201 to prevent a = b = c from being valid
                     parse_statement(file)?.output_to(out, 0)
                 }
                 _ => break,
