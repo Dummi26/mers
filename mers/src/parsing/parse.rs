@@ -944,8 +944,8 @@ pub mod implementation {
                     )
                     .to()
                 }
-                // 050 == != > >= < <=
-                (0..=50, Some('>')) => {
+                // 045 > >= < <=
+                (0..=45, Some('>')) => {
                     file.next();
                     SStatementEnum::FunctionCall(
                         if let Some('=') = file.peek() {
@@ -954,11 +954,11 @@ pub mod implementation {
                         } else {
                             "gt".to_owned()
                         },
-                        vec![out, parse_statement_adv(file, false, 51)?],
+                        vec![out, parse_statement_adv(file, false, 46)?],
                     )
                     .to()
                 }
-                (0..=50, Some('<')) => {
+                (0..=45, Some('<')) => {
                     file.next();
                     SStatementEnum::FunctionCall(
                         if let Some('=') = file.peek() {
@@ -967,10 +967,11 @@ pub mod implementation {
                         } else {
                             "lt".to_owned()
                         },
-                        vec![out, parse_statement_adv(file, false, 51)?],
+                        vec![out, parse_statement_adv(file, false, 46)?],
                     )
                     .to()
                 }
+                // 050 == !=
                 (0..=50, Some('='))
                     if matches!(
                         file.get_char(file.get_pos().current_char_index + 1),
