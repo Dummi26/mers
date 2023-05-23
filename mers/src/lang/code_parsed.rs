@@ -38,7 +38,9 @@ impl SStatementEnum {
 
 #[derive(Debug)]
 pub struct SStatement {
-    // if the statement is a Variable (is_ref == false) and it isn't dereferenced, it will be initialized. To modify a variable, it has to be is_ref.
+    /// if the statement is a Variable that doesn't exist yet, it will be initialized.
+    /// if it's a variable that exists, but is_ref is false, an error may show up: cannot dereference
+    /// NOTE: Maybe add a bool that indicates a variable should be newly declared, shadowing old ones with the same name.
     pub output_to: Option<(Box<SStatement>, usize)>,
     pub statement: Box<SStatementEnum>,
     pub force_output_type: Option<VType>,

@@ -371,10 +371,9 @@ fn statement_adv(
             }
             SStatementEnum::Variable(v, is_ref) => {
                 let existing_var = linfo.vars.get(v);
-                // we can't assign to something that isn't a reference, so create a new variable shadowing the old one.
-                // we also can't assign to a variable that doesn't exist yet, so create a new one in that case, too.
-                if (!*is_ref && to_be_assigned_to.is_some()) || existing_var.is_none() {
-                    // if to_be_assigned_to is some (-> this is on the left side of an assignment), create a new variable. else, return an error (later).
+                // we can't assign to a variable that doesn't exist yet -> create a new one
+                if existing_var.is_none() {
+                    // if to_be_assigned_to is some (-> this is on the left side of an assignment), create a new variable. else, return an error.
                     if let Some((t, is_init)) = to_be_assigned_to {
                         *is_init = true;
                         #[cfg(not(debug_assertions))]
