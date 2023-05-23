@@ -501,16 +501,20 @@ pub mod implementation {
             match file.next() {
                 Some('\\') => {
                     if let Some(ch) = file.next() {
-                        buf.push(match ch {
+                        buf.push(
+                            match ch {
                                 '\\' => '\\',
+                                'r' => '\r',
                                 'n' => '\n',
                                 't' => '\t',
+                                '0' => '\0',
                                 '"' => '"',
                                 ch => {
                                     eprintln!("Warn: Weird char escape \"\\{ch}\", will be replaced with \"{ch}\".");
                                     ch
                                 },
-                            })
+                            }
+                        )
                     }
                 }
                 Some('"') => break,
