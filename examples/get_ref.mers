@@ -1,9 +1,9 @@
-list = [1 2 3 4 5 6 7 8 9 ...]
+list := [1 2 3 4 5 6 7 8 9 ...]
 
 // calling get on an &list will get a reference
 &list.get(2).assume1() = 24
 // calling get on a list will get a value
-should_not_be_changeable = list.get(3).assume1()
+should_not_be_changeable := list.get(3).assume1()
 &should_not_be_changeable = 24
 
 if list.get(2) != [24] println("[!!] list.get(2) != 24 (was {0})".format(list.get(2).to_string()))

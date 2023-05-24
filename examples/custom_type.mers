@@ -4,7 +4,7 @@ type elem [int []/elem]
 fn print_linked_list(start elem) {
     loop {
         println(start.0.to_string())
-        elem = start.1
+        elem := start.1
         switch! elem {
             [] {
                 println("[END]")

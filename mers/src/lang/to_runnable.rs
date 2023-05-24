@@ -371,8 +371,9 @@ fn statement_adv(
             }
             SStatementEnum::Variable(v, is_ref) => {
                 let existing_var = linfo.vars.get(v);
+                let is_init_force = if let Some(v) = &to_be_assigned_to { *v.1 } else { false };
                 // we can't assign to a variable that doesn't exist yet -> create a new one
-                if existing_var.is_none() {
+                if is_init_force || (existing_var.is_none() && ginfo.to_runnable_automatic_initialization) {
                     // if to_be_assigned_to is some (-> this is on the left side of an assignment), create a new variable. else, return an error.
                     if let Some((t, is_init)) = to_be_assigned_to {
                         *is_init = true;
@@ -401,7 +402,7 @@ fn statement_adv(
                         *is_ref
                     )
                 } else {
-                    unreachable!()
+                    return Err(ToRunnableError::UseOfUndefinedVariable(v.clone()));
                 }
             }
             SStatementEnum::FunctionCall(v, args) => {
@@ -678,8 +679,9 @@ fn statement_adv(
             return Err(ToRunnableError::StatementRequiresOutputTypeToBeAButItActuallyOutputsBWhichDoesNotFitInA(force_opt.clone(), real_output_type, VType { types: problematic_types }));
         }
     }
-    if let Some((opt, derefs)) = &s.output_to {
-        let mut is_init = false;
+    if let Some((opt, derefs, is_init)) = &s.output_to {
+        // if false, may be changed to true by statement_adv
+        let mut is_init = *is_init;
         let optr = statement_adv(
             opt,
             ginfo,

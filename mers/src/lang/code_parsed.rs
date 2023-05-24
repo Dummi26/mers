@@ -40,8 +40,8 @@ impl SStatementEnum {
 pub struct SStatement {
     /// if the statement is a Variable that doesn't exist yet, it will be initialized.
     /// if it's a variable that exists, but is_ref is false, an error may show up: cannot dereference
-    /// NOTE: Maybe add a bool that indicates a variable should be newly declared, shadowing old ones with the same name.
-    pub output_to: Option<(Box<SStatement>, usize)>,
+    /// if the third value is true, the variable will always be initialized, shadowing previous mentions of the same name.
+    pub output_to: Option<(Box<SStatement>, usize, bool)>,
     pub statement: Box<SStatementEnum>,
     pub force_output_type: Option<VType>,
 }
@@ -55,7 +55,12 @@ impl SStatement {
         }
     }
     pub fn output_to(mut self, statement: SStatement, derefs: usize) -> Self {
-        self.output_to = Some((Box::new(statement), derefs));
+        self.output_to = Some((Box::new(statement), derefs, false));
+        self
+    }
+    /// like output_to, but always initializes the variable (shadows previous variables of the same name)
+    pub fn initialize_to(mut self, statement: SStatement, derefs: usize) -> Self {
+        self.output_to = Some((Box::new(statement), derefs, true));
         self
     }
     // forces the statement's output to fit in a certain type.
@@ -248,7 +253,7 @@ impl FormatGs for SStatement {
         form: &mut super::fmtgs::FormatInfo,
         file: Option<&crate::parsing::file::File>,
     ) -> std::fmt::Result {
-        if let Some((opt, derefs)) = &self.output_to {
+        if let Some((opt, derefs, is_init)) = &self.output_to {
             // TODO!
             match opt.statement.as_ref() {
                 // SStatementEnum::Variable(name, is_ref) => {
@@ -261,7 +266,13 @@ impl FormatGs for SStatement {
                 //     )?;
                 // }
                 _ => {
-                    write!(f, "{}{} = ", "*".repeat(*derefs), opt.with(info, file))?;
+                    write!(
+                        f,
+                        "{}{} {} ",
+                        "*".repeat(*derefs),
+                        opt.with(info, file),
+                        if *is_init { ":=" } else { "=" }
+                    )?;
                 }
             }
         }

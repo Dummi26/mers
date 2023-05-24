@@ -25,6 +25,11 @@ pub struct GlobalScriptInfo {
     pub custom_type_names: HashMap<String, usize>,
     pub custom_types: Vec<VType>,
 
+    /// if true, trying to assign to the reference of a variable that doesn't exist yet will create and initialize that variable.
+    /// if false, variables will only be initialized if this is explicitly stated.
+    /// settings this to true is useful for "x = 2; x = 5;" syntax in parser implementations that don't differenciate initialization and assignment syntactically.
+    pub to_runnable_automatic_initialization: bool,
+
     pub formatter: ColorFormatter,
 
     pub log: Logger,
@@ -94,6 +99,7 @@ impl Default for GlobalScriptInfo {
             enum_variants: Self::default_enum_variants(),
             custom_type_names: HashMap::new(),
             custom_types: vec![],
+            to_runnable_automatic_initialization: false,
             formatter: Default::default(),
             log: Logger::new(),
         }

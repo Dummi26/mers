@@ -1,8 +1,8 @@
-val = "some string"
-val = !(mers {
+val := "some string"
+val := !(mers {
     println("macro is running now!")
     "macro returned value"
 })
 println(val)
-val = !(mers "my_macro.mers")
+val := !(mers "my_macro.mers")
 println(val)

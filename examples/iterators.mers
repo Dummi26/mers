@@ -4,7 +4,7 @@ fn map_string_to_int(list [string ...] func fn((string int))) {
         // this function will be called by the for loop
         // whenever it wants to retrieve the next item in the collection.
         // get the element
-        elem = &list.remove(0)
+        elem := &list.remove(0)
         switch! elem {
             // if the element was present, run the map function to convert it from a string to an int and return the result
             [string] {
@@ -24,8 +24,8 @@ for v ["1" "2" "5" "-10" ...].map_string_to_int((s string) s.parse_int().assume1
 // returns an iterator to iteratively compute square numbers
 // using the fact that (n+1)^2 = n^2 + 2n + 1
 fn square_numbers() {
-    i = 0
-    val = 0
+    i := 0
+    val := 0
     () {
         &val = val + { 2 * i } + 1
         &i = i + 1
