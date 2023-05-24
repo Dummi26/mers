@@ -1,3 +1,5 @@
+# OUTDATED - SEE OTHER DOCS!
+
 # Hello, world!
 
 Welcome to mers! Start by creating a file for your mers code:
