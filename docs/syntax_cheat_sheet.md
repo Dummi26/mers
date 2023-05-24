@@ -75,6 +75,8 @@
   + `<var_name>` (if the name of the variable isn't a value or some other kind of statement)
 - function call
   + `<fn_name>(<arg1> <arg2> <...>)`
+  + `<fn_name>(<arg1>, <arg2>, <...>)`
+  + `<arg1>.<fn_name>(<arg2>, <...>)`
 - function definition
   + `fn <fn_name>(<arg1> <arg2> <...>) <statement>` where `<argn>` is `<namen> <typen>`
 - block
