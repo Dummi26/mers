@@ -280,7 +280,8 @@ impl FormatGs for SStatement {
             write!(f, " -> ")?;
             force_opt.fmtgs(f, info, form, file)?;
         }
-        self.statement.fmtgs(f, info, form, file)
+        self.statement.fmtgs(f, info, form, file)?;
+        write!(f, ",")
     }
 }
 impl Display for SStatement {

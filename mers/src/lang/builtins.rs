@@ -1603,7 +1603,7 @@ impl BuiltinFunction {
                     let left = if left >= 0 {
                         left as usize
                     } else {
-                        (a.len() - 1).saturating_sub(left.abs() as _)
+                        a.len().saturating_sub(left.abs() as _)
                     };
                     if let Some(len) = len {
                         if len >= 0 {

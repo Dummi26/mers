@@ -583,7 +583,7 @@ pub mod implementation {
             let mut start = String::new();
             loop {
                 fn is_delimeter(ch: char) -> bool {
-                    matches!(ch, '}' | ']' | ')' | '.')
+                    matches!(ch, '}' | ']' | ')' | '.' | ',')
                 }
                 let nchar = match file.peek() {
                     Some(ch) if is_delimeter(ch) => Some(ch),
@@ -596,16 +596,18 @@ pub mod implementation {
                             parse_statement(file)?,
                         )));
                     }
+                    Some(ch)
+                        if (ch.is_whitespace() || is_delimeter(ch)) && start.trim().is_empty() =>
+                    {
+                        return Err(ParseError {
+                            err: ParseErrors::StatementCannotStartWith(ch),
+                            location: *file.get_pos(),
+                            location_end: None,
+                            context: vec![],
+                            info: None,
+                        });
+                    }
                     Some(ch) if ch.is_whitespace() || is_delimeter(ch) => {
-                        if start.trim().is_empty() {
-                            return Err(ParseError {
-                                err: ParseErrors::StatementCannotStartWith(ch),
-                                location: *file.get_pos(),
-                                location_end: None,
-                                context: vec![],
-                                info: None,
-                            });
-                        }
                         file.skip_whitespaces();
                         // parse normal statement
                         let start = start.trim();
@@ -853,6 +855,10 @@ pub mod implementation {
             // 080 .
             // most local (evaluated first)
             out = match (chain_level, file.peek()) {
+                (_, Some(',')) => {
+                    file.next();
+                    break;
+                }
                 // 080 .
                 (0..=80, Some('.'))
                     if !matches!(
