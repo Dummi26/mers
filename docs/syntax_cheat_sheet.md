@@ -62,6 +62,9 @@
     * this is why `&<var_name> = <statement>` is the way it is.
   + `***<statement_left> = <statement_right>`
     * same as before, but performs dereferences: `&&&&int` becomes `&int` (minus 3 references because 3 `*`s), so a value of type `int` can be assigned to it.
+- destructuring
+  + values can be destructured into tuples or lists (as of right now):
+  + `[a, b] := [10, "some text"]` is effectively the same as `a := 10, b := "some text"`
 
 ## Statements
 
@@ -89,26 +92,26 @@
   + if the statement returns a value that matches, the loop will end and return the matched value
   + the loop's return type is the match of the return type of the statement
 - for loop
-  + `for <var_name> <iterator> <statement>`
+  + `for <assign_to> <iterator> <statement>`
   + in each iteration, the variable will be initialized with a value from the iterator.
   + iterators can be lists, tuples, or functions.
   + for function iterators, as long as the returned value matches, the matched value will be used. if the value doesn't match, the loop ends.
   + if the statement returns a value that matches, the loop will end and return the matched value
   + the loop's return type is the match of the return type of the statement or `[]` (if the loop ends because the iterator ended)
 - switch
-  + `switch <var_name> { <arm1> <arm2> <...> }`
-    * where `<armn>` is `<typen> <statementn>`
-    * if the variable's value is of type `<typen>`, `<statementn>` will be executed.
+  + `switch <value> { <arm1> <arm2> <...> }`
+    * where `<armn>` is `<typen> <assign_to> <statementn>`
+    * if the variable's value is of type `<typen>`, `<statementn>` will be executed with `<value>` assigned to `<assign_to>`.
     * if the variables type is included multiple times, only the first match will be executed.
     * within the statement of an arm, the variables type is that specified in `<typen>`, and not its original type (which may be too broad to work with)
   + `switch! <var_name> { <arm1> <arm2> <...> }`
     * same as above, but all types the variable could have must be covered
     * the additional `[]` in the return type isn't added here since it is impossible not to run the statement of one of the arms.
 - match
-  + `match <var_name> { <arm1> <arm2> <...> }`
-    * where `<armn>` is `<statement> <statement>`
-    * each arm has a condition statement an an action statement.
-    * if the value returned by the condition statement matches, the matched value is assigned to the variable and the action statement is executed.
+  + `match { <arm1> <arm2> <...> }`
+    * where `<armn>` is `<(condition) statement> <assign_to> <(action) statement>`
+    * each arm has a condition statement, something that the matched value will be assigned to, and an action statement.
+    * if the value returned by the condition statement matches, the matched value is assigned to `<assign_to>` and the action statement is executed.
     * only the first matching arm will be executed. if no arm was executed, `[]` is returned.
 - fixed-indexing
   + `<statement>.n` where `n` is a fixed number (not a variable, just `0`, `1`, `2`, ...)

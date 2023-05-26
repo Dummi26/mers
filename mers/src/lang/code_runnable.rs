@@ -338,9 +338,9 @@ impl RStatementEnum {
                 let switch_on = switch_on.out(info).types;
                 let mut might_return_empty = switch_on.is_empty();
                 let mut out = if *force {
-                    VSingleType::Tuple(vec![]).to()
-                } else {
                     VType::empty()
+                } else {
+                    VSingleType::Tuple(vec![]).to()
                 };
                 for switch_on in switch_on {
                     for (_on_type, _assign_to, case) in cases.iter() {

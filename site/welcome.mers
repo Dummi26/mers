@@ -2,15 +2,15 @@ fn get_number_input(question string) {
     println(question)
     input := read_line()
     // try to parse to an int, then a float.
-    in := match input {
-        input.parse_int() input
-        input.parse_float() input
+    in := match {
+        input.parse_int() n n
+        input.parse_float() n n
     }
     // 'in' has type int/float/[] because of the match statement
     switch! in {
-        int/float in
+        int/float in in
         // replace [] with an appropriate error before returning
-        [] Err: "input was not a number."
+        [] [] Err: "input was not a number."
     }
     // return type is int/float/Err(string)
 }
@@ -21,15 +21,15 @@ answer.debug() // type: int/float/Err(string)
 // switch can be used to branch based on a variables type.
 // switch! indicates that every possible type must be handled.
 switch! answer {
-    int {
+    int num {
         println("Entered an integer")
-        answer.debug() // type: int
+        num.debug() // type: int
     }
-    float {
+    float num {
         println("Entered a decimal number")
-        answer.debug() // type: float
+        num.debug() // type: float
     }
-    Err(string) println("Input was not a number!")
+    Err(string) [] println("Input was not a number!")
 }
 
 // wait one second
