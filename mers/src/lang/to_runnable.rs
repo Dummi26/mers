@@ -1,3 +1,4 @@
+use core::panic;
 use std::{
     collections::HashMap,
     fmt::{Debug, Display},
@@ -347,21 +348,39 @@ fn statement(
     ginfo: &mut GlobalScriptInfo,
     linfo: &mut LInfo,
 ) -> Result<RStatement, ToRunnableError> {
-    statement_adv(s, ginfo, linfo, None)
+    statement_adv(s, ginfo, linfo, &mut None)
 }
 fn statement_adv(
     s: &SStatement,
     ginfo: &mut GlobalScriptInfo,
     linfo: &mut LInfo,
     // if Some((t, is_init)), the statement creates by this function is the left side of an assignment, meaning it can create variables. t is the type that will be assigned to it.
-    to_be_assigned_to: Option<(VType, &mut bool)>,
+    to_be_assigned_to: &mut Option<(VType, &mut bool)>,
 ) -> Result<RStatement, ToRunnableError> {
+    // eprintln!("TR : {}", s);
+    // if let Some(t) = &to_be_assigned_to {
+    //     eprintln!(" --> {}", t.0);
+    // }
     let mut state = match &*s.statement {
             SStatementEnum::Value(v) => RStatementEnum::Value(v.clone()),
             SStatementEnum::Tuple(v) | SStatementEnum::List(v) => {
                 let mut w = Vec::with_capacity(v.len());
-                for v in v {
-                    w.push(statement(v, ginfo, linfo)?);
+                let mut prev = None;
+                for (i, v) in v.iter().enumerate() {
+                    if let Some(t) = to_be_assigned_to {
+                        let out_t = if let Some(p) = &prev { p } else { &t.0 };
+                        let inner_t = if let Some(v) = out_t.get_always(i, ginfo) { v } else {
+                            panic!("cannot assign: cannot get_always({i}) on type {}.", out_t);
+                        };
+                        let p = std::mem::replace(&mut t.0, inner_t);
+                        if prev.is_none() {
+                            prev = Some(p);
+                        }
+                    };
+                    w.push(statement_adv(v, ginfo, linfo, to_be_assigned_to)?);
+                }
+                if let (Some(t), Some(prev)) = (to_be_assigned_to, prev) {
+                    t.0 = prev;
                 }
                 if let SStatementEnum::List(_) = &*s.statement {
                     RStatementEnum::List(w)
@@ -376,7 +395,7 @@ fn statement_adv(
                 if is_init_force || (existing_var.is_none() && ginfo.to_runnable_automatic_initialization) {
                     // if to_be_assigned_to is some (-> this is on the left side of an assignment), create a new variable. else, return an error.
                     if let Some((t, is_init)) = to_be_assigned_to {
-                        *is_init = true;
+                        **is_init = true;
                         #[cfg(not(debug_assertions))]
                         let var = VData::new_placeholder();
                         #[cfg(debug_assertions)]
@@ -385,7 +404,7 @@ fn statement_adv(
                         linfo.vars.insert(v.to_owned(), (Arc::clone(&var_arc), t.clone()));
                         RStatementEnum::Variable(
                             var_arc,
-                            t,
+                            t.clone(),
                             true,
                         )
                     } else {
@@ -686,41 +705,46 @@ fn statement_adv(
             opt,
             ginfo,
             linfo,
-            if *derefs == 0 {
+            &mut if *derefs == 0 {
                 Some((state.out(ginfo), &mut is_init))
             } else {
                 None
             },
         )?;
-        let mut opt_type = optr.out(ginfo);
-        for _ in 0..*derefs {
-            if let Some(deref_type) = optr.out(ginfo).dereference() {
-                opt_type = deref_type;
+        if !is_init {
+            let mut opt_type = optr.out(ginfo);
+            for _ in 0..*derefs {
+                if let Some(deref_type) = optr.out(ginfo).dereference() {
+                    opt_type = deref_type;
+                } else {
+                    return Err(ToRunnableError::CannotDereferenceTypeNTimes(
+                        optr.out(ginfo),
+                        *derefs,
+                        opt_type,
+                    ));
+                }
+            }
+            let opt_type_assign = match opt_type.dereference() {
+                Some(v) => v,
+                None => {
+                    return Err(ToRunnableError::CannotDereferenceTypeNTimes(
+                        optr.out(ginfo),
+                        derefs + 1,
+                        opt_type,
+                    ))
+                }
+            };
+            if state.out(ginfo).fits_in(&opt_type_assign, ginfo).is_empty() {
+                state.output_to = Some((Box::new(optr), *derefs, is_init));
             } else {
-                return Err(ToRunnableError::CannotDereferenceTypeNTimes(
-                    optr.out(ginfo),
-                    *derefs,
-                    opt_type,
+                return Err(ToRunnableError::CannotAssignTo(
+                    state.out(ginfo),
+                    opt_type_assign,
                 ));
             }
-        }
-        let opt_type_assign = match opt_type.dereference() {
-            Some(v) => v,
-            None => {
-                return Err(ToRunnableError::CannotDereferenceTypeNTimes(
-                    optr.out(ginfo),
-                    derefs + 1,
-                    opt_type,
-                ))
-            }
-        };
-        if state.out(ginfo).fits_in(&opt_type_assign, ginfo).is_empty() {
-            state.output_to = Some((Box::new(optr), *derefs, is_init));
         } else {
-            return Err(ToRunnableError::CannotAssignTo(
-                state.out(ginfo),
-                opt_type_assign,
-            ));
+            // TODO! ??
+            state.output_to = Some((Box::new(optr), *derefs, is_init));
         }
         //
         // if let Some((var_id, var_out)) = linfo.vars.get(opt) {

@@ -1,0 +1,12 @@
+x := "https:\//www.google.com"
+
+x.debug()
+
+[a, [b, c]] := [1, ["str", 12.5]]
+
+println("---")
+println(a.to_string() + " " + b + " " + c.to_string())
+println("~~~")
+
+// switch! run_command("curl", [x, ...]) {
+// }

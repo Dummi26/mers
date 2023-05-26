@@ -34,7 +34,7 @@ pub enum VSingleType {
 }
 
 impl VSingleType {
-    // None => Cannot get, Some(t) => getting can return t or nothing
+    /// None => Cannot get, Some(t) => getting can return t or nothing
     pub fn get(&self, i: usize, gsinfo: &GlobalScriptInfo) -> Option<VType> {
         match self {
             Self::Bool | Self::Int | Self::Float | Self::Function(..) | Self::Thread(..) => None,
@@ -63,7 +63,7 @@ impl VSingleType {
             }
         }
     }
-    // None => might not always return t, Some(t) => can only return t
+    /// None => might not always return t, Some(t) => can only return t
     pub fn get_always(&self, i: usize, info: &GlobalScriptInfo) -> Option<VType> {
         match self {
             Self::Bool

@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    eprintln,
+    sync::{Arc, Mutex},
+};
 
 use super::{
     builtins::BuiltinFunction,
@@ -106,33 +109,45 @@ pub struct RStatement {
     pub force_output_type: Option<VType>,
 }
 impl RStatement {
+    fn assign_to(assign_from: VData, mut assign_to: VData, info: &GSInfo) {
+        eprintln!("Assigning: '{assign_from}'.");
+        assign_to.operate_on_data_mut(|assign_to| match assign_to {
+            VDataEnum::Tuple(v) | VDataEnum::List(_, v) => {
+                for (i, v) in v.iter().enumerate() {
+                    Self::assign_to(
+                        assign_from.get(i).expect(
+                            "tried to assign to tuple, but value didn't return Some(_) on get()",
+                        ),
+                        v.clone_data(),
+                        info,
+                    )
+                }
+            }
+            VDataEnum::Reference(r) => r.assign(assign_from),
+            o => todo!("ERR: Cannot assign to {o}."),
+        })
+    }
     pub fn run(&self, info: &GSInfo) -> VData {
         let out = self.statement.run(info);
         if let Some((v, derefs, is_init)) = &self.output_to {
             'init: {
-                // assigns a new VData to the variable's Arc<Mutex<_>>, so that threads which have captured the variable at some point
-                // won't be updated with its new value (is_init is set to true for initializations, such as in a loop - this can happen multiple times, but each should be its own variable with the same name)
-                if *is_init && *derefs == 0 {
-                    if let RStatementEnum::Variable(var, _, _) = v.statement.as_ref() {
-                        let mut varl = var.lock().unwrap();
-                        #[cfg(debug_assertions)]
-                        let varname = varl.1.clone();
-                        *varl = out;
-                        #[cfg(debug_assertions)]
-                        {
-                            varl.1 = varname;
-                        }
-                        break 'init;
+                // // assigns a new VData to the variable's Arc<Mutex<_>>, so that threads which have captured the variable at some point
+                // // won't be updated with its new value (is_init is set to true for initializations, such as in a loop - this can happen multiple times, but each should be its own variable with the same name)
+                // if *is_init && *derefs == 0 {
+                //     Self::assign_to(out, v.run(info), info);
+                //     break 'init;
+                // }
+                let mut val = v.run(info);
+                if !*is_init {
+                    for _ in 0..(*derefs + 1) {
+                        val = match val.deref() {
+                            Some(v) => v,
+                            None => unreachable!("can't dereference..."),
+                        };
                     }
                 }
-                let mut val = v.run(info);
-                for _ in 0..(*derefs + 1) {
-                    val = match val.deref() {
-                        Some(v) => v,
-                        None => unreachable!("can't dereference..."),
-                    };
-                }
-                val.assign(out);
+                Self::assign_to(out, val, info);
+                // val.assign(out);
             }
             VDataEnum::Tuple(vec![]).to()
         } else {
