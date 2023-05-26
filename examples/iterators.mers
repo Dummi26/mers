@@ -7,11 +7,11 @@ fn map_string_to_int(list [string ...] func fn((string int))) {
         elem := &list.remove(0)
         switch! elem {
             // if the element was present, run the map function to convert it from a string to an int and return the result
-            [string] {
-                [func.run(elem.0)]
+            [string] [elem] {
+                [func.run(elem)]
             }
             // if there are no more elements, return something that doesn't match.
-            [] []
+            [] [] []
         }
     }
 }

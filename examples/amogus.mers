@@ -4,14 +4,14 @@ text := "ℑ𝔠𝔥 𝔨𝔞𝔫𝔫 𝔡𝔞𝔰 𝔳𝔢𝔯𝔡𝔞𝔪𝔪�
 fn random(min int max int) {
     res := run_command("fish" ["-c" "random " + min.to_string() + " " + max.to_string() ...])
     switch res {
-        [[]/int string string] res.1.trim().parse_int().assume1()
+        [[]/int string string] res res.1.trim().parse_int().assume1()
     }
 }
 fn rnd() {
     r := random(5 15)
     switch r {
-        int r
-        [] 10
+        int r r
+        [] [] 10
     }
 }
 

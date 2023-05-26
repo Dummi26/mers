@@ -23,9 +23,9 @@ pub enum RStatementEnum {
     Block(RBlock),
     If(RStatement, RStatement, Option<RStatement>),
     Loop(RStatement),
-    For(Arc<Mutex<VData>>, RStatement, RStatement),
-    Switch(RStatement, Vec<(VType, RStatement)>),
-    Match(Arc<Mutex<VData>>, Vec<(RStatement, RStatement)>),
+    For(RStatement, RStatement, RStatement),
+    Switch(RStatement, Vec<(VType, RStatement, RStatement)>, bool),
+    Match(Vec<(RStatement, RStatement, RStatement)>),
     IndexFixed(RStatement, usize),
     EnumVariant(usize, RStatement),
 }
@@ -109,24 +109,6 @@ pub struct RStatement {
     pub force_output_type: Option<VType>,
 }
 impl RStatement {
-    fn assign_to(assign_from: VData, mut assign_to: VData, info: &GSInfo) {
-        eprintln!("Assigning: '{assign_from}'.");
-        assign_to.operate_on_data_mut(|assign_to| match assign_to {
-            VDataEnum::Tuple(v) | VDataEnum::List(_, v) => {
-                for (i, v) in v.iter().enumerate() {
-                    Self::assign_to(
-                        assign_from.get(i).expect(
-                            "tried to assign to tuple, but value didn't return Some(_) on get()",
-                        ),
-                        v.clone_data(),
-                        info,
-                    )
-                }
-            }
-            VDataEnum::Reference(r) => r.assign(assign_from),
-            o => todo!("ERR: Cannot assign to {o}."),
-        })
-    }
     pub fn run(&self, info: &GSInfo) -> VData {
         let out = self.statement.run(info);
         if let Some((v, derefs, is_init)) = &self.output_to {
@@ -139,14 +121,14 @@ impl RStatement {
                 // }
                 let mut val = v.run(info);
                 if !*is_init {
-                    for _ in 0..(*derefs + 1) {
+                    for _ in 0..*derefs {
                         val = match val.deref() {
                             Some(v) => v,
                             None => unreachable!("can't dereference..."),
                         };
                     }
                 }
-                Self::assign_to(out, val, info);
+                out.assign_to(val, info);
                 // val.assign(out);
             }
             VDataEnum::Tuple(vec![]).to()
@@ -230,9 +212,10 @@ impl RStatementEnum {
             },
             Self::For(v, c, b) => {
                 // matching values also break with value from a for loop.
+                let vv = v.run(info);
                 c.run(info).operate_on_data_immut(|c: &VDataEnum| {
                     let mut in_loop = |c: VData| {
-                        *v.lock().unwrap() = c;
+                        c.assign_to(vv.clone_mut(), info);
                         b.run(info)
                     };
 
@@ -279,25 +262,27 @@ impl RStatementEnum {
                     oval
                 })
             }
-            Self::Switch(switch_on, cases) => {
+            Self::Switch(switch_on, cases, _force) => {
                 let switch_on = switch_on.run(info);
                 let switch_on_type = switch_on.out();
                 let mut out = VDataEnum::Tuple(vec![]).to();
-                for (case_type, case_action) in cases.iter() {
+                for (case_type, assign_to, case_action) in cases.iter() {
                     if switch_on_type.fits_in(case_type, info).is_empty() {
+                        switch_on.assign_to(assign_to.run(info), info);
                         out = case_action.run(info);
                         break;
                     }
                 }
                 out
             }
-            Self::Match(match_on, cases) => 'm: {
-                for (case_condition, case_action) in cases {
+            Self::Match(cases) => 'm: {
+                for (case_condition, assign_to, case_action) in cases {
                     // [t] => Some(t), t => Some(t), [] | false => None
                     if let Some(v) = case_condition.run(info).matches() {
-                        let og = { std::mem::replace(&mut *match_on.lock().unwrap(), v) };
+                        v.assign_to(assign_to.run(info), info);
+                        // let og = { std::mem::replace(&mut *match_on.lock().unwrap(), v) };
                         let res = case_action.run(info);
-                        *match_on.lock().unwrap() = og;
+                        // *match_on.lock().unwrap() = og;
                         break 'm res;
                     }
                 }
@@ -349,31 +334,33 @@ impl RStatementEnum {
             Self::BuiltinFunction(f, args) => {
                 f.returns(args.iter().map(|rs| rs.out(info)).collect(), info)
             }
-            Self::Switch(switch_on, cases) => {
+            Self::Switch(switch_on, cases, force) => {
                 let switch_on = switch_on.out(info).types;
                 let mut might_return_empty = switch_on.is_empty();
-                let mut out = VType { types: vec![] }; // if nothing is executed
+                let mut out = if *force {
+                    VSingleType::Tuple(vec![]).to()
+                } else {
+                    VType::empty()
+                };
                 for switch_on in switch_on {
-                    let switch_on = switch_on.to();
-                    'search: {
-                        for (on_type, case) in cases.iter() {
-                            if switch_on.fits_in(&on_type, info).is_empty() {
-                                out = out | case.out(info);
-                                break 'search;
-                            }
-                        }
-                        might_return_empty = true;
+                    for (_on_type, _assign_to, case) in cases.iter() {
+                        out = out | case.out(info);
                     }
-                }
-                if might_return_empty {
-                    out = out | VSingleType::Tuple(vec![]).to();
                 }
                 out
             }
-            Self::Match(_, cases) => {
-                let mut out = VSingleType::Tuple(vec![]).to();
-                for case in cases {
-                    out = out | case.1.out(info);
+            Self::Match(cases) => {
+                let mut out = VType::empty();
+                let mut can_fail_to_match = true;
+                for (condition, _assign_to, action) in cases {
+                    out = out | action.out(info);
+                    if !condition.out(info).matches().0 {
+                        can_fail_to_match = false;
+                        break;
+                    }
+                }
+                if can_fail_to_match {
+                    out = out | VSingleType::Tuple(vec![]).to()
                 }
                 out
             }

@@ -149,6 +149,23 @@ impl VData {
         //     VDataInner::ClonedFrom(inner) => inner.assign(new_data),
         // }
     }
+    /// assigns the value from self to assign_to if it's a reference, performs destructuring, and panics on invalid types that cannot be assigned to.
+    pub fn assign_to(self: VData, mut assign_to: VData, info: &GSInfo) {
+        // eprintln!("Assigning {self} to {assign_to}");
+        assign_to.operate_on_data_mut(|assign_to| match assign_to {
+            VDataEnum::Tuple(v) | VDataEnum::List(_, v) => {
+                for (i, v) in v.iter().enumerate() {
+                    self.get(i)
+                        .expect(
+                            "tried to assign to tuple, but value didn't return Some(_) on get()",
+                        )
+                        .assign_to(v.clone_data(), info)
+                }
+            }
+            VDataEnum::Reference(r) => r.assign(self),
+            o => todo!("ERR: Cannot assign to {o}."),
+        })
+    }
 }
 impl Drop for VDataInner {
     fn drop(&mut self) {

@@ -1,6 +1,7 @@
 use core::panic;
 use std::{
     collections::HashMap,
+    eprintln,
     fmt::{Debug, Display},
     sync::{Arc, Mutex},
 };
@@ -362,330 +363,302 @@ fn statement_adv(
     //     eprintln!(" --> {}", t.0);
     // }
     let mut state = match &*s.statement {
-            SStatementEnum::Value(v) => RStatementEnum::Value(v.clone()),
-            SStatementEnum::Tuple(v) | SStatementEnum::List(v) => {
-                let mut w = Vec::with_capacity(v.len());
-                let mut prev = None;
-                for (i, v) in v.iter().enumerate() {
-                    if let Some(t) = to_be_assigned_to {
-                        let out_t = if let Some(p) = &prev { p } else { &t.0 };
-                        let inner_t = if let Some(v) = out_t.get_always(i, ginfo) { v } else {
-                            panic!("cannot assign: cannot get_always({i}) on type {}.", out_t);
-                        };
-                        let p = std::mem::replace(&mut t.0, inner_t);
-                        if prev.is_none() {
-                            prev = Some(p);
-                        }
-                    };
-                    w.push(statement_adv(v, ginfo, linfo, to_be_assigned_to)?);
-                }
-                if let (Some(t), Some(prev)) = (to_be_assigned_to, prev) {
-                    t.0 = prev;
-                }
-                if let SStatementEnum::List(_) = &*s.statement {
-                    RStatementEnum::List(w)
-                } else {
-                    RStatementEnum::Tuple(w)
-                }
-            }
-            SStatementEnum::Variable(v, is_ref) => {
-                let existing_var = linfo.vars.get(v);
-                let is_init_force = if let Some(v) = &to_be_assigned_to { *v.1 } else { false };
-                // we can't assign to a variable that doesn't exist yet -> create a new one
-                if is_init_force || (existing_var.is_none() && ginfo.to_runnable_automatic_initialization) {
-                    // if to_be_assigned_to is some (-> this is on the left side of an assignment), create a new variable. else, return an error.
-                    if let Some((t, is_init)) = to_be_assigned_to {
-                        **is_init = true;
-                        #[cfg(not(debug_assertions))]
-                        let var = VData::new_placeholder();
-                        #[cfg(debug_assertions)]
-                        let var = VData::new_placeholder_with_name(v.to_owned());
-                        let var_arc = Arc::new(Mutex::new(var));
-                        linfo.vars.insert(v.to_owned(), (Arc::clone(&var_arc), t.clone()));
-                        RStatementEnum::Variable(
-                            var_arc,
-                            t.clone(),
-                            true,
-                        )
+        SStatementEnum::Value(v) => RStatementEnum::Value(v.clone()),
+        SStatementEnum::Tuple(v) | SStatementEnum::List(v) => {
+            let mut w = Vec::with_capacity(v.len());
+            let mut prev = None;
+            for (i, v) in v.iter().enumerate() {
+                if let Some(t) = to_be_assigned_to {
+                    let out_t = if let Some(p) = &prev { p } else { &t.0 };
+                    let inner_t = if let Some(v) = out_t.get_always(i, ginfo) {
+                        v
                     } else {
-                        return Err(ToRunnableError::UseOfUndefinedVariable(v.clone()));
+                        panic!("cannot assign: cannot get_always({i}) on type {}.", out_t);
+                    };
+                    let p = std::mem::replace(&mut t.0, inner_t);
+                    if prev.is_none() {
+                        prev = Some(p);
                     }
-                } else if let Some(var) = existing_var {
-                    RStatementEnum::Variable(
-                        Arc::clone(&var.0),
-                        {
-                            let mut v = var.1.clone();
-                            stypes(&mut v, ginfo)?;
-                            v
-                        },
-                        *is_ref
-                    )
+                };
+                w.push(statement_adv(v, ginfo, linfo, to_be_assigned_to)?);
+            }
+            if let (Some(t), Some(prev)) = (to_be_assigned_to, prev) {
+                t.0 = prev;
+            }
+            if let SStatementEnum::List(_) = &*s.statement {
+                RStatementEnum::List(w)
+            } else {
+                RStatementEnum::Tuple(w)
+            }
+        }
+        SStatementEnum::Variable(v, is_ref) => {
+            let existing_var = linfo.vars.get(v);
+            let is_init_force = if let Some(v) = &to_be_assigned_to {
+                *v.1
+            } else {
+                false
+            };
+            // we can't assign to a variable that doesn't exist yet -> create a new one
+            if is_init_force
+                || (existing_var.is_none() && ginfo.to_runnable_automatic_initialization)
+            {
+                // if to_be_assigned_to is some (-> this is on the left side of an assignment), create a new variable. else, return an error.
+                if let Some((t, is_init)) = to_be_assigned_to {
+                    **is_init = true;
+                    #[cfg(not(debug_assertions))]
+                    let var = VData::new_placeholder();
+                    #[cfg(debug_assertions)]
+                    let var = VData::new_placeholder_with_name(v.to_owned());
+                    let var_arc = Arc::new(Mutex::new(var));
+                    linfo
+                        .vars
+                        .insert(v.to_owned(), (Arc::clone(&var_arc), t.clone()));
+                    RStatementEnum::Variable(var_arc, t.clone(), true)
                 } else {
                     return Err(ToRunnableError::UseOfUndefinedVariable(v.clone()));
                 }
+            } else if let Some(var) = existing_var {
+                RStatementEnum::Variable(
+                    Arc::clone(&var.0),
+                    {
+                        let mut v = var.1.clone();
+                        stypes(&mut v, ginfo)?;
+                        v
+                    },
+                    *is_ref,
+                )
+            } else {
+                return Err(ToRunnableError::UseOfUndefinedVariable(v.clone()));
             }
-            SStatementEnum::FunctionCall(v, args) => {
-                let mut rargs = Vec::with_capacity(args.len());
-                for arg in args.iter() {
-                    rargs.push(statement(arg, ginfo, linfo)?);
-                }
-                fn check_fn_args(args: &Vec<VType>, inputs: &Vec<(Vec<VType>, VType)>, ginfo: &GlobalScriptInfo) -> Option<VType> {
-                    let mut fit_any = false;
-                    let mut out = VType::empty();
-                    for (inputs, output) in inputs {
-                        if args.len() == inputs.len() && args.iter().zip(inputs.iter()).all(|(arg, input)| arg.fits_in(input, ginfo).is_empty()) {
-                            fit_any = true;
-                            out = out | output;
-                        }
+        }
+        SStatementEnum::FunctionCall(v, args) => {
+            let mut rargs = Vec::with_capacity(args.len());
+            for arg in args.iter() {
+                rargs.push(statement(arg, ginfo, linfo)?);
+            }
+            fn check_fn_args(
+                args: &Vec<VType>,
+                inputs: &Vec<(Vec<VType>, VType)>,
+                ginfo: &GlobalScriptInfo,
+            ) -> Option<VType> {
+                let mut fit_any = false;
+                let mut out = VType::empty();
+                for (inputs, output) in inputs {
+                    if args.len() == inputs.len()
+                        && args
+                            .iter()
+                            .zip(inputs.iter())
+                            .all(|(arg, input)| arg.fits_in(input, ginfo).is_empty())
+                    {
+                        fit_any = true;
+                        out = out | output;
                     }
-                    if fit_any {
-                        Some(out)
-                    } else {
-                        None
-                    }
                 }
-                let arg_types: Vec<_> = rargs.iter().map(|v| v.out(ginfo)).collect();
-                if let Some(func) = linfo.fns.get(v) {
-                    if let Some(_out) = check_fn_args(&arg_types, &func.input_output_map.iter().map(|v| (v.0.iter().map(|v| v.clone().to()).collect(), v.1.to_owned())).collect(), ginfo) {
-                        RStatementEnum::FunctionCall(func.clone(), rargs)
+                if fit_any {
+                    Some(out)
+                } else {
+                    None
+                }
+            }
+            let arg_types: Vec<_> = rargs.iter().map(|v| v.out(ginfo)).collect();
+            if let Some(func) = linfo.fns.get(v) {
+                if let Some(_out) = check_fn_args(
+                    &arg_types,
+                    &func
+                        .input_output_map
+                        .iter()
+                        .map(|v| (v.0.iter().map(|v| v.clone().to()).collect(), v.1.to_owned()))
+                        .collect(),
+                    ginfo,
+                ) {
+                    RStatementEnum::FunctionCall(func.clone(), rargs)
+                } else {
+                    return Err(ToRunnableError::FunctionWrongArgs(arg_types, v.to_owned()));
+                }
+            } else {
+                if let Some(builtin) = BuiltinFunction::get(v) {
+                    let arg_types = rargs.iter().map(|v| v.out(ginfo)).collect();
+                    if builtin.can_take(&arg_types, ginfo) {
+                        RStatementEnum::BuiltinFunction(builtin, rargs)
                     } else {
-                        return Err(ToRunnableError::FunctionWrongArgs(
+                        return Err(ToRunnableError::WrongInputsForBuiltinFunction(
+                            builtin,
+                            v.to_string(),
                             arg_types,
-                            v.to_owned()
                         ));
                     }
                 } else {
-                    if let Some(builtin) = BuiltinFunction::get(v) {
-                        let arg_types = rargs.iter().map(|v| v.out(ginfo)).collect();
-                        if builtin.can_take(&arg_types, ginfo) {
-                            RStatementEnum::BuiltinFunction(builtin, rargs)
+                    // LIBRARY FUNCTION?
+                    if let Some((libid, fnid)) = ginfo.lib_fns.get(v) {
+                        let lib = &ginfo.libs[*libid];
+                        let libfn = &lib.registered_fns[*fnid];
+                        if let Some(fn_out) = check_fn_args(&arg_types, &libfn.1, ginfo) {
+                            RStatementEnum::LibFunction(*libid, *fnid, rargs, fn_out.clone())
                         } else {
-                            return Err(ToRunnableError::WrongInputsForBuiltinFunction(builtin, v.to_string(), arg_types));
+                            return Err(ToRunnableError::WrongArgsForLibFunction(
+                                v.to_owned(),
+                                arg_types,
+                            ));
                         }
                     } else {
-                        // LIBRARY FUNCTION?
-                        if let Some((libid, fnid)) = ginfo.lib_fns.get(v) {
-                            let lib = &ginfo.libs[*libid];
-                            let libfn = &lib.registered_fns[*fnid];
-                            if let Some(fn_out) = check_fn_args(&arg_types, &libfn.1, ginfo) {
-                                RStatementEnum::LibFunction(*libid, *fnid, rargs, fn_out.clone())
-                            } else {
-                                return Err(ToRunnableError::WrongArgsForLibFunction(v.to_owned(), arg_types));
-                            }
-                        } else {
-                            return Err(ToRunnableError::UseOfUndefinedFunction(v.clone()));
-                        }
+                        return Err(ToRunnableError::UseOfUndefinedFunction(v.clone()));
                     }
                 }
             }
-            SStatementEnum::FunctionDefinition(name, f) => {
-                if let Some(name) = name {
-                    // named function => add to global functions
-                    linfo
-                        .fns
-                        .insert(name.clone(), Arc::new(function(f, ginfo, linfo.clone())?));
-                    RStatementEnum::Value(VDataEnum::Tuple(vec![]).to())
-                } else {
-                    // anonymous function => return as value
-                    RStatementEnum::Value(
-                        VDataEnum::Function(Arc::new(function(f, ginfo, linfo.clone())?)).to(),
-                    )
-                }
-            }
-            SStatementEnum::Block(b) => RStatementEnum::Block(block(&b, ginfo, linfo.clone())?),
-            SStatementEnum::If(c, t, e) => RStatementEnum::If(
-                {
-                    let condition = statement(&c, ginfo, linfo)?;
-                    let out = condition.out(ginfo).fits_in(&VType {
-                        types: vec![VSingleType::Bool],
-                    }, ginfo);
-                    if out.is_empty() {
-                        condition
-                    } else {
-                        return Err(ToRunnableError::InvalidType {
-                            expected: VSingleType::Bool.into(),
-                            found: condition.out(ginfo),
-                            problematic: VType { types: out },
-                        });
-                    }
-                },
-                statement(&t, ginfo, linfo)?,
-                match e {
-                    Some(v) => Some(statement(&v, ginfo, linfo)?),
-                    None => None,
-                },
-            ),
-            SStatementEnum::Loop(c) => RStatementEnum::Loop(
-                statement(&c, ginfo, linfo)?
-            ),
-            SStatementEnum::For(v, c, b) => {
-                let mut linfo = linfo.clone();
-                let container = statement(&c, ginfo, &mut linfo)?;
-                let inner = container.out(ginfo).inner_types();
-                if inner.types.is_empty() {
-                    return Err(ToRunnableError::ForLoopContainerHasNoInnerTypes);
-                }
-                let for_loop_var = Arc::new(Mutex::new(VData::new_placeholder()));
+        }
+        SStatementEnum::FunctionDefinition(name, f) => {
+            if let Some(name) = name {
+                // named function => add to global functions
                 linfo
-                    .vars
-                    .insert(v.clone(), (Arc::clone(&for_loop_var), inner));
-                let block = statement(&b, ginfo, &mut linfo)?;
-                let o = RStatementEnum::For(for_loop_var, container, block);
-                o
+                    .fns
+                    .insert(name.clone(), Arc::new(function(f, ginfo, linfo.clone())?));
+                RStatementEnum::Value(VDataEnum::Tuple(vec![]).to())
+            } else {
+                // anonymous function => return as value
+                RStatementEnum::Value(
+                    VDataEnum::Function(Arc::new(function(f, ginfo, linfo.clone())?)).to(),
+                )
+            }
+        }
+        SStatementEnum::Block(b) => RStatementEnum::Block(block(&b, ginfo, linfo.clone())?),
+        SStatementEnum::If(c, t, e) => RStatementEnum::If(
+            {
+                let condition = statement(&c, ginfo, linfo)?;
+                let out = condition.out(ginfo).fits_in(
+                    &VType {
+                        types: vec![VSingleType::Bool],
+                    },
+                    ginfo,
+                );
+                if out.is_empty() {
+                    condition
+                } else {
+                    return Err(ToRunnableError::InvalidType {
+                        expected: VSingleType::Bool.into(),
+                        found: condition.out(ginfo),
+                        problematic: VType { types: out },
+                    });
+                }
+            },
+            statement(&t, ginfo, linfo)?,
+            match e {
+                Some(v) => Some(statement(&v, ginfo, linfo)?),
+                None => None,
+            },
+        ),
+        SStatementEnum::Loop(c) => RStatementEnum::Loop(statement(&c, ginfo, linfo)?),
+        SStatementEnum::For(v, c, b) => {
+            let mut linfo = linfo.clone();
+            let container = statement(&c, ginfo, &mut linfo)?;
+            let inner = container.out(ginfo).inner_types();
+            if inner.types.is_empty() {
+                return Err(ToRunnableError::ForLoopContainerHasNoInnerTypes);
+            }
+            let assign_to = statement_adv(v, ginfo, &mut linfo, &mut Some((inner, &mut true)))?;
+            let block = statement(&b, ginfo, &mut linfo)?;
+            let o = RStatementEnum::For(assign_to, container, block);
+            o
+        }
+
+        SStatementEnum::Switch(switch_on, cases, force) => {
+            let mut ncases = Vec::with_capacity(cases.len());
+            let switch_on = statement(switch_on, ginfo, linfo)?;
+            let og_type = switch_on.out(ginfo);
+            let mut covered_types = VType::empty();
+            for (case_type, case_assign_to, case_action) in cases.iter() {
+                let mut linfo = linfo.clone();
+                let case_type = {
+                    let mut v = case_type.clone();
+                    stypes(&mut v, ginfo)?;
+                    v
+                };
+                covered_types = covered_types | &case_type;
+                ncases.push((
+                    case_type.clone(),
+                    statement_adv(
+                        case_assign_to,
+                        ginfo,
+                        &mut linfo,
+                        &mut Some((case_type, &mut true)),
+                    )?,
+                    statement(case_action, ginfo, &mut linfo)?,
+                ));
             }
 
-            SStatementEnum::Switch(switch_on, cases, force) => {
-                if let Some(switch_on_v) = linfo.vars.get(switch_on).cloned() {
-                    let mut ncases = Vec::with_capacity(cases.len());
-                    let og_type = switch_on_v.1.clone(); // linfo.vars.get(switch_on).unwrap().1.clone();
-                    for case in cases {
-                        let case0 = { let mut v = case.0.clone(); stypes(&mut v, ginfo)?; v };
-                        linfo.vars.get_mut(switch_on).unwrap().1 = case0.clone();
-                        ncases.push((case0, statement(&case.1, ginfo, linfo)?));
-                    }
-                    linfo.vars.get_mut(switch_on).unwrap().1 = og_type;
-
-                    let switch_on_out = switch_on_v.1;
-                    if *force {
-                        let mut types_not_covered_req_error = false;
-                        let mut types_not_covered = VType { types: vec![] };
-                        for val_type in switch_on_out.types.iter() {
-                            let val_type: VType = val_type.clone().into();
-                            let mut linf2 = linfo.clone();
-                            linf2.vars.get_mut(switch_on).unwrap().1 = val_type.clone();
-                            'force: {
-                                for (case_type, _) in cases {
-                                    let mut ct = case_type.clone();
-                                    stypes(&mut ct, ginfo)?;
-                                    if val_type.fits_in(&ct, ginfo).is_empty() {
-                                        break 'force;
-                                    }
-                                }
-                                types_not_covered_req_error = true;
-                                types_not_covered = types_not_covered | {
-                                    let mut v = val_type;
-                                    /// converts the VType to one that is human-readable (changes enum from usize to String, ...)
-                                    fn make_readable(v: &mut VType, ginfo: &GlobalScriptInfo) {
-                                        for t in v.types.iter_mut() {
-                                            match t {
-                                                VSingleType::EnumVariant(i, v) => {
-                                                    let mut v = v.clone();
-                                                    make_readable(&mut v, ginfo);
-                                                    *t = VSingleType::EnumVariantS(ginfo.enum_variants.iter().find_map(|(st, us)| if *us == *i { Some(st.clone()) } else { None }).unwrap(), v);
-                                                },
-                                                VSingleType::CustomType(i) => {
-                                                    *t = VSingleType::CustomTypeS(ginfo.custom_type_names.iter().find_map(|(st, us)| if *us == *i { Some(st.clone()) } else { None }).unwrap());
-                                                }
-                                                VSingleType::Tuple(v) => for t in v.iter_mut() {
-                                                    make_readable(t, ginfo)
-                                                }
-                                                VSingleType::List(t) | VSingleType::EnumVariantS(_, t) => make_readable(t, ginfo),
-                                                VSingleType::Reference(v) => {
-                                                    let mut v = v.clone().to();
-                                                    make_readable(&mut v, ginfo);
-                                                    assert_eq!(v.types.len(), 1);
-                                                    *t = VSingleType::Reference(Box::new(v.types.remove(0)));
-                                                }
-                                                VSingleType::Bool | VSingleType::Int | VSingleType::Float | VSingleType::String | VSingleType::Function(..) | VSingleType::Thread(..) | VSingleType::CustomTypeS(_) => (),
-                                            }
-                                        }
-                                    }
-                                    make_readable(&mut v, &ginfo);
-                                    v
-                                };
-                            }
-                        }
-                        if types_not_covered_req_error {
-                            return Err(ToRunnableError::CaseForceButTypeNotCovered(types_not_covered));
-                        }
-                    }
-                    RStatementEnum::Switch(
-                        RStatementEnum::Variable(switch_on_v.0, switch_on_out, false).to(),
-                        ncases,
-                    )
-                } else {
-                    return Err(ToRunnableError::UseOfUndefinedVariable(switch_on.clone()));
+            if *force {
+                let types_not_covered = og_type.fits_in(&covered_types, ginfo);
+                if !types_not_covered.is_empty() {
+                    return Err(ToRunnableError::CaseForceButTypeNotCovered(VType {
+                        types: types_not_covered,
+                    }));
                 }
             }
-            SStatementEnum::Match(match_on, cases) => {
-                if let Some(switch_on_v) = linfo.vars.get(match_on).cloned() {
-                    let mut ncases = Vec::with_capacity(cases.len());
-                    let og_type = switch_on_v.1.clone(); // linfo.vars.get(match_on).unwrap().1.clone();
-                    for case in cases {
-                        let case_condition = statement(&case.0, ginfo, linfo)?;
-                        let case_condition_out =  case_condition.out(ginfo);
-                        let mut refutable = false;
-                        let mut success_output = VType { types: vec![] };
-                        for case_type in case_condition_out.types.iter() {
-                            match case_type {
-                            VSingleType::Tuple(tuple) =>
-                                match tuple.len() {
-                                    0 => refutable = true,
-                                    1 => success_output = success_output | &tuple[0],
-                                    _ => return Err(ToRunnableError::MatchConditionInvalidReturn(case_condition_out)),
-                                },
-                                VSingleType::Bool => {
-                                    refutable = true;
-                                    success_output = success_output | VSingleType::Bool.to()
-                                }
-                                _ => success_output = success_output | case_type.clone().to(),
-                            }
-                        }
-                        if refutable == false {
-                            eprintln!("WARN: Irrefutable match condition with return type {}", case_condition_out);
-                        }
-                        if !success_output.types.is_empty() {
-                            let var = linfo.vars.get_mut(match_on).unwrap();
-                            let og = var.1.clone();
-                            var.1 = success_output;
-                            let case_action = statement(&case.1, ginfo, linfo)?;
-                            linfo.vars.get_mut(match_on).unwrap().1 = og;
-                            ncases.push((case_condition, case_action));
-                        } else {
-                            eprintln!("WARN: Match condition with return type {} never returns a match and will be ignored entirely. Note: this also skips type-checking for the action part of this match arm because the success type is not known.", case_condition_out);
-                        }
-                    }
-                    linfo.vars.get_mut(match_on).unwrap().1 = og_type;
-
-                    RStatementEnum::Match(
-                        switch_on_v.0,
-                        ncases,
-                    )
-                } else {
-                    return Err(ToRunnableError::UseOfUndefinedVariable(match_on.clone()));
+            RStatementEnum::Switch(switch_on, ncases, *force)
+        }
+        SStatementEnum::Match(cases) => {
+            let mut ncases: Vec<(RStatement, RStatement, RStatement)> =
+                Vec::with_capacity(cases.len());
+            let mut ncases = Vec::with_capacity(cases.len());
+            let mut out_type = VType::empty();
+            let mut may_not_match = true;
+            for (condition, assign_to, action) in cases.iter() {
+                let mut linfo = linfo.clone();
+                let condition = statement(condition, ginfo, &mut linfo)?;
+                let (can_fail, matches) = condition.out(ginfo).matches();
+                let assign_to = statement_adv(
+                    assign_to,
+                    ginfo,
+                    &mut linfo,
+                    &mut Some((matches, &mut true)),
+                )?;
+                let action = statement(action, ginfo, &mut linfo)?;
+                ncases.push((condition, assign_to, action));
+                if !can_fail {
+                    break;
                 }
             }
-
-            SStatementEnum::IndexFixed(st, i) => {
-                let st = statement(st, ginfo, linfo)?;
-                if st.out(ginfo).get_always(*i, ginfo).is_some() {
-                    RStatementEnum::IndexFixed(st, *i)
-                } else {
-                    return Err(ToRunnableError::NotIndexableFixed(st.out(ginfo), *i));
-                }
+            if may_not_match {
+                out_type = out_type | VSingleType::Tuple(vec![]).to();
             }
-            SStatementEnum::EnumVariant(variant, s) => RStatementEnum::EnumVariant({
+
+            RStatementEnum::Match(ncases)
+        }
+
+        SStatementEnum::IndexFixed(st, i) => {
+            let st = statement(st, ginfo, linfo)?;
+            if st.out(ginfo).get_always(*i, ginfo).is_some() {
+                RStatementEnum::IndexFixed(st, *i)
+            } else {
+                return Err(ToRunnableError::NotIndexableFixed(st.out(ginfo), *i));
+            }
+        }
+        SStatementEnum::EnumVariant(variant, s) => RStatementEnum::EnumVariant(
+            {
                 if let Some(v) = ginfo.enum_variants.get(variant) {
                     *v
                 } else {
-                    let v =  ginfo.enum_variants.len();
+                    let v = ginfo.enum_variants.len();
                     ginfo.enum_variants.insert(variant.clone(), v);
                     v
                 }
-            }, statement(s, ginfo, linfo)?),
-            SStatementEnum::TypeDefinition(name, t) => {
-                // insert to name map has to happen before stypes()
-                ginfo.custom_type_names.insert(name.to_lowercase(), ginfo.custom_types.len());
-                let mut t = t.to_owned();
-                stypes(&mut t, ginfo)?;
-                ginfo.custom_types.push(t);
-                RStatementEnum::Value(VDataEnum::Tuple(vec![]).to())
-            }
-            SStatementEnum::Macro(m) => match m {
-                Macro::StaticMers(val) => RStatementEnum::Value(val.clone()),
             },
+            statement(s, ginfo, linfo)?,
+        ),
+        SStatementEnum::TypeDefinition(name, t) => {
+            // insert to name map has to happen before stypes()
+            ginfo
+                .custom_type_names
+                .insert(name.to_lowercase(), ginfo.custom_types.len());
+            let mut t = t.to_owned();
+            stypes(&mut t, ginfo)?;
+            ginfo.custom_types.push(t);
+            RStatementEnum::Value(VDataEnum::Tuple(vec![]).to())
         }
-        .to();
+        SStatementEnum::Macro(m) => match m {
+            Macro::StaticMers(val) => RStatementEnum::Value(val.clone()),
+        },
+    }
+    .to();
     // if force_output_type is set, verify that the real output type actually fits in the forced one.
     if let Some(force_opt) = &s.force_output_type {
         let mut force_opt = force_opt.to_owned();
@@ -711,41 +684,7 @@ fn statement_adv(
                 None
             },
         )?;
-        if !is_init {
-            let mut opt_type = optr.out(ginfo);
-            for _ in 0..*derefs {
-                if let Some(deref_type) = optr.out(ginfo).dereference() {
-                    opt_type = deref_type;
-                } else {
-                    return Err(ToRunnableError::CannotDereferenceTypeNTimes(
-                        optr.out(ginfo),
-                        *derefs,
-                        opt_type,
-                    ));
-                }
-            }
-            let opt_type_assign = match opt_type.dereference() {
-                Some(v) => v,
-                None => {
-                    return Err(ToRunnableError::CannotDereferenceTypeNTimes(
-                        optr.out(ginfo),
-                        derefs + 1,
-                        opt_type,
-                    ))
-                }
-            };
-            if state.out(ginfo).fits_in(&opt_type_assign, ginfo).is_empty() {
-                state.output_to = Some((Box::new(optr), *derefs, is_init));
-            } else {
-                return Err(ToRunnableError::CannotAssignTo(
-                    state.out(ginfo),
-                    opt_type_assign,
-                ));
-            }
-        } else {
-            // TODO! ??
-            state.output_to = Some((Box::new(optr), *derefs, is_init));
-        }
+        state.output_to = Some((Box::new(optr), *derefs, is_init));
         //
         // if let Some((var_id, var_out)) = linfo.vars.get(opt) {
         //     let out = state.out(ginfo);

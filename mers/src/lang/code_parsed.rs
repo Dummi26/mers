@@ -18,9 +18,9 @@ pub enum SStatementEnum {
     Block(SBlock),
     If(SStatement, SStatement, Option<SStatement>),
     Loop(SStatement),
-    For(String, SStatement, SStatement),
-    Switch(String, Vec<(VType, SStatement)>, bool),
-    Match(String, Vec<(SStatement, SStatement)>),
+    For(SStatement, SStatement, SStatement),
+    Switch(SStatement, Vec<(VType, SStatement, SStatement)>, bool),
+    Match(Vec<(SStatement, SStatement, SStatement)>),
     IndexFixed(SStatement, usize),
     EnumVariant(String, SStatement),
     TypeDefinition(String, VType),
@@ -171,8 +171,10 @@ impl FormatGs for SStatementEnum {
                 write!(f, "{} ", form.loop_loop(info, "loop".to_owned()))?;
                 b.fmtgs(f, info, form, file)
             }
-            Self::For(var, i, b) => {
-                write!(f, "{} {} ", form.loop_for(info, "for".to_owned()), var)?;
+            Self::For(assign_to, i, b) => {
+                write!(f, "{} ", form.loop_for(info, "for".to_owned()))?;
+                assign_to.fmtgs(f, info, form, file)?;
+                write!(f, " ")?;
                 i.fmtgs(f, info, form, file)?;
                 write!(f, " ")?;
                 b.fmtgs(f, info, form, file)
@@ -194,9 +196,11 @@ impl FormatGs for SStatementEnum {
                     )?;
                 }
                 form.go_deeper();
-                for (t, action) in arms {
+                for (t, assign_to, action) in arms {
                     write!(f, "{}", form.line_prefix())?;
                     t.fmtgs(f, info, form, file)?;
+                    write!(f, " ")?;
+                    assign_to.fmtgs(f, info, form, file)?;
                     write!(f, " ")?;
                     action.fmtgs(f, info, form, file)?;
                     writeln!(f)?;
@@ -205,17 +209,19 @@ impl FormatGs for SStatementEnum {
                 write!(f, "{}", form.line_prefix())?;
                 write!(f, "{}", form.close_bracket(info, "}".to_owned()))
             }
-            Self::Match(var, arms) => {
+            Self::Match(arms) => {
                 write!(
                     f,
-                    "{} {var} {}",
+                    "{} {}",
                     form.kw_match(info, "match".to_owned()),
                     form.open_bracket(info, "{".to_owned())
                 )?;
                 form.go_deeper();
-                for (condition, action) in arms {
+                for (condition, assign_to, action) in arms {
                     write!(f, "{}", form.line_prefix())?;
                     condition.fmtgs(f, info, form, file)?;
+                    write!(f, " ")?;
+                    assign_to.fmtgs(f, info, form, file)?;
                     write!(f, " ")?;
                     action.fmtgs(f, info, form, file)?;
                     writeln!(f)?;

@@ -1,0 +1,19 @@
+x := if true [10 "my text"] else 10
+
+switch! x {
+    [int string] [num text] {
+        num.debug()
+        text.debug()
+    }
+    int num {
+        println("number:")
+        num.debug()
+    }
+}
+
+text := "12.5"
+match {
+    parse_int(text) num println("int: " + num.to_string())
+    parse_float(text) num println("float: " + num.to_string())
+    true [] println("not a number: " + text)
+}

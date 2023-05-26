@@ -644,21 +644,7 @@ pub mod implementation {
                             }
                             "for" => {
                                 break SStatementEnum::For(
-                                    {
-                                        file.skip_whitespaces();
-                                        let mut buf = String::new();
-                                        loop {
-                                            if let Some(ch) = file.next() {
-                                                if ch.is_whitespace() {
-                                                    break;
-                                                }
-                                                buf.push(ch);
-                                            } else {
-                                                break;
-                                            }
-                                        }
-                                        buf
-                                    },
+                                    parse_statement(file)?,
                                     parse_statement(file)?,
                                     parse_statement(file)?,
                                 )
@@ -673,14 +659,7 @@ pub mod implementation {
                             }
                             "switch" | "switch!" => {
                                 let force = start.ends_with("!");
-                                let mut switch_on_what = String::new();
-                                loop {
-                                    match file.next() {
-                                        None => break,
-                                        Some(ch) if ch.is_whitespace() => break,
-                                        Some(ch) => switch_on_what.push(ch),
-                                    }
-                                }
+                                let switch_on_what = parse_statement(file)?;
                                 file.skip_whitespaces();
                                 if let Some('{') = file.next() {
                                 } else {
@@ -693,19 +672,15 @@ pub mod implementation {
                                         file.next();
                                         break;
                                     }
-                                    cases.push((parse_type(file)?, parse_statement(file)?));
+                                    cases.push((
+                                        parse_type(file)?,
+                                        parse_statement(file)?,
+                                        parse_statement(file)?,
+                                    ));
                                 }
                                 break SStatementEnum::Switch(switch_on_what, cases, force).to();
                             }
                             "match" => {
-                                let mut match_what = String::new();
-                                loop {
-                                    match file.next() {
-                                        None => break,
-                                        Some(ch) if ch.is_whitespace() => break,
-                                        Some(ch) => match_what.push(ch),
-                                    }
-                                }
                                 file.skip_whitespaces();
                                 if let Some('{') = file.next() {
                                 } else {
@@ -718,9 +693,13 @@ pub mod implementation {
                                         file.next();
                                         break;
                                     }
-                                    cases.push((parse_statement(file)?, parse_statement(file)?));
+                                    cases.push((
+                                        parse_statement(file)?,
+                                        parse_statement(file)?,
+                                        parse_statement(file)?,
+                                    ));
                                 }
-                                break SStatementEnum::Match(match_what, cases).to();
+                                break SStatementEnum::Match(cases).to();
                             }
                             "type" => {
                                 file.skip_whitespaces();
