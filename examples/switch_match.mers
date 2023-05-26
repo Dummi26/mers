@@ -15,5 +15,5 @@ text := "12.5"
 match {
     parse_int(text) num println("int: " + num.to_string())
     parse_float(text) num println("float: " + num.to_string())
-    true [] println("not a number: " + text)
+    [true] [] println("not a number: " + text)
 }
