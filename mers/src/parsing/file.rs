@@ -56,7 +56,11 @@ impl File {
                 Some('/') => match chs.next() {
                     Some('/') => loop {
                         match chs.next() {
-                            Some('\n') | None => break,
+                            Some('\n') => {
+                                data.push('\n');
+                                break;
+                            }
+                            None => break,
                             _ => (),
                         }
                     },
