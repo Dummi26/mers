@@ -380,7 +380,12 @@ impl BuiltinFunction {
                     // if vec.is_reference().is_some_and(|v| v) { // unstable
                     if let Some(true) = vec.is_reference() {
                         if let Some(t) = vec.get_any(info) {
-                            el.fits_in(&t, info).is_empty()
+                            el.fits_in(
+                                &t.dereference()
+                                    .expect("running get() on &[ ...] should give a reference"),
+                                info,
+                            )
+                            .is_empty()
                         } else {
                             false
                         }
@@ -396,7 +401,12 @@ impl BuiltinFunction {
                     let (vec, el) = (&input[0], &input[1]);
                     if let Some(true) = vec.is_reference() {
                         if let Some(t) = vec.get_any(info) {
-                            el.fits_in(&t, info).is_empty()
+                            el.fits_in(
+                                &t.dereference()
+                                    .expect("running get() on a &[ ...] should give a reference."),
+                                info,
+                            )
+                            .is_empty()
                         } else {
                             false
                         }
@@ -613,7 +623,11 @@ impl BuiltinFunction {
                                 VSingleType::Tuple(vec![]),
                                 VSingleType::Tuple(vec![v
                                     .get_any(info)
-                                    .expect("cannot use get on this type")]),
+                                    .expect("cannot use get on this type")
+                                    .dereference()
+                                    .expect(
+                                        "running get_any() on &[ ...] should give a reference...",
+                                    )]),
                             ],
                         }
                     } else {
