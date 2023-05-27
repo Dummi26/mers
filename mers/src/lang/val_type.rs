@@ -341,6 +341,31 @@ impl VSingleType {
                     vec![]
                 }
             }
+            Self::Reference(r) => r.inner_types_ref(),
+            _ => vec![],
+        }
+    }
+    pub fn inner_types_ref(&self) -> Vec<VSingleType> {
+        match self {
+            Self::Tuple(v) => {
+                let mut types = vec![];
+                for it in v {
+                    // the tuple values
+                    for it in &it.types {
+                        // the possible types for each value
+                        if !types.contains(it) {
+                            types.push(Self::Reference(Box::new(it.clone())));
+                        }
+                    }
+                }
+                types
+            }
+            Self::List(v) => v
+                .types
+                .iter()
+                .map(|v| Self::Reference(Box::new(v.clone())))
+                .collect(),
+            Self::Reference(r) => r.inner_types_ref(),
             _ => vec![],
         }
     }

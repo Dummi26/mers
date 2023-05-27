@@ -543,6 +543,20 @@ pub mod implementation {
     ) -> Result<SStatement, ParseError> {
         file.skip_whitespaces();
         let err_start_of_statement = *file.get_pos();
+        let mut derefs = 0;
+        loop {
+            if let Some('*') = file.peek() {
+                derefs += 1;
+                file.next();
+            } else {
+                break;
+            }
+        }
+        if let Some(ch) = file.peek() {
+            if ch.is_whitespace() {
+                file.set_pos(err_start_of_statement);
+            }
+        }
         let out = match file.peek() {
             Some('{') => Some(SStatementEnum::Block(parse_block(file)?).to()),
             Some('[') => {
@@ -821,6 +835,7 @@ pub mod implementation {
                 }
             }
         };
+        out.derefs = derefs;
         let err_end_of_original_statement = *file.get_pos();
         // special characters that can follow a statement (loop because these can be chained)
         loop {
@@ -890,7 +905,9 @@ pub mod implementation {
                     }
                 }
                 // 055 * / %
-                (0..=55, Some('*')) => {
+                (0..=55, Some('*')) if matches!(file.get_char(file.get_pos().current_char_index + 1), Some(ch) if ch.is_whitespace()) =>
+                {
+                    // * must be followed by whitespace because it's also used for dereferencing
                     file.next();
                     SStatementEnum::FunctionCall(
                         "mul".to_owned(),
@@ -961,6 +978,35 @@ pub mod implementation {
                     )
                     .to()
                 }
+                // 023 && ||
+                (0..=23, Some('&'))
+                    if matches!(
+                        file.get_char(file.get_pos().current_char_index + 1),
+                        Some('&')
+                    ) =>
+                {
+                    file.next();
+                    file.next();
+                    SStatementEnum::FunctionCall(
+                        "and".to_owned(),
+                        vec![out, parse_statement_adv(file, false, 24)?],
+                    )
+                    .to()
+                }
+                (0..=23, Some('|'))
+                    if matches!(
+                        file.get_char(file.get_pos().current_char_index + 1),
+                        Some('|')
+                    ) =>
+                {
+                    file.next();
+                    file.next();
+                    SStatementEnum::FunctionCall(
+                        "or".to_owned(),
+                        vec![out, parse_statement_adv(file, false, 24)?],
+                    )
+                    .to()
+                }
                 // 020 == !=
                 (0..=20, Some('='))
                     if matches!(
@@ -993,7 +1039,7 @@ pub mod implementation {
                 // 000 = :=
                 (0..=0, Some('=')) => {
                     file.next();
-                    parse_statement(file)?.output_to(out, 0)
+                    parse_statement(file)?.output_to(out)
                 }
                 (0..=0, Some(':'))
                     if matches!(
@@ -1003,7 +1049,7 @@ pub mod implementation {
                 {
                     file.next();
                     file.next();
-                    parse_statement(file)?.initialize_to(out, 0)
+                    parse_statement(file)?.initialize_to(out)
                 }
                 _ => break,
             };

@@ -28,20 +28,17 @@ pub enum SStatementEnum {
 }
 impl SStatementEnum {
     pub fn to(self) -> SStatement {
-        SStatement {
-            output_to: None,
-            statement: Box::new(self),
-            force_output_type: None,
-        }
+        SStatement::new(self)
     }
 }
 
 #[derive(Debug)]
 pub struct SStatement {
+    pub derefs: usize,
     /// if the statement is a Variable that doesn't exist yet, it will be initialized.
     /// if it's a variable that exists, but is_ref is false, an error may show up: cannot dereference
     /// if the third value is true, the variable will always be initialized, shadowing previous mentions of the same name.
-    pub output_to: Option<(Box<SStatement>, usize, bool)>,
+    pub output_to: Option<(Box<SStatement>, bool)>,
     pub statement: Box<SStatementEnum>,
     pub force_output_type: Option<VType>,
 }
@@ -49,18 +46,19 @@ pub struct SStatement {
 impl SStatement {
     pub fn new(statement: SStatementEnum) -> Self {
         Self {
+            derefs: 0,
             output_to: None,
             statement: Box::new(statement),
             force_output_type: None,
         }
     }
-    pub fn output_to(mut self, statement: SStatement, derefs: usize) -> Self {
-        self.output_to = Some((Box::new(statement), derefs, false));
+    pub fn output_to(mut self, statement: SStatement) -> Self {
+        self.output_to = Some((Box::new(statement), false));
         self
     }
     /// like output_to, but always initializes the variable (shadows previous variables of the same name)
-    pub fn initialize_to(mut self, statement: SStatement, derefs: usize) -> Self {
-        self.output_to = Some((Box::new(statement), derefs, true));
+    pub fn initialize_to(mut self, statement: SStatement) -> Self {
+        self.output_to = Some((Box::new(statement), true));
         self
     }
     // forces the statement's output to fit in a certain type.
@@ -259,33 +257,21 @@ impl FormatGs for SStatement {
         form: &mut super::fmtgs::FormatInfo,
         file: Option<&crate::parsing::file::File>,
     ) -> std::fmt::Result {
-        if let Some((opt, derefs, is_init)) = &self.output_to {
-            // TODO!
-            match opt.statement.as_ref() {
-                // SStatementEnum::Variable(name, is_ref) => {
-                //     let derefs = if !is_ref { *derefs + 1 } else { *derefs };
-                //     write!(
-                //         f,
-                //         "{}{} = ",
-                //         "*".repeat(derefs),
-                //         SStatementEnum::Variable(name.to_owned(), false).with(info, file)
-                //     )?;
-                // }
-                _ => {
-                    write!(
-                        f,
-                        "{}{} {} ",
-                        "*".repeat(*derefs),
-                        opt.with(info, file),
-                        if *is_init { ":=" } else { "=" }
-                    )?;
-                }
-            }
+        // output output_to
+        if let Some((opt, is_init)) = &self.output_to {
+            write!(
+                f,
+                "{} {} ",
+                opt.with(info, file),
+                if *is_init { ":=" } else { "=" }
+            )?;
         }
+        // output self
         if let Some(force_opt) = &self.force_output_type {
             write!(f, " -> ")?;
             force_opt.fmtgs(f, info, form, file)?;
         }
+        write!(f, "{}", "*".repeat(self.derefs))?;
         self.statement.fmtgs(f, info, form, file)?;
         write!(f, ",")
     }

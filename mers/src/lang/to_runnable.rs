@@ -659,6 +659,7 @@ fn statement_adv(
         },
     }
     .to();
+    state.derefs = s.derefs;
     // if force_output_type is set, verify that the real output type actually fits in the forced one.
     if let Some(force_opt) = &s.force_output_type {
         let mut force_opt = force_opt.to_owned();
@@ -671,20 +672,16 @@ fn statement_adv(
             return Err(ToRunnableError::StatementRequiresOutputTypeToBeAButItActuallyOutputsBWhichDoesNotFitInA(force_opt.clone(), real_output_type, VType { types: problematic_types }));
         }
     }
-    if let Some((opt, derefs, is_init)) = &s.output_to {
+    if let Some((opt, is_init)) = &s.output_to {
         // if false, may be changed to true by statement_adv
         let mut is_init = *is_init;
         let optr = statement_adv(
             opt,
             ginfo,
             linfo,
-            &mut if *derefs == 0 {
-                Some((state.out(ginfo), &mut is_init))
-            } else {
-                None
-            },
+            &mut Some((state.out(ginfo), &mut is_init)),
         )?;
-        state.output_to = Some((Box::new(optr), *derefs, is_init));
+        state.output_to = Some((Box::new(optr), is_init));
         //
         // if let Some((var_id, var_out)) = linfo.vars.get(opt) {
         //     let out = state.out(ginfo);

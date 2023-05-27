@@ -1,5 +1,6 @@
 use std::{
     eprintln,
+    ops::Deref,
     sync::{Arc, Mutex},
 };
 
@@ -104,14 +105,15 @@ impl RFunction {
 #[derive(Clone, Debug)]
 pub struct RStatement {
     // (_, derefs, is_init)
-    pub output_to: Option<(Box<RStatement>, usize, bool)>,
+    pub derefs: usize,
+    pub output_to: Option<(Box<RStatement>, bool)>,
     statement: Box<RStatementEnum>,
     pub force_output_type: Option<VType>,
 }
 impl RStatement {
     pub fn run(&self, info: &GSInfo) -> VData {
         let out = self.statement.run(info);
-        if let Some((v, derefs, is_init)) = &self.output_to {
+        let mut o = if let Some((v, is_init)) = &self.output_to {
             'init: {
                 // // assigns a new VData to the variable's Arc<Mutex<_>>, so that threads which have captured the variable at some point
                 // // won't be updated with its new value (is_init is set to true for initializations, such as in a loop - this can happen multiple times, but each should be its own variable with the same name)
@@ -120,21 +122,17 @@ impl RStatement {
                 //     break 'init;
                 // }
                 let mut val = v.run(info);
-                if !*is_init {
-                    for _ in 0..*derefs {
-                        val = match val.deref() {
-                            Some(v) => v,
-                            None => unreachable!("can't dereference..."),
-                        };
-                    }
-                }
                 out.assign_to(val, info);
                 // val.assign(out);
             }
             VDataEnum::Tuple(vec![]).to()
         } else {
             out
+        };
+        for _ in 0..self.derefs {
+            o = o.deref().expect("couldn't dereference! (run())");
         }
+        o
     }
     pub fn out(&self, info: &GlobalScriptInfo) -> VType {
         // `a = b` evaluates to []
@@ -146,7 +144,11 @@ impl RStatement {
         if let Some(t) = &self.force_output_type {
             return t.clone();
         }
-        self.statement.out(info)
+        let mut o = self.statement.out(info);
+        for _ in 0..self.derefs {
+            o = o.dereference().expect("can't dereference (out())");
+        }
+        o
     }
 }
 
@@ -370,6 +372,7 @@ impl RStatementEnum {
     }
     pub fn to(self) -> RStatement {
         RStatement {
+            derefs: 0,
             output_to: None,
             statement: Box::new(self),
             force_output_type: None,
