@@ -358,10 +358,10 @@ fn statement_adv(
     // if Some((t, is_init)), the statement creates by this function is the left side of an assignment, meaning it can create variables. t is the type that will be assigned to it.
     to_be_assigned_to: &mut Option<(VType, &mut bool)>,
 ) -> Result<RStatement, ToRunnableError> {
-    eprintln!("TR : {}", s);
-    if let Some(t) = &to_be_assigned_to {
-        eprintln!(" --> {}", t.0);
-    }
+    // eprintln!("TR : {}", s);
+    // if let Some(t) = &to_be_assigned_to {
+    //     eprintln!(" --> {}", t.0);
+    // }
     let mut state = match &*s.statement {
         SStatementEnum::Value(v) => RStatementEnum::Value(v.clone()),
         SStatementEnum::Tuple(v) | SStatementEnum::List(v) => {
