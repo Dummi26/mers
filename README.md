@@ -9,7 +9,7 @@ mers has...
 - the type-safety of statically typed languages
   + mers will not crash unless you `exit()` with a nonzero exit code or write flawed assumptions using the builtin `.assume*()` functions (Rust's `unwrap` or `expect`)
 - the flexibility of dynamically typed languages
-  + `x = if condition() { "my string" } else { 12 } // <- this is valid`
+  + `x := if condition() { "my string" } else { 12 } // <- this is valid`
 - "correctness" (this is subjective and I'll be happy to discuss some of these decisions with people)
   + there is no `null` / `nil`
   + all references are explicit: if you pass a list by value, the original list will *never* be modified in any way.

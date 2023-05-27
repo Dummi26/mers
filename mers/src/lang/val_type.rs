@@ -37,12 +37,17 @@ impl VSingleType {
     /// None => Cannot get, Some(t) => getting can return t or nothing
     pub fn get(&self, i: usize, gsinfo: &GlobalScriptInfo) -> Option<VType> {
         match self {
-            Self::Bool | Self::Int | Self::Float | Self::Function(..) | Self::Thread(..) => None,
+            Self::Bool
+            | Self::Int
+            | Self::Float
+            | Self::Function(..)
+            | Self::Thread(..)
+            | Self::EnumVariant(..)
+            | Self::EnumVariantS(..) => None,
             Self::String => Some(VSingleType::String.into()),
             Self::Tuple(t) => t.get(i).cloned(),
             Self::List(t) => Some(t.clone()),
             Self::Reference(r) => r.get_ref(i, gsinfo),
-            Self::EnumVariant(_, t) | Self::EnumVariantS(_, t) => t.get(i, gsinfo),
             Self::CustomType(t) => gsinfo.custom_types[*t].get(i, gsinfo),
             &Self::CustomTypeS(_) => {
                 unreachable!("CustomTypeS instead of CustomType, compiler bug? [get]")
@@ -51,13 +56,18 @@ impl VSingleType {
     }
     pub fn get_ref(&self, i: usize, gsinfo: &GlobalScriptInfo) -> Option<VType> {
         match self {
-            Self::Bool | Self::Int | Self::Float | Self::Function(..) | Self::Thread(..) => None,
+            Self::Bool
+            | Self::Int
+            | Self::Float
+            | Self::Function(..)
+            | Self::Thread(..)
+            | Self::EnumVariant(..)
+            | Self::EnumVariantS(..) => None,
             Self::String => Some(VSingleType::String.into()),
             Self::Tuple(t) => t.get(i).map(|v| v.reference()),
-            Self::List(t) => Some(t.clone()),
-            Self::Reference(r) => r.get(i, gsinfo),
-            Self::EnumVariant(_, t) | Self::EnumVariantS(_, t) => t.get(i, gsinfo),
-            Self::CustomType(t) => gsinfo.custom_types[*t].get(i, gsinfo),
+            Self::List(t) => Some(t.reference()),
+            Self::Reference(r) => r.get_ref(i, gsinfo),
+            Self::CustomType(t) => Some(gsinfo.custom_types[*t].get(i, gsinfo)?.reference()),
             &Self::CustomTypeS(_) => {
                 unreachable!("CustomTypeS instead of CustomType, compiler bug? [get]")
             }
@@ -72,11 +82,31 @@ impl VSingleType {
             | Self::String
             | Self::List(_)
             | Self::Function(..)
-            | Self::Thread(..) => None,
+            | Self::Thread(..)
+            | Self::EnumVariant(..)
+            | Self::EnumVariantS(..) => None,
             Self::Tuple(t) => t.get(i).cloned(),
-            Self::Reference(r) => r.get_always(i, info),
-            Self::EnumVariant(_, t) | Self::EnumVariantS(_, t) => t.get_always(i, info),
+            Self::Reference(r) => r.get_always_ref(i, info),
             Self::CustomType(t) => info.custom_types[*t].get_always(i, info),
+            Self::CustomTypeS(_) => {
+                unreachable!("CustomTypeS instead of CustomType, compiler bug? [get_always]")
+            }
+        }
+    }
+    pub fn get_always_ref(&self, i: usize, info: &GlobalScriptInfo) -> Option<VType> {
+        match self {
+            Self::Bool
+            | Self::Int
+            | Self::Float
+            | Self::String
+            | Self::List(_)
+            | Self::Function(..)
+            | Self::Thread(..)
+            | Self::EnumVariant(..)
+            | Self::EnumVariantS(..) => None,
+            Self::Tuple(t) => Some(t.get(i)?.reference()),
+            Self::Reference(r) => r.get_always_ref(i, info),
+            Self::CustomType(t) => info.custom_types[*t].get_always_ref(i, info),
             Self::CustomTypeS(_) => {
                 unreachable!("CustomTypeS instead of CustomType, compiler bug? [get_always]")
             }
@@ -98,6 +128,13 @@ impl VType {
         let mut out = VType { types: vec![] };
         for t in &self.types {
             out = out | t.get_always(i, info)?; // if we can't use *get* on one type, we can't use it at all.
+        }
+        Some(out)
+    }
+    pub fn get_always_ref(&self, i: usize, info: &GlobalScriptInfo) -> Option<VType> {
+        let mut out = VType { types: vec![] };
+        for t in &self.types {
+            out = out | t.get_always_ref(i, info)?; // if we can't use *get* on one type, we can't use it at all.
         }
         Some(out)
     }
