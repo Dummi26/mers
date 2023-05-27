@@ -215,12 +215,12 @@ impl RStatementEnum {
             Self::For(v, c, b) => {
                 // matching values also break with value from a for loop.
                 let vv = v.run(info);
-                c.run(info).operate_on_data_immut(|c: &VDataEnum| {
-                    let mut in_loop = |c: VData| {
-                        c.assign_to(vv.clone_mut(), info);
-                        b.run(info)
-                    };
-
+                let mut in_loop = |c: VData| {
+                    c.assign_to(vv.clone_mut(), info);
+                    b.run(info)
+                };
+                let mut iter = c.run(info);
+                if let Some(v) = iter.operate_on_data_immut(|c: &VDataEnum| {
                     let mut oval = VDataEnum::Tuple(vec![]).to();
                     match c {
                         VDataEnum::Int(v) => {
@@ -259,10 +259,31 @@ impl RStatementEnum {
                                 break;
                             }
                         },
+                        VDataEnum::Reference(r) => return None,
                         _ => unreachable!(),
                     }
-                    oval
-                })
+                    Some(oval)
+                }) {
+                    v
+                } else {
+                    // loop mutably
+                    iter.operate_on_data_mut(|c| match c {
+                        VDataEnum::Reference(r) => r.operate_on_data_mut(|c| match c {
+                            VDataEnum::Tuple(v) | VDataEnum::List(_, v) => {
+                                for v in v {
+                                    if let Some(v) =
+                                        in_loop(VDataEnum::Reference(v.clone_mut()).to()).matches()
+                                    {
+                                        return v;
+                                    }
+                                }
+                                VDataEnum::Tuple(vec![]).to()
+                            }
+                            _ => unreachable!(),
+                        }),
+                        _ => unreachable!(),
+                    })
+                }
             }
             Self::Switch(switch_on, cases, _force) => {
                 let switch_on = switch_on.run(info);
