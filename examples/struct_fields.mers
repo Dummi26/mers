@@ -1,0 +1,9 @@
+// mers doesn't have structs, so instead we define a type:
+type myStruct [
+    int,
+    string
+]
+to give names to the fields, we define functions:
+fn count(s myStruct) s.0
+// to allow users to change the value, add &myStruct to the valid types for s (only through references can values be changed)
+fn note(s myStruct/&myStruct) s.1
