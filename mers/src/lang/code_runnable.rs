@@ -19,8 +19,8 @@ pub enum RStatementEnum {
     List(Vec<RStatement>),
     Variable(Arc<Mutex<VData>>, VType, bool),
     FunctionCall(Arc<RFunction>, Vec<RStatement>),
-    BuiltinFunction(BuiltinFunction, Vec<RStatement>),
-    LibFunction(usize, usize, Vec<RStatement>, VType),
+    BuiltinFunctionCall(BuiltinFunction, Vec<RStatement>),
+    LibFunctionCall(usize, usize, Vec<RStatement>, VType),
     Block(RBlock),
     If(RStatement, RStatement, Option<RStatement>),
     Loop(RStatement),
@@ -186,8 +186,8 @@ impl RStatementEnum {
                 }
                 func.run(info)
             }
-            Self::BuiltinFunction(v, args) => v.run(args, info),
-            Self::LibFunction(libid, fnid, args, _) => {
+            Self::BuiltinFunctionCall(v, args) => v.run(args, info),
+            Self::LibFunctionCall(libid, fnid, args, _) => {
                 info.libs[*libid].run_fn(*fnid, args.iter().map(|arg| arg.run(info)).collect())
             }
             Self::Block(b) => b.run(info),
@@ -343,7 +343,7 @@ impl RStatementEnum {
             Self::FunctionCall(f, args) => {
                 f.out_vt(&args.iter().map(|v| v.out(info)).collect(), info)
             }
-            Self::LibFunction(.., out) => out.clone(),
+            Self::LibFunctionCall(.., out) => out.clone(),
             Self::Block(b) => b.out(info),
             Self::If(_, a, b) => {
                 if let Some(b) = b {
@@ -354,7 +354,7 @@ impl RStatementEnum {
             }
             Self::Loop(c) => c.out(info).matches().1,
             Self::For(_, _, b) => VSingleType::Tuple(vec![]).to() | b.out(info).matches().1,
-            Self::BuiltinFunction(f, args) => {
+            Self::BuiltinFunctionCall(f, args) => {
                 f.returns(args.iter().map(|rs| rs.out(info)).collect(), info)
             }
             Self::Switch(switch_on, cases, force) => {

@@ -1,0 +1,27 @@
+type person [string int]
+fn name(p person/&person) p.0
+fn age(p person/&person) p.1
+
+type village [[float float] string]
+fn name(v village/&village) v.1
+fn location(v village/&village) v.0
+fn x_coordinate(v village/&village) v.0.0
+fn y_coordinate(v village/&village) v.0.1
+
+
+
+customer := ["Max M.", 43]
+home_town := [[12.3, 5.09], "Maxburg"]
+
+debug(customer)
+debug(customer.name())
+debug(&customer.name())
+
+debug(home_town)
+debug(home_town.name())
+debug(home_town.location())
+
+println(
+    "Hello, " + customer.name()
+    + " from " + home_town.name()
+)

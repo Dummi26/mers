@@ -33,7 +33,7 @@ pub enum ToRunnableError {
     CannotDeclareVariableWithDereference(String),
     CannotDereferenceTypeNTimes(VType, usize, VType),
     FunctionWrongArgCount(String, usize, usize),
-    FunctionWrongArgs(Vec<VType>, String),
+    FunctionWrongArgs(String, Vec<Arc<RFunction>>, Vec<VType>),
     InvalidType {
         expected: VType,
         found: VType,
@@ -87,7 +87,7 @@ impl FormatGs for ToRunnableError {
                     Ok(())
                 },
                 Self::FunctionWrongArgCount(v, a, b) => write!(f, "Tried to call function \"{v}\", which takes {a} arguments, with {b} arguments instead."),
-                Self::FunctionWrongArgs(args, name) => write!(f, "Wrong args for function \"{name}\":{}", args.iter().map(|v| format!(" {v}")).collect::<String>()),
+                Self::FunctionWrongArgs(fn_name, possible_fns, given_types) => write!(f, "Wrong args for function \"{fn_name}\": {} (possible fns: {})", given_types.iter().map(|v| format!(" {v}")).collect::<String>(), ""),
                 Self::InvalidType {
                     expected,
                     found,
@@ -164,7 +164,7 @@ impl FormatGs for ToRunnableError {
 #[derive(Clone)]
 struct LInfo {
     vars: HashMap<String, (Arc<Mutex<VData>>, VType)>,
-    fns: HashMap<String, Arc<RFunction>>,
+    fns: HashMap<String, Vec<Arc<RFunction>>>,
 }
 
 pub fn to_runnable(
@@ -461,25 +461,37 @@ fn statement_adv(
                 }
             }
             let arg_types: Vec<_> = rargs.iter().map(|v| v.out(ginfo)).collect();
-            if let Some(func) = linfo.fns.get(v) {
-                if let Some(_out) = check_fn_args(
-                    &arg_types,
-                    &func
-                        .input_output_map
-                        .iter()
-                        .map(|v| (v.0.iter().map(|v| v.clone().to()).collect(), v.1.to_owned()))
-                        .collect(),
-                    ginfo,
-                ) {
-                    RStatementEnum::FunctionCall(func.clone(), rargs)
-                } else {
-                    return Err(ToRunnableError::FunctionWrongArgs(arg_types, v.to_owned()));
+            if let Some(funcs) = linfo.fns.get(v) {
+                'find_func: {
+                    for func in funcs.iter().rev() {
+                        if let Some(_out) = check_fn_args(
+                            &arg_types,
+                            &func
+                                .input_output_map
+                                .iter()
+                                .map(|v| {
+                                    (v.0.iter().map(|v| v.clone().to()).collect(), v.1.to_owned())
+                                })
+                                .collect(),
+                            ginfo,
+                        ) {
+                            break 'find_func RStatementEnum::FunctionCall(
+                                Arc::clone(&func),
+                                rargs,
+                            );
+                        }
+                    }
+                    return Err(ToRunnableError::FunctionWrongArgs(
+                        v.to_owned(),
+                        funcs.iter().map(|v| Arc::clone(v)).collect(),
+                        arg_types,
+                    ));
                 }
             } else {
                 if let Some(builtin) = BuiltinFunction::get(v) {
                     let arg_types = rargs.iter().map(|v| v.out(ginfo)).collect();
                     if builtin.can_take(&arg_types, ginfo) {
-                        RStatementEnum::BuiltinFunction(builtin, rargs)
+                        RStatementEnum::BuiltinFunctionCall(builtin, rargs)
                     } else {
                         return Err(ToRunnableError::WrongInputsForBuiltinFunction(
                             builtin,
@@ -493,7 +505,7 @@ fn statement_adv(
                         let lib = &ginfo.libs[*libid];
                         let libfn = &lib.registered_fns[*fnid];
                         if let Some(fn_out) = check_fn_args(&arg_types, &libfn.1, ginfo) {
-                            RStatementEnum::LibFunction(*libid, *fnid, rargs, fn_out.clone())
+                            RStatementEnum::LibFunctionCall(*libid, *fnid, rargs, fn_out.clone())
                         } else {
                             return Err(ToRunnableError::WrongArgsForLibFunction(
                                 v.to_owned(),
@@ -507,18 +519,17 @@ fn statement_adv(
             }
         }
         SStatementEnum::FunctionDefinition(name, f) => {
+            let f = Arc::new(function(f, ginfo, linfo.clone())?);
             if let Some(name) = name {
                 // named function => add to global functions
-                linfo
-                    .fns
-                    .insert(name.clone(), Arc::new(function(f, ginfo, linfo.clone())?));
-                RStatementEnum::Value(VDataEnum::Tuple(vec![]).to())
-            } else {
-                // anonymous function => return as value
-                RStatementEnum::Value(
-                    VDataEnum::Function(Arc::new(function(f, ginfo, linfo.clone())?)).to(),
-                )
+                let f = Arc::clone(&f);
+                if let Some(vec) = linfo.fns.get_mut(name) {
+                    vec.push(f);
+                } else {
+                    linfo.fns.insert(name.clone(), vec![f]);
+                }
             }
+            RStatementEnum::Value(VDataEnum::Function(f).to())
         }
         SStatementEnum::Block(b) => RStatementEnum::Block(block(&b, ginfo, linfo.clone())?),
         SStatementEnum::If(c, t, e) => RStatementEnum::If(
