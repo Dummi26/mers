@@ -3,7 +3,7 @@
 This is the documentation for mers statements.
 In code, statements are represented by `SStatement`, `SStatementEnum`, `RStatement`, and `RStatementEnum`.
 
-## statement prefixes
+## Statement prefixes
 
 A statement can be prefixed with any number of stars `*`. This is called dereferencing and turns a reference to a value into the value itself. Modifying the value after a dereference leaves the value the reference was pointing to untouched (the data will be cloned to achieve this).
 
@@ -15,6 +15,16 @@ In combination with functions, this is similar to rust's syntax:
     fn my_func(a int, b int) -> int {
         a + b
     }
+
+## Assignment
+
+Statements can assign their value instead of returning it.
+The syntax for this is `<ref_statement> = <statement>` or `<assign_to> := <statement>`.
+
+If just `=` is used, the left side must return a reference to some value which will then be changed to the value generated on the right.
+If `:=` is used, new variables can be declared on the left.
+
+Destructuring is possible too: `[a, b] := [12, 15]`.
 
 # Different statements
 

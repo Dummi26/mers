@@ -14,10 +14,10 @@ To write a comment that spans multiple lines or ends before the end of the line,
     if 10 != 15 /* pretend this actually meant something... */ {
         // does something
     } else {
-        // TODO: implement this!
+        // do something else
     }
 
-To declare a new variable, `:=` is used.
+To declare a new variable, use `:=`.
 
     println("Hello! Please enter your name.")
     username := read_line()
@@ -79,7 +79,7 @@ By adding `else <what to do>` after an if statement, we can define what should h
 
 Let's force the user to give us their name.
 
-For this, we'll do what any not-insane person would do: Ask them repeatedly until they listen to us.
+For this, we'll do what any not-insane person would do: Ask them repeatedly until they answer.
 
     username := ""
     loop {
@@ -136,6 +136,8 @@ Since the value we want to get out of the loop is the `username`, not just `true
 
 If the input isn't empty, we return it from the loop since a value of type `string` will match. The value is then assigned to `username` and printed.
 
+If the input was still empty, `input.len() > 0` will return `false`, causing the `if` statement to return `[]`, which doesn't match, so the loop will continue.
+
 # Match statements
 
 Match statements let you define multiple conditions in a row.
@@ -146,7 +148,7 @@ One of my favorite examples for mers' strength is this:
     number := match {
         input.parse_int() n n
         input.parse_float() n n
-        [true] [] []
+        [true] [] Err: "couldn't parse"
     }
     number.debug()
 
@@ -155,7 +157,7 @@ Unfortunately, this needs quite a lengthy explanation.
 First, `parse_int()` and `parse_float()`. These are functions that take a string as their argument and return `[]/int` or `[]/float`.
 They try to read a number from the text and return it. If this fails, they return `[]`.
 
-Conveniently (except not - this is obviously on purpose), `[]` doesn't match while `int` and `float` values do.
+Conveniently, `[]` doesn't match while `int` and `float` values do.
 
 This is where the magic happens: the `match` statement.
 Between the `{` and the `}`, you can put as many "match arms" as you want.
@@ -167,16 +169,16 @@ The three statements here are `input.parse_int()` (condition), `n` (assign_to), 
 If the input isn't a number, `input.parse_int()` will return `[]`. Since this doesn't match, the second match arm (`input.parse_float()`) will try to parse it to a float instead.
 
 If the input is a number, `input.parse_int()` will return an `int`. Since this matches, the match arm will be executed.
-First, the matched value - the `int` - will be assigned to `n`. the assign_to part behaves like the left side of a `:=` expression, with the matched `int` in the right.
+First, the matched value - the `int` - will be assigned to `n`. the assign_to part behaves like the left side of a `:=` expression (it supports destructuring and will declare new variables).
 Finally, the action statement uses our new variable `n` which contains the number we have parsed and returns it from the match statement.
 
 Since the two arms in the match statement return `int` and `float`, the match statement will return `int/float/[]`.
-To get rid of the `[]`, we need to add a third arm: `[true] [] "default value"`. `[true]` is a value that the compiler knows will always match - a tuple of length 1. Assigning something to an empty tuple `[]` just gets rid of the value.
-The return type is now `int/float/string`.
+To get rid of the `[]`, we need to add a third arm: `[true] [] Err: "couldn't parse"`. `[true]` is a value that the compiler knows will always match - a tuple of length 1. Assigning something to an empty tuple `[]` just gets rid of the value.
+The return type is now `int/float/Err(string)`.
 
 Finally, we `debug()` the variable. Debug is a builtin function that prints the expected type (statically determined at compile-time), the actual type, and the value.
-If we input `12.3`, it outputs `int/float/[] :: float :: 12.3`.
-If we input `9`, it outputs `int/float/[] :: int :: 9`.
+If we input `12.3`, it outputs `int/float/Err(string) :: float :: 12.3`.
+If we input `9`, it outputs `int/float/Err(string) :: int :: 9`.
 
 # Switch statements
 

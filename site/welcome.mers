@@ -35,7 +35,6 @@ switch! answer {
 // wait one second
 sleep(1)
 
-
 // function that returns an anonymous function (function object).
 // anonymous functions can be used as iterators in for-loops.
 fn square_numbers() {

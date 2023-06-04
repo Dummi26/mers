@@ -21,7 +21,7 @@ mers has...
   + many strings: `[string ...]` (a list)
   + Either a string or nothing (Rust's `Option<String>`): `string/[]`
   + Either an int or an error: (Rust's `Result<isize, String>`): `int/string` (better: `int/Err(string)`)
-- compile-time execution through (explicit) macro syntax
+- compile-time execution through (explicit) macro syntax: `!(mers {<code>})` or `!(mers "file")`
 
 ## How mers?
 
@@ -36,3 +36,5 @@ Now, create a new text file (or choose one from the examples) and run it: `mers 
 [intro](docs/intro.md)
 
 [builtins](docs/builtins.md)
+
+[statements](docs/statements.md)
