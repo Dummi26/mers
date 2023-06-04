@@ -18,6 +18,7 @@ pub struct VType {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum VSingleType {
+    Any,
     Bool,
     Int,
     Float,
@@ -37,7 +38,8 @@ impl VSingleType {
     /// None => Cannot get, Some(t) => getting can return t or nothing
     pub fn get(&self, i: usize, gsinfo: &GlobalScriptInfo) -> Option<VType> {
         match self {
-            Self::Bool
+            Self::Any
+            | Self::Bool
             | Self::Int
             | Self::Float
             | Self::Function(..)
@@ -56,7 +58,8 @@ impl VSingleType {
     }
     pub fn get_ref(&self, i: usize, gsinfo: &GlobalScriptInfo) -> Option<VType> {
         match self {
-            Self::Bool
+            Self::Any
+            | Self::Bool
             | Self::Int
             | Self::Float
             | Self::Function(..)
@@ -76,7 +79,8 @@ impl VSingleType {
     /// None => might not always return t, Some(t) => can only return t
     pub fn get_always(&self, i: usize, info: &GlobalScriptInfo) -> Option<VType> {
         match self {
-            Self::Bool
+            Self::Any
+            | Self::Bool
             | Self::Int
             | Self::Float
             | Self::String
@@ -95,7 +99,8 @@ impl VSingleType {
     }
     pub fn get_always_ref(&self, i: usize, info: &GlobalScriptInfo) -> Option<VType> {
         match self {
-            Self::Bool
+            Self::Any
+            | Self::Bool
             | Self::Int
             | Self::Float
             | Self::String
@@ -179,7 +184,12 @@ impl VType {
 impl VSingleType {
     pub fn get_any(&self, info: &GlobalScriptInfo) -> Option<VType> {
         match self {
-            Self::Bool | Self::Int | Self::Float | Self::Function(..) | Self::Thread(..) => None,
+            Self::Any
+            | Self::Bool
+            | Self::Int
+            | Self::Float
+            | Self::Function(..)
+            | Self::Thread(..) => None,
             Self::String => Some(VSingleType::String.into()),
             Self::Tuple(t) => Some(t.iter().fold(VType { types: vec![] }, |a, b| a | b)),
             Self::List(t) => Some(t.clone()),
@@ -192,7 +202,12 @@ impl VSingleType {
     }
     pub fn get_any_ref(&self, info: &GlobalScriptInfo) -> Option<VType> {
         match self {
-            Self::Bool | Self::Int | Self::Float | Self::Function(..) | Self::Thread(..) => None,
+            Self::Any
+            | Self::Bool
+            | Self::Int
+            | Self::Float
+            | Self::Function(..)
+            | Self::Thread(..) => None,
             Self::String => Some(VSingleType::String.into()),
             Self::Tuple(t) => Some(
                 t.iter()
@@ -378,7 +393,7 @@ impl VSingleType {
     /// converts all Self::EnumVariantS to Self::EnumVariant
     pub fn enum_variants(&mut self, enum_variants: &mut HashMap<String, usize>) {
         match self {
-            Self::Bool | Self::Int | Self::Float | Self::String => (),
+            Self::Any | Self::Bool | Self::Int | Self::Float | Self::String => (),
             Self::Tuple(v) => {
                 for t in v {
                     t.enum_variants(enum_variants);
@@ -412,6 +427,8 @@ impl VSingleType {
     }
     pub fn fits_in(&self, rhs: &Self, info: &GlobalScriptInfo) -> bool {
         let o = match (self, rhs) {
+            (_, Self::Any) => true,
+            (Self::Any, _) => false,
             (Self::Reference(r), Self::Reference(b)) => r.fits_in(b, info),
             (Self::Reference(_), _) | (_, Self::Reference(_)) => false,
             (Self::EnumVariant(v1, t1), Self::EnumVariant(v2, t2)) => {
@@ -526,6 +543,7 @@ impl FormatGs for VSingleType {
         file: Option<&crate::parsing::file::File>,
     ) -> std::fmt::Result {
         match self {
+            Self::Any => write!(f, "any"),
             Self::Bool => write!(f, "bool"),
             Self::Int => write!(f, "int"),
             Self::Float => write!(f, "float"),
@@ -649,7 +667,7 @@ impl FormatGs for VType {
             }
             t.fmtgs(f, info, form, file)?;
         }
-        Ok(())
+        write!(f, ",")
     }
 }
 impl Display for VType {

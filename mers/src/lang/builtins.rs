@@ -979,7 +979,7 @@ impl BuiltinFunction {
                         run_input_types.push(val.out_single());
                         *var.lock().unwrap() = val;
                     }
-                    let out_type = f.out(&run_input_types);
+                    let out_type = f.out(&run_input_types, &info);
                     let info = Arc::clone(info);
                     let f = Arc::clone(f);
                     VDataEnum::Thread(

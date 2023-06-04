@@ -5,7 +5,15 @@ use crate::parsing::{
     parse::{self, ParseError, ScriptError},
 };
 
-use super::{code_runnable::RScript, val_data::VData};
+use super::{code_parsed::SStatement, code_runnable::RScript, val_data::VData, val_type::VType};
+
+// macro format is !(macro_type [...])
+
+#[derive(Debug)]
+pub enum Macro {
+    /// Compiles and executes the provided mers code at compile-time and inserts the value
+    StaticMers(VData),
+}
 
 pub fn parse_macro(file: &mut File) -> Result<Macro, MacroError> {
     file.skip_whitespaces();
@@ -61,12 +69,6 @@ fn parse_mers_code(file: &mut File) -> Result<RScript, MacroError> {
             Err(e) => return Err(e.err.into()),
         })
     }
-}
-
-#[derive(Debug)]
-pub enum Macro {
-    /// Compiles and executes the provided mers code at compile-time and inserts the value
-    StaticMers(VData),
 }
 
 impl Display for Macro {

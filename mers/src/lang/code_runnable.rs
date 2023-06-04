@@ -63,13 +63,13 @@ pub struct RFunction {
     pub inputs: Vec<Arc<Mutex<VData>>>,
     pub input_types: Vec<VType>,
     pub input_output_map: Vec<(Vec<VSingleType>, VType)>,
-    pub block: RBlock,
+    pub statement: RStatement,
 }
 impl RFunction {
     pub fn run(&self, info: &GSInfo) -> VData {
-        self.block.run(info)
+        self.statement.run(info)
     }
-    pub fn out(&self, input_types: &Vec<VSingleType>) -> VType {
+    pub fn out(&self, input_types: &Vec<VSingleType>, info: &GlobalScriptInfo) -> VType {
         self.input_output_map
             .iter()
             .find_map(|v| {
@@ -79,7 +79,7 @@ impl RFunction {
                     None
                 }
             })
-            .expect("invalid args for function! possible issue with type-checker if this can be reached! feel free to report a bug.")
+            .unwrap_or_else(|| self.statement.out(info))
     }
     pub fn out_vt(&self, input_types: &Vec<VType>, info: &GlobalScriptInfo) -> VType {
         let mut out = VType { types: vec![] };
@@ -92,10 +92,16 @@ impl RFunction {
                 out = out | otype;
             }
         }
-        out
+        if out.types.is_empty() {
+            // this can happen if we used the `any` type in our function signature,
+            // so in that case we just return the most broad type possible.
+            self.statement.out(info)
+        } else {
+            out
+        }
     }
     pub fn out_all(&self, info: &GlobalScriptInfo) -> VType {
-        self.block.out(info)
+        self.statement.out(info)
     }
     pub fn in_types(&self) -> &Vec<VType> {
         &self.input_types

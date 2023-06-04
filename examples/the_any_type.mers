@@ -1,0 +1,13 @@
+fn debug_any(val any) {
+    val.debug()
+}
+
+"something".debug_any()
+
+fn just_return(val any) {
+    val
+}.debug()
+
+v := "text"
+v.debug()
+v.just_return().debug()

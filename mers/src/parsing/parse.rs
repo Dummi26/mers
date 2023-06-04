@@ -192,7 +192,7 @@ pub fn parse_step_interpret(
             "args".to_string(),
             VSingleType::List(VSingleType::String.into()).to(),
         )],
-        parse_block_advanced(file, Some(false), true, true, false)?,
+        SStatementEnum::Block(parse_block_advanced(file, Some(false), false, true, false)?).to(),
     );
     if ginfo.log.after_parse.log() {
         ginfo.log.log(LogMsg::AfterParse(
@@ -543,6 +543,18 @@ pub mod implementation {
     ) -> Result<SStatement, ParseError> {
         file.skip_whitespaces();
         let err_start_of_statement = *file.get_pos();
+        // force output type
+        let force_opt = if file[file.get_pos().current_char_index..].starts_with("->") {
+            file.next();
+            file.next();
+            file.skip_whitespaces();
+            let o = parse_type(file)?;
+            file.skip_whitespaces();
+            Some(o)
+        } else {
+            None
+        };
+        // derefs
         let mut derefs = 0;
         loop {
             if let Some('*') = file.peek() {
@@ -836,6 +848,7 @@ pub mod implementation {
             }
         };
         out.derefs = derefs;
+        out.force_output_type = force_opt;
         let err_end_of_original_statement = *file.get_pos();
         // special characters that can follow a statement (loop because these can be chained)
         loop {
@@ -1070,6 +1083,7 @@ pub mod implementation {
         } else {
             loop {
                 let mut arg_name = String::new();
+                file.skip_whitespaces();
                 loop {
                     let err_fn_arg_name_start = *file.get_pos();
                     match file.next() {
@@ -1100,7 +1114,7 @@ pub mod implementation {
                 }
             }
         }
-        Ok(SFunction::new(args, parse_block(file)?))
+        Ok(SFunction::new(args, parse_statement(file)?))
     }
 
     pub(crate) fn parse_type(file: &mut File) -> Result<VType, ParseError> {
@@ -1122,7 +1136,6 @@ pub mod implementation {
                 closed_fn_args = true;
                 break;
             }
-            file.skip_whitespaces();
             match file.peek() {
                 Some('/') => {
                     file.next();
@@ -1132,8 +1145,15 @@ pub mod implementation {
                     file.next();
                     break;
                 }
-                Some(_) => break,
-
+                Some(ch) if ch.is_whitespace() => break,
+                Some(ch) if ch == ',' => {
+                    file.next();
+                    break;
+                }
+                Some(ch) => {
+                    eprintln!("[warn] stopped parsing type at character {ch} (unexpected character, moving on...)");
+                    break;
+                }
                 None => break,
             }
         }
@@ -1201,8 +1221,7 @@ pub mod implementation {
                     let mut name = ch.to_string();
                     loop {
                         match file.peek() {
-                            Some(']') => break,
-                            Some('/') => break,
+                            Some(']' | '/' | ',') => break,
                             Some(')') if in_fn_args => {
                                 file.next();
                                 closed_bracket_in_fn_args = true;
@@ -1315,6 +1334,7 @@ pub mod implementation {
                         }
                     }
                     match name.trim().to_lowercase().as_str() {
+                        "any" => VSingleType::Any,
                         "bool" => VSingleType::Bool,
                         "int" => VSingleType::Int,
                         "float" => VSingleType::Float,

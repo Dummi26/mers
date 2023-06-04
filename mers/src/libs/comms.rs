@@ -390,6 +390,7 @@ impl ByteData for VType {
 impl ByteDataA for VSingleType {
     fn as_byte_data(&self, vec: &mut Vec<u8>) {
         match self {
+            Self::Any => vec.push(b'a'),
             Self::Bool => vec.push(b'b'),
             Self::Int => vec.push(b'i'),
             Self::Float => vec.push(b'f'),
@@ -438,6 +439,7 @@ impl ByteData for VSingleType {
         let mut switch_byte = [0u8];
         data.read_exact(&mut switch_byte)?;
         Ok(match switch_byte[0] {
+            b'a' => Self::Any,
             b'b' => Self::Bool,
             b'i' => Self::Int,
             b'f' => Self::Float,

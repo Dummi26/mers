@@ -83,11 +83,11 @@ impl SBlock {
 #[derive(Debug)]
 pub struct SFunction {
     pub inputs: Vec<(String, VType)>,
-    pub block: SBlock,
+    pub statement: SStatement,
 }
 impl SFunction {
-    pub fn new(inputs: Vec<(String, VType)>, block: SBlock) -> Self {
-        Self { inputs, block }
+    pub fn new(inputs: Vec<(String, VType)>, statement: SStatement) -> Self {
+        Self { inputs, statement }
     }
 }
 
@@ -268,8 +268,9 @@ impl FormatGs for SStatement {
         }
         // output self
         if let Some(force_opt) = &self.force_output_type {
-            write!(f, " -> ")?;
+            write!(f, "-> ")?;
             force_opt.fmtgs(f, info, form, file)?;
+            write!(f, " ")?;
         }
         write!(f, "{}", "*".repeat(self.derefs))?;
         self.statement.fmtgs(f, info, form, file)?;
@@ -293,14 +294,14 @@ impl FormatGs for SFunction {
         write!(f, "(")?;
         for (i, (name, t)) in self.inputs.iter().enumerate() {
             if i > 0 {
-                write!(f, " {name}")?;
+                write!(f, " {name} ")?;
             } else {
                 write!(f, "{name} ")?;
             }
             t.fmtgs(f, info, form, file)?;
         }
         write!(f, ") ")?;
-        self.block.fmtgs(f, info, form, file)
+        self.statement.fmtgs(f, info, form, file)
     }
 }
 

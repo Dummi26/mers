@@ -1,7 +1,22 @@
-# mers statements overview
+# Mers statements overview
 
 This is the documentation for mers statements.
 In code, statements are represented by `SStatement`, `SStatementEnum`, `RStatement`, and `RStatementEnum`.
+
+## statement prefixes
+
+A statement can be prefixed with any number of stars `*`. This is called dereferencing and turns a reference to a value into the value itself. Modifying the value after a dereference leaves the value the reference was pointing to untouched (the data will be cloned to achieve this).
+
+A statement can also be prefixed with an arrow followed by the type the statement will have: `-> int/float 12`.
+Although the statement will always return an `int`, mers will assume that it could also return a float.
+If the statement's output doesn't fit in the forced type (`-> int "text"`), mers will generate an error.
+In combination with functions, this is similar to rust's syntax:
+
+    fn my_func(a int, b int) -> int {
+        a + b
+    }
+
+# Different statements
 
 ## Value
 

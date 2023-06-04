@@ -263,12 +263,12 @@ fn get_all_functions(
                 vartype.to()
             }
         }
-        // block is parsed multiple times (this is why we get duplicates in stderr):
+        // the statement is parsed multiple times (this is why we get duplicates in stderr):
         // - n times for the function args to generate the input-output map
         // - 1 more time here, where the function args aren't single types
         out.push((
             inputs.clone(),
-            block(&s.block, ginfo, linfo.clone())?.out(ginfo),
+            statement(&s.statement, ginfo, &mut linfo.clone())?.out(ginfo),
         ));
         Ok(())
     }
@@ -307,7 +307,7 @@ fn function(
         inputs: input_vars,
         input_types,
         input_output_map: all_outs,
-        block: block(&s.block, ginfo, linfo)?,
+        statement: statement(&s.statement, ginfo, &mut linfo.clone())?,
     })
 }
 
@@ -331,7 +331,11 @@ pub fn stypes(t: &mut VType, ginfo: &mut GlobalScriptInfo) -> Result<(), ToRunna
 }
 pub fn stype(t: &mut VSingleType, ginfo: &mut GlobalScriptInfo) -> Result<(), ToRunnableError> {
     match t {
-        VSingleType::Bool | VSingleType::Int | VSingleType::Float | VSingleType::String => (),
+        VSingleType::Any
+        | VSingleType::Bool
+        | VSingleType::Int
+        | VSingleType::Float
+        | VSingleType::String => (),
         VSingleType::Tuple(v) => {
             for t in v {
                 stypes(t, ginfo)?;
@@ -398,7 +402,7 @@ fn statement_adv(
     //     eprintln!(" --> {}", t.0);
     // }
     let mut state = match &*s.statement {
-        SStatementEnum::Value(v) => RStatementEnum::Value(v.clone()),
+        SStatementEnum::Value(v) => RStatementEnum::Value(v.clone()).to(),
         SStatementEnum::Tuple(v) | SStatementEnum::List(v) => {
             let mut w = Vec::with_capacity(v.len());
             let mut prev = None;
@@ -425,6 +429,7 @@ fn statement_adv(
             } else {
                 RStatementEnum::Tuple(w)
             }
+            .to()
         }
         SStatementEnum::Variable(v, is_ref) => {
             let existing_var = linfo.vars.get(v);
@@ -465,6 +470,7 @@ fn statement_adv(
             } else {
                 return Err(ToRunnableError::UseOfUndefinedVariable(v.clone()));
             }
+            .to()
         }
         SStatementEnum::FunctionCall(v, args) => {
             let mut rargs = Vec::with_capacity(args.len());
@@ -553,6 +559,7 @@ fn statement_adv(
                 }
             }
         }
+        .to(),
         SStatementEnum::FunctionDefinition(name, f) => {
             let f = Arc::new(function(f, ginfo, linfo.clone())?);
             if let Some(name) = name {
@@ -564,9 +571,9 @@ fn statement_adv(
                     linfo.fns.insert(name.clone(), vec![f]);
                 }
             }
-            RStatementEnum::Value(VDataEnum::Function(f).to())
+            RStatementEnum::Value(VDataEnum::Function(f).to()).to()
         }
-        SStatementEnum::Block(b) => RStatementEnum::Block(block(&b, ginfo, linfo.clone())?),
+        SStatementEnum::Block(b) => RStatementEnum::Block(block(&b, ginfo, linfo.clone())?).to(),
         SStatementEnum::If(c, t, e) => RStatementEnum::If(
             {
                 let condition = statement(&c, ginfo, linfo)?;
@@ -591,8 +598,9 @@ fn statement_adv(
                 Some(v) => Some(statement(&v, ginfo, linfo)?),
                 None => None,
             },
-        ),
-        SStatementEnum::Loop(c) => RStatementEnum::Loop(statement(&c, ginfo, linfo)?),
+        )
+        .to(),
+        SStatementEnum::Loop(c) => RStatementEnum::Loop(statement(&c, ginfo, linfo)?).to(),
         SStatementEnum::For(v, c, b) => {
             let mut linfo = linfo.clone();
             let container = statement(&c, ginfo, &mut linfo)?;
@@ -603,7 +611,7 @@ fn statement_adv(
             let assign_to = statement_adv(v, ginfo, &mut linfo, &mut Some((inner, &mut true)))?;
             let block = statement(&b, ginfo, &mut linfo)?;
             let o = RStatementEnum::For(assign_to, container, block);
-            o
+            o.to()
         }
 
         SStatementEnum::Switch(switch_on, cases, force) => {
@@ -639,7 +647,7 @@ fn statement_adv(
                     }));
                 }
             }
-            RStatementEnum::Switch(switch_on, ncases, *force)
+            RStatementEnum::Switch(switch_on, ncases, *force).to()
         }
         SStatementEnum::Match(cases) => {
             let mut ncases: Vec<(RStatement, RStatement, RStatement)> =
@@ -667,13 +675,13 @@ fn statement_adv(
                 out_type = out_type | VSingleType::Tuple(vec![]).to();
             }
 
-            RStatementEnum::Match(ncases)
+            RStatementEnum::Match(ncases).to()
         }
 
         SStatementEnum::IndexFixed(st, i) => {
             let st = statement(st, ginfo, linfo)?;
             if st.out(ginfo).get_always(*i, ginfo).is_some() {
-                RStatementEnum::IndexFixed(st, *i)
+                RStatementEnum::IndexFixed(st, *i).to()
             } else {
                 return Err(ToRunnableError::NotIndexableFixed(st.out(ginfo), *i));
             }
@@ -689,7 +697,8 @@ fn statement_adv(
                 }
             },
             statement(s, ginfo, linfo)?,
-        ),
+        )
+        .to(),
         SStatementEnum::TypeDefinition(name, t) => {
             // insert to name map has to happen before stypes()
             ginfo
@@ -698,13 +707,12 @@ fn statement_adv(
             let mut t = t.to_owned();
             stypes(&mut t, ginfo)?;
             ginfo.custom_types.push(t);
-            RStatementEnum::Value(VDataEnum::Tuple(vec![]).to())
+            RStatementEnum::Value(VDataEnum::Tuple(vec![]).to()).to()
         }
         SStatementEnum::Macro(m) => match m {
-            Macro::StaticMers(val) => RStatementEnum::Value(val.clone()),
+            Macro::StaticMers(val) => RStatementEnum::Value(val.clone()).to(),
         },
-    }
-    .to();
+    };
     state.derefs = s.derefs;
     // if force_output_type is set, verify that the real output type actually fits in the forced one.
     if let Some(force_opt) = &s.force_output_type {
