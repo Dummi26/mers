@@ -58,7 +58,7 @@
     * modifies the value: `x := 5 { &x = 10 debug(x) } debug(x)` prints `10` and then `10`.
   + `<statement_left> = <statement_right>`
     * assigns the value returned by `<statement_right>` to the value behind the reference returned by `<statement_left>`.
-    * if `<statement_right>` returns `<type`>, `<statement_left>` has to return `&<type>`.
+    * if `<statement_right>` returns `<type>`, `<statement_left>` has to return `&<type>`.
     * this is why `&<var_name> = <statement>` is the way it is.
   + `***<statement_left> = <statement_right>`
     * same as before, but performs dereferences: `&&&&int` becomes `&int` (minus 3 references because 3 `*`s), so a value of type `int` can be assigned to it.
