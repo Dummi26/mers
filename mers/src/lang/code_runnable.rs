@@ -135,7 +135,7 @@ impl RStatement {
         o
     }
     pub fn out(&self, info: &GlobalScriptInfo) -> VType {
-        // `a = b` evaluates to []
+        // `a = b` evaluates to [] (don't change this - cloning is cheap but a = b should NEVER return a boolean because that will make if a = b {} errors way too likely.)
         if self.output_to.is_some() {
             return VType {
                 types: vec![VSingleType::Tuple(vec![])],

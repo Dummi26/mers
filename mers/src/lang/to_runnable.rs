@@ -30,9 +30,7 @@ pub enum ToRunnableError {
     UseOfUndefinedVariable(String),
     UseOfUndefinedFunction(String),
     UnknownType(String),
-    CannotDeclareVariableWithDereference(String),
     CannotDereferenceTypeNTimes(VType, usize, VType),
-    FunctionWrongArgCount(String, usize, usize),
     FunctionWrongArgs(String, Vec<Arc<RFunction>>, Vec<VType>),
     InvalidType {
         expected: VType,
@@ -70,93 +68,130 @@ impl FormatGs for ToRunnableError {
         file: Option<&crate::parsing::file::File>,
     ) -> std::fmt::Result {
         match self {
-                Self::MainWrongInput => write!(
-                    f,
-                    "Main function had the wrong input. This is a bug and should never happen."
-                ),
-                Self::UseOfUndefinedVariable(v) => write!(f, "Cannot use variable \"{v}\" as it isn't defined (yet?)."),
-                Self::UseOfUndefinedFunction(v) => write!(f, "Cannot use function \"{v}\" as it isn't defined (yet?)."),
-                Self::UnknownType(name) => write!(f, "Unknown type \"{name}\"."),
-                Self::CannotDeclareVariableWithDereference(v) => write!(f, "Cannot declare a variable and dereference it (variable '{v}')."),
-                Self::CannotDereferenceTypeNTimes(og_type, derefs_wanted, last_valid_type) => {
-                    write!(f, "Cannot dereference type ")?;
-                    og_type.fmtgs(f, info, form, file)?;
-                    write!(f, " {derefs_wanted} times (stopped at ")?;
-                    last_valid_type.fmtgs(f, info, form, file);
-                    write!(f, ")")?;
-                    Ok(())
-                },
-                Self::FunctionWrongArgCount(v, a, b) => write!(f, "Tried to call function \"{v}\", which takes {a} arguments, with {b} arguments instead."),
-                Self::FunctionWrongArgs(fn_name, possible_fns, given_types) => write!(f, "Wrong args for function \"{fn_name}\": {} (possible fns: {})", given_types.iter().map(|v| format!(" {v}")).collect::<String>(), ""),
-                Self::InvalidType {
-                    expected,
-                    found,
-                    problematic,
-                } => {
-                    write!(f, "Invalid type: Expected ")?;
-                    expected.fmtgs(f, info, form, file)?;
-                    write!(f, " but found ")?;
-                    found.fmtgs(f, info, form, file)?;
-                    write!(f, ", which includes ")?;
-                    problematic.fmtgs(f, info, form, file)?;
-                    write!(f, " which is not covered.")?;
-                    Ok(())
-                }
-                Self::CaseForceButTypeNotCovered(v) => {
-                    write!(f, "Switch! statement, but not all types covered. Types to cover: ")?;
-                    v.fmtgs(f, info, form, file)?;
-                    Ok(())
-                }
-                Self::MatchConditionInvalidReturn(v) => {
-                    write!(f, "match statement condition returned ")?;
-                    v.fmtgs(f, info, form, file)?;
-                    write!(f, ", which is not necessarily a tuple of size 0 to 1.")?;
-                    Ok(())
-                }
-                Self::NotIndexableFixed(t, i) => {
-                    write!(f, "Cannot use fixed-index {i} on type ")?;
-                    t.fmtgs(f, info, form, file)?;
-                    write!(f, ".")?;
-                    Ok(())
-                }
-                Self::WrongInputsForBuiltinFunction(_builtin, builtin_name, args) => {
-                    write!(f, "Wrong arguments for builtin function \"{}\":", builtin_name)?;
-                    for arg in args {
-                        write!(f, " ")?;
-                        arg.fmtgs(f, info, form, file)?;
-                    }
-                    write!(f, ".")
-                }
-                Self::WrongArgsForLibFunction(name, args) => {
-                    write!(f, "Wrong arguments for library function {}:", name)?;
-                    for arg in args {
-                        write!(f, " ")?;
-                        arg.fmtgs(f, info, form, file)?;
-                    }
-                    write!(f, ".")
-                }
-                Self::CannotAssignTo(val, target) => {
-                    write!(f, "Cannot assign type ")?;
-                    val.fmtgs(f, info, form, file)?;
-                    write!(f, " to ")?;
-                    target.fmtgs(f, info, form, file)?;
-                    write!(f, ".")?;
-                    Ok(())
-                },
-                Self::ForLoopContainerHasNoInnerTypes => {
-                    write!(f, "For loop: container had no inner types, cannot iterate.")
-                }
-                Self::StatementRequiresOutputTypeToBeAButItActuallyOutputsBWhichDoesNotFitInA(required, real, problematic) => {
-                    write!(f, "the statement requires its output type to be ")?;
-                    required.fmtgs(f, info, form, file)?;
-                    write!(f, ", but its real output type is ")?;
-                    real.fmtgs(f, info, form, file)?;
-                    write!(f, ", which doesn't fit in the required type because of the problematic types ")?;
-                    problematic.fmtgs(f, info, form, file)?;
-                    write!(f, ".")?;
-                    Ok(())
-                }
+            Self::MainWrongInput => write!(
+                f,
+                "Main function had the wrong input. This is a bug and should never happen."
+            ),
+            Self::UseOfUndefinedVariable(v) => {
+                write!(f, "Cannot use variable \"{v}\" as it isn't defined (yet?).")
             }
+            Self::UseOfUndefinedFunction(v) => {
+                write!(f, "Cannot use function \"{v}\" as it isn't defined (yet?).")
+            }
+            Self::UnknownType(name) => write!(f, "Unknown type \"{name}\"."),
+            Self::CannotDereferenceTypeNTimes(og_type, derefs_wanted, last_valid_type) => {
+                write!(f, "Cannot dereference type ")?;
+                og_type.fmtgs(f, info, form, file)?;
+                write!(f, " {derefs_wanted} times (stopped at ")?;
+                last_valid_type.fmtgs(f, info, form, file);
+                write!(f, ")")?;
+                Ok(())
+            }
+            Self::FunctionWrongArgs(fn_name, possible_fns, given_types) => {
+                write!(f, "Wrong args for function \"{fn_name}\": Found (");
+                for (i, t) in given_types.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    t.fmtgs(f, info, form, file)?;
+                }
+                write!(f, "), but valid are only ")?;
+                for (i, func) in possible_fns.iter().enumerate() {
+                    if i != 0 {
+                        if i + 1 == possible_fns.len() {
+                            write!(f, ", and ")?;
+                        } else {
+                            write!(f, ", ")?;
+                        }
+                    }
+                    VDataEnum::Function(Arc::clone(func)).fmtgs(f, info, form, file)?;
+                }
+                write!(f, ".")?;
+                Ok(())
+            }
+            Self::InvalidType {
+                expected,
+                found,
+                problematic,
+            } => {
+                write!(f, "Invalid type: Expected ")?;
+                expected.fmtgs(f, info, form, file)?;
+                write!(f, " but found ")?;
+                found.fmtgs(f, info, form, file)?;
+                write!(f, ", which includes ")?;
+                problematic.fmtgs(f, info, form, file)?;
+                write!(f, " which is not covered.")?;
+                Ok(())
+            }
+            Self::CaseForceButTypeNotCovered(v) => {
+                write!(
+                    f,
+                    "Switch! statement, but not all types covered. Types to cover: "
+                )?;
+                v.fmtgs(f, info, form, file)?;
+                Ok(())
+            }
+            Self::MatchConditionInvalidReturn(v) => {
+                write!(f, "match statement condition returned ")?;
+                v.fmtgs(f, info, form, file)?;
+                write!(f, ", which is not necessarily a tuple of size 0 to 1.")?;
+                Ok(())
+            }
+            Self::NotIndexableFixed(t, i) => {
+                write!(f, "Cannot use fixed-index {i} on type ")?;
+                t.fmtgs(f, info, form, file)?;
+                write!(f, ".")?;
+                Ok(())
+            }
+            Self::WrongInputsForBuiltinFunction(_builtin, builtin_name, args) => {
+                write!(
+                    f,
+                    "Wrong arguments for builtin function \"{}\":",
+                    builtin_name
+                )?;
+                for arg in args {
+                    write!(f, " ")?;
+                    arg.fmtgs(f, info, form, file)?;
+                }
+                write!(f, ".")
+            }
+            Self::WrongArgsForLibFunction(name, args) => {
+                write!(f, "Wrong arguments for library function {}:", name)?;
+                for arg in args {
+                    write!(f, " ")?;
+                    arg.fmtgs(f, info, form, file)?;
+                }
+                write!(f, ".")
+            }
+            Self::CannotAssignTo(val, target) => {
+                write!(f, "Cannot assign type ")?;
+                val.fmtgs(f, info, form, file)?;
+                write!(f, " to ")?;
+                target.fmtgs(f, info, form, file)?;
+                write!(f, ".")?;
+                Ok(())
+            }
+            Self::ForLoopContainerHasNoInnerTypes => {
+                write!(f, "For loop: container had no inner types, cannot iterate.")
+            }
+            Self::StatementRequiresOutputTypeToBeAButItActuallyOutputsBWhichDoesNotFitInA(
+                required,
+                real,
+                problematic,
+            ) => {
+                write!(f, "the statement requires its output type to be ")?;
+                required.fmtgs(f, info, form, file)?;
+                write!(f, ", but its real output type is ")?;
+                real.fmtgs(f, info, form, file)?;
+                write!(
+                    f,
+                    ", which doesn't fit in the required type because of the problematic types "
+                )?;
+                problematic.fmtgs(f, info, form, file)?;
+                write!(f, ".")?;
+                Ok(())
+            }
+        }
     }
 }
 
