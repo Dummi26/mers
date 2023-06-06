@@ -1,10 +1,8 @@
 use std::{
     fmt::{self, Debug, Display, Formatter},
-    ops::Deref,
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, Mutex},
 };
 
-use super::global_info::LogMsg;
 use super::{
     code_runnable::RFunction,
     fmtgs::FormatGs,
@@ -68,14 +66,14 @@ impl VData {
     pub fn clone_data(&self) -> Self {
         // TODO! implement CopyOnWrite. For now, just always copy. This also prevents mut references not existing since in ::Dat(cloned, _), cloned will always stay 0.
         return self.operate_on_data_immut(|v| v.clone()).to();
-        match &mut *self.0.lock().unwrap() {
-            VDataInner::Data(cloned, _data) => {
-                *cloned += 1;
-                VDataInner::ClonedFrom(self.clone_arc()).to()
-            }
-            VDataInner::Mut(inner) => inner.lock().unwrap().clone_data(),
-            VDataInner::ClonedFrom(inner) => inner.clone_data(),
-        }
+        // match &mut *self.0.lock().unwrap() {
+        //     VDataInner::Data(cloned, _data) => {
+        //         *cloned += 1;
+        //         VDataInner::ClonedFrom(self.clone_arc()).to()
+        //     }
+        //     VDataInner::Mut(inner) => inner.lock().unwrap().clone_data(),
+        //     VDataInner::ClonedFrom(inner) => inner.clone_data(),
+        // }
     }
     /// clones self, returning a new instance of self that will always yield the same data as self, so that changes done to either are shared between both.
     pub fn clone_mut(&self) -> Self {
@@ -87,7 +85,7 @@ impl VData {
         #[cfg(debug_assertions)]
         return Self(Arc::clone(&self.0), self.1.clone());
     }
-    pub fn operate_on_data_immut<F, O>(&self, mut func: F) -> O
+    pub fn operate_on_data_immut<F, O>(&self, func: F) -> O
     where
         F: FnOnce(&VDataEnum) -> O,
     {
@@ -100,7 +98,7 @@ impl VData {
     /// runs func on the underlying data.
     /// attempts to get a mutable reference to the data. if this fails, it will (partially) clone the data, then point the VData to the new data,
     /// so that other VDatas pointing to the same original data aren't changed.
-    pub fn operate_on_data_mut<F, O>(&mut self, mut func: F) -> O
+    pub fn operate_on_data_mut<F, O>(&mut self, func: F) -> O
     where
         F: FnOnce(&mut VDataEnum) -> O,
     {
@@ -170,7 +168,7 @@ impl VData {
 impl Drop for VDataInner {
     fn drop(&mut self) {
         if let Self::ClonedFrom(origin) = self {
-            if let Self::Data(ref_count, _data) = &mut *origin.0.lock().unwrap() {
+            if let Self::Data(_ref_count, _data) = &mut *origin.0.lock().unwrap() {
                 // *ref_count = ref_count.saturating_sub(1);
             }
         }
@@ -340,7 +338,7 @@ impl VDataEnum {
     pub fn noenum(&self) -> Option<VData> {
         match self {
             Self::EnumVariant(_, v) => Some(v.clone_data()),
-            v => None,
+            _v => None,
         }
     }
     pub fn get(&self, i: usize) -> Option<VData> {
@@ -372,17 +370,10 @@ impl VDataEnum {
             | Self::Function(..)
             | Self::Thread(..) => None,
             // TODO: String
-            Self::String(s) => None,
+            Self::String(_s) => None,
             Self::Tuple(v) | Self::List(_, v) => v.get(i).map(|v| v.clone_mut()),
             Self::Reference(r) => r.get_ref(i),
             Self::EnumVariant(_, v) => v.get_ref(i),
-        }
-    }
-    pub fn matches_ref_bool(&self) -> bool {
-        match self {
-            VDataEnum::Tuple(v) => !v.is_empty(),
-            VDataEnum::Bool(false) => false,
-            _ => true,
         }
     }
     /// Some(None) => matches with self
@@ -397,7 +388,7 @@ impl VDataEnum {
                 }
             }
             VDataEnum::EnumVariant(..) => None,
-            other => Some(None),
+            _other => Some(None),
         }
     }
 }
@@ -487,7 +478,7 @@ pub mod thread {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match &*self.lock() {
                 VDataThreadEnum::Running(_) => write!(f, "(thread running)"),
-                VDataThreadEnum::Finished(v) => write!(f, "(thread finished)"),
+                VDataThreadEnum::Finished(_v) => write!(f, "(thread finished)"),
             }
         }
     }
@@ -553,7 +544,7 @@ impl FormatGs for VDataEnum {
             }
             Self::List(_t, v) => {
                 write!(f, "[")?;
-                for (i, v) in v.iter().enumerate() {
+                for (_i, v) in v.iter().enumerate() {
                     v.fmtgs(f, info, form, file)?;
                     write!(f, " ")?;
                 }

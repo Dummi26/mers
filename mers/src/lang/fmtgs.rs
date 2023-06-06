@@ -5,7 +5,7 @@ use super::global_info::{ColorFormatMode, ColorFormatter, GlobalScriptInfo};
 use colorize::AnsiColor;
 
 pub enum Color {
-    Keep,
+    // Keep,
     Grey,
     Red,
     Yellow,
@@ -17,7 +17,7 @@ pub enum Color {
 impl Color {
     pub fn colorize(&self, s: String) -> String {
         match self {
-            Self::Keep => s,
+            // Self::Keep => s,
             Self::Grey => s.grey().to_string(),
             Self::Red => s.red().to_string(),
             Self::Yellow => s.yellow().to_string(),
@@ -72,7 +72,7 @@ impl FormatInfo {
     pub fn go_shallower(&mut self) {
         self.depth -= 1;
     }
-    pub fn variable_ref_symbol(&self, info: Option<&GlobalScriptInfo>, s: String) -> String {
+    pub fn variable_ref_symbol(&self, _info: Option<&GlobalScriptInfo>, s: String) -> String {
         s
     }
     pub fn variable(&self, info: Option<&GlobalScriptInfo>, s: String) -> String {

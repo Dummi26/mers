@@ -1,11 +1,4 @@
-use std::{
-    io::Write,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-    time::Duration,
-};
-
-use crate::libs;
+use std::{io::Write, path::PathBuf, sync::Arc, time::Duration};
 
 use super::{
     code_runnable::RStatement,
@@ -42,6 +35,7 @@ pub enum BuiltinFunction {
     Run,
     Thread,
     Await,
+    TryAwait,
     Sleep,
     Exit,
     // FS
@@ -109,6 +103,7 @@ impl BuiltinFunction {
             "run" => Self::Run,
             "thread" => Self::Thread,
             "await" => Self::Await,
+            "try_await" => Self::TryAwait,
             "sleep" => Self::Sleep,
             "exit" => Self::Exit,
             // "command" => Self::Command,
@@ -271,7 +266,7 @@ impl BuiltinFunction {
                     false
                 }
             }
-            Self::Await => {
+            Self::Await | Self::TryAwait => {
                 input.len() == 1
                     && input[0]
                         .types
@@ -594,7 +589,7 @@ impl BuiltinFunction {
                     unreachable!("run or thread called without args")
                 }
             }
-            Self::Await => {
+            Self::Await | Self::TryAwait => {
                 if let Some(v) = input.first() {
                     let mut out = VType { types: vec![] };
                     for v in &v.types {
@@ -604,7 +599,13 @@ impl BuiltinFunction {
                             unreachable!("await called with non-thread arg")
                         }
                     }
-                    out
+                    if let Self::TryAwait = self {
+                        let mut o = VSingleType::Tuple(vec![out]).to();
+                        o.add_type(VSingleType::Tuple(vec![]), info);
+                        o
+                    } else {
+                        out
+                    }
                 } else {
                     unreachable!("await called without args")
                 }
@@ -795,7 +796,7 @@ impl BuiltinFunction {
     pub fn run(&self, args: &Vec<RStatement>, info: &GSInfo) -> VData {
         match self {
             Self::Assume1 => {
-                let mut a0 = args[0].run(info);
+                let a0 = args[0].run(info);
                 match a0.operate_on_data_immut(|v| {
                     if let VDataEnum::Tuple(v) = v {
                         if let Some(v) = v.get(0) {
@@ -877,12 +878,12 @@ impl BuiltinFunction {
                     #[cfg(not(feature = "nushell_plugin"))]
                     {
                         print!("{}", arg);
-                        std::io::stdout().flush();
+                        _ = std::io::stdout().flush();
                     }
                     #[cfg(feature = "nushell_plugin")]
                     {
                         eprint!("{}", arg);
-                        std::io::stderr().flush();
+                        _ = std::io::stderr().flush();
                     }
                     VDataEnum::Tuple(vec![]).to()
                 } else {
@@ -991,7 +992,7 @@ impl BuiltinFunction {
                         var.lock().unwrap().0 = val;
                     }
                     let out_type = f
-                        .out(
+                        .out_by_map(
                             &run_input_types.iter().map(|v| v.clone().into()).collect(),
                             &info,
                         )
@@ -1010,6 +1011,18 @@ impl BuiltinFunction {
             BuiltinFunction::Await => args[0].run(info).operate_on_data_immut(|v| {
                 if let VDataEnum::Thread(t, _) = v {
                     t.get()
+                } else {
+                    unreachable!()
+                }
+            }),
+            BuiltinFunction::TryAwait => args[0].run(info).operate_on_data_immut(|v| {
+                if let VDataEnum::Thread(t, _) = v {
+                    if let Some(v) = t.try_get() {
+                        VDataEnum::Tuple(vec![v])
+                    } else {
+                        VDataEnum::Tuple(vec![])
+                    }
+                    .to()
                 } else {
                     unreachable!()
                 }

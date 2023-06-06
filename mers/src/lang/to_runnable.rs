@@ -1,20 +1,14 @@
 use core::panic;
 use std::{
     collections::HashMap,
-    eprintln,
     fmt::{Debug, Display},
     sync::{Arc, Mutex},
-    time::Duration,
 };
 
-use crate::{
-    lang::{
-        builtins,
-        global_info::GlobalScriptInfo,
-        val_data::{VData, VDataEnum},
-        val_type::{VSingleType, VType},
-    },
-    libs,
+use crate::lang::{
+    global_info::GlobalScriptInfo,
+    val_data::{VData, VDataEnum},
+    val_type::{VSingleType, VType},
 };
 
 use super::{
@@ -84,12 +78,12 @@ impl FormatGs for ToRunnableError {
                 write!(f, "Cannot dereference type ")?;
                 og_type.fmtgs(f, info, form, file)?;
                 write!(f, " {derefs_wanted} times (stopped at ")?;
-                last_valid_type.fmtgs(f, info, form, file);
+                last_valid_type.fmtgs(f, info, form, file)?;
                 write!(f, ")")?;
                 Ok(())
             }
             Self::FunctionWrongArgs(fn_name, possible_fns, given_types) => {
-                write!(f, "Wrong args for function \"{fn_name}\": Found (");
+                write!(f, "Wrong args for function \"{fn_name}\": Found (")?;
                 for (i, t) in given_types.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
@@ -277,25 +271,7 @@ fn function(
                     }
                 }
             }
-            // let out = o.out(&current_types, ginfo).expect("invalid args????");
-            let out = {
-                let mut actual = Vec::with_capacity(o.inputs.len());
-                // simulate these variable types
-                for (fn_input, c_type) in o.inputs.iter().zip(current_types.iter()) {
-                    actual.push(std::mem::replace(
-                        &mut fn_input.lock().unwrap().1,
-                        c_type.clone(),
-                    ));
-                }
-                // not get the return type if these were the actual types
-                let out = o.statement.out(ginfo);
-                // reset
-                for (fn_input, actual) in o.inputs.iter().zip(actual) {
-                    std::mem::replace(&mut fn_input.lock().unwrap().1, actual);
-                }
-                // return
-                out
-            };
+            let out = o.out_by_statement(&current_types, &ginfo);
             map.push((current_types, out));
             if was_last {
                 break map;
@@ -627,11 +603,11 @@ fn statement_adv(
             RStatementEnum::Switch(switch_on, ncases, *force).to()
         }
         SStatementEnum::Match(cases) => {
-            let mut ncases: Vec<(RStatement, RStatement, RStatement)> =
+            let _ncases: Vec<(RStatement, RStatement, RStatement)> =
                 Vec::with_capacity(cases.len());
             let mut ncases = Vec::with_capacity(cases.len());
             let mut out_type = VType::empty();
-            let mut may_not_match = true;
+            let may_not_match = true;
             for (condition, assign_to, action) in cases.iter() {
                 let mut linfo = linfo.clone();
                 let condition = statement(condition, ginfo, &mut linfo)?;

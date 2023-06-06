@@ -1,8 +1,8 @@
-use std::{path::PathBuf, thread::JoinHandle, time::Instant};
+use std::{path::PathBuf, thread::JoinHandle};
 
 use crate::{
-    lang::{code_runnable::RScript, fmtgs::FormatGs, global_info::GSInfo, val_data::VDataEnum},
-    parsing::{self, file::File, parse::ScriptError},
+    lang::{code_runnable::RScript, fmtgs::FormatGs, val_data::VDataEnum},
+    parsing::{self, file::File},
 };
 
 mod base_comments;

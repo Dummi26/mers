@@ -1,9 +1,7 @@
-use std::{fs, time::Instant};
-
 use lang::global_info::ColorFormatMode;
 use lang::global_info::GlobalScriptInfo;
 use lang::global_info::LogKind;
-use notify::Watcher as FsWatcher;
+use lang::val_data::VDataEnum;
 
 use crate::lang::fmtgs::FormatGs;
 
@@ -13,6 +11,7 @@ mod libs;
 #[cfg(feature = "nushell_plugin")]
 mod nushell_plugin;
 mod parsing;
+mod pathutil;
 mod tutor;
 
 fn main() {
@@ -113,7 +112,6 @@ fn normal_main() {
                                 log: true,
                             }
                         }
-                        info.log.vdata_clone = f();
                         info.log.vtype_fits_in = f();
                         info.log.vsingletype_fits_in = f();
                     } else {
@@ -144,7 +142,6 @@ fn normal_main() {
                                 None => (verbose_arg, None),
                             };
                             match arg {
-                                "vdata_clone" => info.log.vdata_clone = kind(val),
                                 "vtype_fits_in" => info.log.vtype_fits_in = kind(val),
                                 "vsingletype_fits_in" => info.log.vsingletype_fits_in = kind(val),
                                 _ => eprintln!("Warn: -v+ unknown arg '{arg}'."),
@@ -157,6 +154,7 @@ fn normal_main() {
                         _ => {
                             // basic: open file and watch for fs changes
                             interactive_mode::fs_watcher::playground(interactive_use_new_terminal)
+                                .unwrap()
                         }
                     };
                     return;
@@ -194,7 +192,12 @@ fn normal_main() {
     match parsing::parse::parse_custom_info(&mut file, info) {
         Ok(script) => {
             if run {
-                script.run(std::env::args().skip(args_to_skip).collect());
+                script.run(
+                    std::env::args()
+                        .skip(args_to_skip)
+                        .map(|v| VDataEnum::String(v).to())
+                        .collect(),
+                );
             }
         }
         Err(e) => {

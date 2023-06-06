@@ -42,10 +42,10 @@ impl ByteData for Message {
     where
         R: std::io::Read,
     {
-        let mut type_id = u32::from_byte_data(data)?;
+        let type_id = u32::from_byte_data(data)?;
         Ok(match type_id {
             0 => Self::RunFunction(ByteData::from_byte_data(data)?),
-            other => unreachable!("read unknown type_id byte for message!"),
+            _other => unreachable!("read unknown type_id byte for message!"),
         })
     }
 }
@@ -270,7 +270,7 @@ impl ByteData for String {
     {
         let len = ByteData::from_byte_data(data)?;
         let mut buf = vec![0; len];
-        data.read_exact(buf.as_mut_slice());
+        data.read_exact(buf.as_mut_slice())?;
         let str = String::from_utf8(buf).unwrap();
         Ok(str)
     }
@@ -503,7 +503,7 @@ impl ByteDataA for VDataEnum {
             // TODO?
             Self::Function(_) => vec.push(b'F'),
             Self::Thread(..) => vec.push(b'T'),
-            Self::Reference(r) => vec.push(b'R'),
+            Self::Reference(_r) => vec.push(b'R'),
             Self::EnumVariant(enum_id, inner) => {
                 vec.push(b'E');
                 enum_id.as_byte_data(vec);

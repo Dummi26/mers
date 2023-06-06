@@ -1,8 +1,4 @@
-use std::{
-    assert_eq, eprintln,
-    ops::Deref,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use super::{
     builtins::BuiltinFunction,
@@ -66,7 +62,7 @@ pub struct RFunction {
     pub out_map: Vec<(Vec<VType>, VType)>,
 }
 impl PartialEq for RFunction {
-    fn eq(&self, other: &Self) -> bool {
+    fn eq(&self, _other: &Self) -> bool {
         false
     }
 }
@@ -77,7 +73,7 @@ impl RFunction {
     pub fn run(&self, info: &GSInfo) -> VData {
         self.statement.run(info)
     }
-    pub fn out(&self, input_types: &Vec<VType>, info: &GlobalScriptInfo) -> Option<VType> {
+    pub fn out_by_map(&self, input_types: &Vec<VType>, info: &GlobalScriptInfo) -> Option<VType> {
         // NOTE: This can ONLY use self.out_map, because it's used by the VSingleType.fits_in method.
         let mut empty = true;
         let out = self
@@ -101,15 +97,30 @@ impl RFunction {
             Some(out)
         }
     }
-    pub fn out_all(&self, info: &GlobalScriptInfo) -> VType {
+    pub fn out_all_by_map(&self, info: &GlobalScriptInfo) -> VType {
         // self.statement.out(info)
         self.out_map.iter().fold(VType::empty(), |mut t, (_, v)| {
             t.add_typesr(v, info);
             t
         })
     }
-    pub fn in_types(&self) -> &Vec<VType> {
-        &self.input_types
+    pub fn out_by_statement(&self, input_types: &Vec<VType>, info: &GlobalScriptInfo) -> VType {
+        let mut actual = Vec::with_capacity(self.inputs.len());
+        // simulate these variable types
+        for (fn_input, c_type) in self.inputs.iter().zip(input_types.iter()) {
+            actual.push(std::mem::replace(
+                &mut fn_input.lock().unwrap().1,
+                c_type.clone(),
+            ));
+        }
+        // not get the return type if these were the actual types
+        let out = self.statement.out(info);
+        // reset
+        for (fn_input, actual) in self.inputs.iter().zip(actual) {
+            fn_input.lock().unwrap().1 = actual;
+        }
+        // return
+        out
     }
 }
 
@@ -124,18 +135,16 @@ pub struct RStatement {
 impl RStatement {
     pub fn run(&self, info: &GSInfo) -> VData {
         let out = self.statement.run(info);
-        let mut o = if let Some((v, is_init)) = &self.output_to {
-            'init: {
-                // // assigns a new VData to the variable's Arc<Mutex<_>>, so that threads which have captured the variable at some point
-                // // won't be updated with its new value (is_init is set to true for initializations, such as in a loop - this can happen multiple times, but each should be its own variable with the same name)
-                // if *is_init && *derefs == 0 {
-                //     Self::assign_to(out, v.run(info), info);
-                //     break 'init;
-                // }
-                let mut val = v.run(info);
-                out.assign_to(val, info);
-                // val.assign(out);
-            }
+        let mut o = if let Some((v, _is_init)) = &self.output_to {
+            // // assigns a new VData to the variable's Arc<Mutex<_>>, so that threads which have captured the variable at some point
+            // // won't be updated with its new value (is_init is set to true for initializations, such as in a loop - this can happen multiple times, but each should be its own variable with the same name)
+            // if *is_init && *derefs == 0 {
+            //     Self::assign_to(out, v.run(info), info);
+            //     break 'init;
+            // }
+            let val = v.run(info);
+            out.assign_to(val, info);
+            // val.assign(out);
             VDataEnum::Tuple(vec![]).to()
         } else {
             out
@@ -226,7 +235,7 @@ impl RStatementEnum {
             Self::For(v, c, b) => {
                 // matching values also break with value from a for loop.
                 let vv = v.run(info);
-                let mut in_loop = |c: VData| {
+                let in_loop = |c: VData| {
                     c.assign_to(vv.clone_mut(), info);
                     b.run(info)
                 };
@@ -270,7 +279,7 @@ impl RStatementEnum {
                                 break;
                             }
                         },
-                        VDataEnum::Reference(r) => return None,
+                        VDataEnum::Reference(_r) => return None,
                         _ => unreachable!(),
                     }
                     Some(oval)
@@ -355,7 +364,7 @@ impl RStatementEnum {
                 }
             }
             Self::FunctionCall(f, args) => f
-                .out(&args.iter().map(|v| v.out(info)).collect(), info)
+                .out_by_map(&args.iter().map(|v| v.out(info)).collect(), info)
                 .expect("invalid args for function -> can't determine output type"),
             Self::LibFunctionCall(.., out) => out.clone(),
             Self::Block(b) => b.out(info),
@@ -379,13 +388,13 @@ impl RStatementEnum {
             }
             Self::Switch(switch_on, cases, force) => {
                 let switch_on = switch_on.out(info).types;
-                let mut might_return_empty = switch_on.is_empty();
+                let _might_return_empty = switch_on.is_empty();
                 let mut out = if *force {
                     VType::empty()
                 } else {
                     VSingleType::Tuple(vec![]).to()
                 };
-                for switch_on in switch_on {
+                for _switch_on in switch_on {
                     for (_on_type, _assign_to, case) in cases.iter() {
                         out.add_types(case.out(info), info);
                     }
@@ -423,7 +432,7 @@ impl RStatementEnum {
 
 pub struct RScript {
     main: RFunction,
-    info: GSInfo,
+    pub info: GSInfo,
 }
 impl RScript {
     pub fn new(main: RFunction, info: GSInfo) -> Result<Self, ToRunnableError> {
@@ -432,20 +441,8 @@ impl RScript {
         }
         Ok(Self { main, info })
     }
-    pub fn run(&self, args: Vec<String>) -> VData {
-        let mut vars = vec![];
-        vars.push(
-            VDataEnum::List(
-                VSingleType::String.into(),
-                args.into_iter()
-                    .map(|v| VDataEnum::String(v).to())
-                    .collect(),
-            )
-            .to(),
-        );
+    pub fn run(&self, args: Vec<VData>) -> VData {
+        self.main.inputs[0].lock().unwrap().0 = VDataEnum::List(VSingleType::Any.into(), args).to();
         self.main.run(&self.info)
-    }
-    pub fn info(&self) -> &GSInfo {
-        &self.info
     }
 }

@@ -5,7 +5,9 @@ use crate::parsing::{
     parse::{self, ParseError, ScriptError},
 };
 
-use super::{code_parsed::SStatement, code_runnable::RScript, val_data::VData, val_type::VType};
+use crate::lang::val_data::VDataEnum;
+
+use super::{code_runnable::RScript, val_data::VData};
 
 // macro format is !(macro_type [...])
 
@@ -30,7 +32,11 @@ pub fn parse_macro(file: &mut File) -> Result<Macro, MacroError> {
                 }
                 args.push(parse_string_val(file));
             }
-            let val = code.run(args);
+            let val = code.run(
+                args.into_iter()
+                    .map(|v| VDataEnum::String(v).to())
+                    .collect(),
+            );
             if val.safe_to_share() {
                 val
             } else {
@@ -57,7 +63,7 @@ fn parse_mers_code(file: &mut File) -> Result<RScript, MacroError> {
         let path = parse_string_val(file);
         #[cfg(debug_assertions)]
         eprintln!("macro: mers: path: {path}");
-        let path = crate::libs::path::path_from_string(path.as_str(), file.path())
+        let path = crate::pathutil::path_from_string(path.as_str(), file.path(), false)
             .expect("can't include mers code because no file was found at that path");
         let mut file = File::new(
             fs::read_to_string(&path)

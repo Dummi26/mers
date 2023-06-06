@@ -1,6 +1,4 @@
-use std::fmt::{self, Display, Formatter, Pointer};
-
-use crate::lang::global_info::ColorFormatMode;
+use std::fmt::{self, Display, Formatter};
 
 use super::{
     code_macro::Macro, fmtgs::FormatGs, global_info::GlobalScriptInfo, val_data::VData,
@@ -61,11 +59,6 @@ impl SStatement {
         self.output_to = Some((Box::new(statement), true));
         self
     }
-    // forces the statement's output to fit in a certain type.
-    pub fn force_output_type(mut self, force_output_type: Option<VType>) -> Self {
-        self.force_output_type = force_output_type;
-        self
-    }
 }
 
 /// A block of code is a collection of statements.
@@ -115,7 +108,7 @@ impl FormatGs for SStatementEnum {
             }
             Self::List(v) => {
                 write!(f, "{}", form.open_bracket(info, "[".to_owned()))?;
-                for (i, v) in v.iter().enumerate() {
+                for (_i, v) in v.iter().enumerate() {
                     v.fmtgs(f, info, form, file)?;
                     write!(f, " ")?;
                 }
@@ -136,7 +129,7 @@ impl FormatGs for SStatementEnum {
                 )?;
                 for (i, arg) in args.iter().enumerate() {
                     if i != 0 {
-                        write!(f, " ");
+                        write!(f, " ")?;
                     }
                     arg.fmtgs(f, info, form, file)?;
                 }

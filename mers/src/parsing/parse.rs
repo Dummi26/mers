@@ -1,11 +1,11 @@
-use std::{fmt::Debug, process::Command, sync::Arc};
+use std::{fmt::Debug, process::Command};
 
 use crate::{
     lang::{
         code_macro::MacroError,
         code_parsed::*,
         code_runnable::RScript,
-        fmtgs::{FormatGs, FormatWithGs},
+        fmtgs::FormatGs,
         global_info::{GSInfo, GlobalScriptInfo},
         to_runnable::{self, ToRunnableError},
         val_data::VDataEnum,
@@ -101,7 +101,7 @@ impl FormatGs for Error {
     fn fmtgs(
         &self,
         f: &mut std::fmt::Formatter,
-        info: Option<&GlobalScriptInfo>,
+        _info: Option<&GlobalScriptInfo>,
         form: &mut crate::lang::fmtgs::FormatInfo,
         file: Option<&crate::parsing::file::File>,
     ) -> std::fmt::Result {
@@ -158,7 +158,7 @@ impl std::fmt::Display for CannotFindPathForLibrary {
 }
 pub fn parse_step_lib_paths(
     file: &mut File,
-    ginfo: &GlobalScriptInfo,
+    _ginfo: &GlobalScriptInfo,
 ) -> Result<Vec<Command>, CannotFindPathForLibrary> {
     let mut libs = vec![];
     loop {
@@ -166,13 +166,14 @@ pub fn parse_step_lib_paths(
         let pos = file.get_pos().clone();
         let line = file.next_line();
         if line.starts_with("lib ") {
-            let path_to_executable = match libs::path::path_from_string(&line[4..], file.path()) {
-                Some(v) => v,
-                None => return Err(CannotFindPathForLibrary(line[4..].to_string())),
-            };
+            let path_to_executable =
+                match crate::pathutil::path_from_string(&line[4..], file.path(), true) {
+                    Some(v) => v,
+                    None => return Err(CannotFindPathForLibrary(line[4..].to_string())),
+                };
             let mut cmd = Command::new(&path_to_executable);
             if let Some(parent) = path_to_executable.parent() {
-                cmd.current_dir(parent.clone());
+                cmd.current_dir(parent);
             }
             libs.push(cmd);
         } else {
@@ -190,7 +191,7 @@ pub fn parse_step_interpret(
     let o = SFunction::new(
         vec![(
             "args".to_string(),
-            VSingleType::List(VSingleType::String.into()).to(),
+            VSingleType::List(VSingleType::Any.into()).to(),
         )],
         SStatementEnum::Block(parse_block_advanced(file, Some(false), true, true, false)?).to(),
     );
@@ -251,12 +252,12 @@ impl FormatGs for ParseError {
     fn fmtgs(
         &self,
         f: &mut std::fmt::Formatter,
-        info: Option<&GlobalScriptInfo>,
+        _info: Option<&GlobalScriptInfo>,
         form: &mut crate::lang::fmtgs::FormatInfo,
         file: Option<&crate::parsing::file::File>,
     ) -> std::fmt::Result {
         self.err.fmtgs(f, self.info.as_ref(), form, file)?;
-        writeln!(f);
+        writeln!(f)?;
         if let Some(location_end) = self.location_end {
             writeln!(f, "  from {} to {}", self.location, location_end)?;
             if let Some(file) = file {
@@ -849,7 +850,7 @@ pub mod implementation {
         };
         out.derefs = derefs;
         out.force_output_type = force_opt;
-        let err_end_of_original_statement = *file.get_pos();
+        let _err_end_of_original_statement = *file.get_pos();
         // special characters that can follow a statement (loop because these can be chained)
         loop {
             file.skip_whitespaces();

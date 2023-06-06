@@ -1,23 +1,19 @@
 use std::{
     collections::HashMap,
-    default,
     fmt::Display,
     sync::{Arc, Mutex},
 };
 
-use crate::libs;
-
 use super::{
     builtins,
     fmtgs::Color,
-    val_data::VDataEnum,
     val_type::{VSingleType, VType},
 };
 
 pub type GSInfo = Arc<GlobalScriptInfo>;
 
 pub struct GlobalScriptInfo {
-    pub libs: Vec<libs::Lib>,
+    pub libs: Vec<crate::libs::Lib>,
     pub lib_fns: HashMap<String, (usize, usize)>,
 
     pub enum_variants: HashMap<String, usize>,
@@ -121,7 +117,6 @@ pub struct Logger {
 
     pub after_parse: LogKind,
 
-    pub vdata_clone: LogKind,
     pub vtype_fits_in: LogKind,
     pub vsingletype_fits_in: LogKind,
 }
@@ -130,7 +125,6 @@ impl Logger {
         Self {
             logs: Arc::new(Mutex::new(vec![])),
             after_parse: Default::default(),
-            vdata_clone: Default::default(),
             vtype_fits_in: Default::default(),
             vsingletype_fits_in: Default::default(),
         }
@@ -140,7 +134,6 @@ impl Logger {
 #[derive(Debug)]
 pub enum LogMsg {
     AfterParse(String),
-    VDataClone(Option<String>, VDataEnum, usize, usize),
     VTypeFitsIn(VType, VType, Vec<VSingleType>),
     VSingleTypeFitsIn(VSingleType, VSingleType, bool),
 }
@@ -148,7 +141,6 @@ impl Logger {
     pub fn log(&self, msg: LogMsg) {
         let kind = match msg {
             LogMsg::AfterParse(..) => &self.after_parse,
-            LogMsg::VDataClone(..) => &self.vdata_clone,
             LogMsg::VTypeFitsIn(..) => &self.vtype_fits_in,
             LogMsg::VSingleTypeFitsIn(..) => &self.vsingletype_fits_in,
         };
@@ -167,17 +159,6 @@ impl Display for LogMsg {
         match self {
             Self::AfterParse(code) => {
                 write!(f, "AfterParse :: {code}")
-            }
-            Self::VDataClone(varname, data, src_addr, new_addr) => {
-                write!(
-                    f,
-                    "VDataClone ::::\n{data}  ({}{src_addr} -> {new_addr})",
-                    if let Some(v) = varname {
-                        format!("{v} | ")
-                    } else {
-                        String::new()
-                    }
-                )
             }
             Self::VTypeFitsIn(a, b, no) => write!(f, "VTypeFitsIn :: {a} in {b} ? -> {no:?}"),
             Self::VSingleTypeFitsIn(a, b, fits) => {

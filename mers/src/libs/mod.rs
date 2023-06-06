@@ -1,26 +1,17 @@
 pub mod comms;
-pub mod inlib;
-pub mod path;
 
 use std::{
     collections::HashMap,
-    io::{self, BufRead, BufReader, Read, Write},
-    path::PathBuf,
+    io::{self, BufReader, Write},
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
     sync::{Arc, Mutex},
 };
 
-use crate::{
-    lang::{
-        global_info::GlobalScriptInfo,
-        val_data::{VData, VDataEnum},
-        val_type::VType,
-    },
-    libs::comms::{ByteData, ByteDataA},
-    parsing::{file::File, parse},
+use crate::lang::{
+    global_info::GlobalScriptInfo, to_runnable::ToRunnableError, val_data::VData, val_type::VType,
 };
 
-use self::comms::{MessageResponse, RespondableMessage};
+use self::comms::{ByteData, ByteDataA, RespondableMessage};
 
 // Libraries are processes that communicate via stdout/stdin.
 
@@ -59,6 +50,8 @@ pub type LibInitReq<'a> = (
 );
 /// Sent by mers to finish initializing a library.
 /// [enum variants]
+// used by crate::inlib
+#[allow(unused)]
 pub type LibInitInfo = Vec<(String, usize)>;
 pub type LibInitInfoRef<'a> = Vec<(&'a String, &'a usize)>;
 
@@ -93,9 +86,13 @@ impl Lib {
             for (_name, func) in registered_fns.iter_mut() {
                 for (args, out) in func.iter_mut() {
                     for t in args.iter_mut() {
-                        crate::lang::to_runnable::stypes(t, &mut ginfo);
+                        if let Err(e) = crate::lang::to_runnable::stypes(t, &mut ginfo) {
+                            return Err(LaunchError::ErrorAddingEnumsOrTypes(e));
+                        }
                     }
-                    crate::lang::to_runnable::stypes(out, &mut ginfo);
+                    if let Err(e) = crate::lang::to_runnable::stypes(out, &mut ginfo) {
+                        return Err(LaunchError::ErrorAddingEnumsOrTypes(e));
+                    }
                 }
             }
             for (name, id) in ginfo.enum_variants {
@@ -104,13 +101,17 @@ impl Lib {
                 }
             }
             let si: LibInitInfoRef = enum_variants.iter().collect();
-            stdin.write(si.as_byte_data_vec().as_slice());
-            stdin.flush();
+            if let Err(e) = stdin.write_all(si.as_byte_data_vec().as_slice()) {
+                return Err(LaunchError::StdioError(e));
+            };
+            if let Err(e) = stdin.flush() {
+                return Err(LaunchError::StdioError(e));
+            };
             let (task_sender, recv) = std::sync::mpsc::channel::<(
                 u128,
                 Box<dyn FnOnce(&mut BufReader<ChildStdout>) + Send>,
             )>();
-            let stdout_reader = std::thread::spawn(move || {
+            let _stdout_reader = std::thread::spawn(move || {
                 let dur = std::time::Duration::from_millis(20);
                 let mut pending = HashMap::new();
                 loop {
@@ -192,11 +193,11 @@ impl Lib {
                 ))
                 .unwrap();
             // id - type_id - message
-            stdin.write(id.as_byte_data_vec().as_slice()).unwrap();
+            stdin.write_all(id.as_byte_data_vec().as_slice()).unwrap();
             stdin
-                .write(msg.msgtype_id().as_byte_data_vec().as_slice())
+                .write_all(msg.msgtype_id().as_byte_data_vec().as_slice())
                 .unwrap();
-            stdin.write(msg.as_byte_data_vec().as_slice()).unwrap();
+            stdin.write_all(msg.as_byte_data_vec().as_slice()).unwrap();
             stdin.flush().unwrap();
             *id = id.wrapping_add(1);
             recv
@@ -209,12 +210,18 @@ impl Lib {
 pub enum LaunchError {
     NoStdio,
     CouldNotSpawnProcess(io::Error),
+    StdioError(io::Error),
+    ErrorAddingEnumsOrTypes(ToRunnableError),
 }
 impl std::fmt::Display for LaunchError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NoStdio => write!(f, "couldn't get stdio (stdin/stdout) from child process."),
             Self::CouldNotSpawnProcess(e) => write!(f, "couldn't spawn child process: {e}."),
+            Self::StdioError(e) => write!(f, "error from stdio: {e}"),
+            Self::ErrorAddingEnumsOrTypes(e) => {
+                write!(f, "error adding enums or types from library: {e}.")
+            }
         }
     }
 }

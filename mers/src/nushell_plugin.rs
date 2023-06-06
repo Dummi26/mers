@@ -1,12 +1,14 @@
 use std::{fs, path::PathBuf};
 
 use nu_plugin::{serve_plugin, MsgPackSerializer, Plugin};
-use nu_protocol::{PluginExample, PluginSignature, ShellError, Span, Spanned, SyntaxShape, Value};
+use nu_protocol::{PluginSignature, ShellError, Span, SyntaxShape, Value};
 
 use crate::{
     lang::{
+        fmtgs::FormatGs,
         global_info::GlobalScriptInfo,
         val_data::{VData, VDataEnum},
+        val_type::VType,
     },
     parsing,
 };
@@ -27,7 +29,24 @@ impl Plugin for MersNuPlugin {
             )
             .optional(
                 "args",
-                SyntaxShape::List(Box::new(SyntaxShape::String)),
+                SyntaxShape::List(Box::new(SyntaxShape::OneOf(vec![
+                    SyntaxShape::Boolean,
+                    SyntaxShape::Int,
+                    SyntaxShape::Decimal,
+                    SyntaxShape::String,
+                    SyntaxShape::List(Box::new(SyntaxShape::OneOf(vec![
+                        SyntaxShape::Boolean,
+                        SyntaxShape::Int,
+                        SyntaxShape::Decimal,
+                        SyntaxShape::String,
+                        SyntaxShape::List(Box::new(SyntaxShape::OneOf(vec![
+                            SyntaxShape::Boolean,
+                            SyntaxShape::Int,
+                            SyntaxShape::Decimal,
+                            SyntaxShape::String,
+                        ]))),
+                    ]))),
+                ]))),
                 "the arguments passed to the mers program. defaults to an empty list.",
             )
             .switch(
@@ -38,9 +57,9 @@ impl Plugin for MersNuPlugin {
     }
     fn run(
         &mut self,
-        name: &str,
+        _name: &str,
         call: &nu_plugin::EvaluatedCall,
-        input: &nu_protocol::Value,
+        _input: &nu_protocol::Value,
     ) -> Result<nu_protocol::Value, nu_plugin::LabeledError> {
         // no need to 'match name {...}' because we only register mers-nu and nothing else.
         let source: String = call.req(0)?;
@@ -52,7 +71,7 @@ impl Plugin for MersNuPlugin {
             parsing::file::File::new(
                 match fs::read_to_string(&source) {
                     Ok(v) => v,
-                    Err(e) => {
+                    Err(_e) => {
                         return Ok(Value::Error {
                             error: Box::new(ShellError::FileNotFound(source_span)),
                         })
@@ -64,36 +83,62 @@ impl Plugin for MersNuPlugin {
         Ok(match parsing::parse::parse(&mut file) {
             Ok(code) => {
                 let args = match call.opt(1)? {
-                    Some(v) => v,
+                    Some(v) => {
+                        fn to_mers_val(v: Vec<Value>, info: &GlobalScriptInfo) -> Vec<VData> {
+                            v.into_iter()
+                                .map(|v| {
+                                    match v {
+                                        Value::Bool { val, .. } => VDataEnum::Bool(val),
+                                        Value::Int { val, .. } => VDataEnum::Int(val as _),
+                                        Value::Float { val, .. } => VDataEnum::Float(val),
+                                        Value::String { val, .. } => VDataEnum::String(val),
+                                        Value::List { vals, .. } => {
+                                            let mut t = VType::empty();
+                                            let mut vs = Vec::with_capacity(vals.len());
+                                            for v in to_mers_val(vals, info) {
+                                                t.add_types(v.out(), info);
+                                                vs.push(v);
+                                            }
+                                            VDataEnum::List(t, vs)
+                                        }
+                                        _ => unreachable!("invalid arg type"),
+                                    }
+                                    .to()
+                                })
+                                .collect()
+                        }
+                        if let Value::List { vals, .. } = v {
+                            to_mers_val(vals, &code.info)
+                        } else {
+                            unreachable!("args not a list")
+                        }
+                    }
                     _ => vec![],
                 };
-                fn to_nu_val(val: VData, info: &GlobalScriptInfo) -> Value {
+                fn to_nu_val(val: &VData, info: &GlobalScriptInfo) -> Value {
                     let span = Span::unknown();
-                    match val.data {
-                        VDataEnum::Bool(val) => Value::Bool { val, span },
+                    val.operate_on_data_immut(|val| match val {
+                        VDataEnum::Bool(val) => Value::Bool { val: *val, span },
                         VDataEnum::Int(val) => Value::Int {
-                            val: val as _,
+                            val: *val as _,
                             span,
                         },
-                        VDataEnum::Float(val) => Value::Float { val, span },
-                        VDataEnum::String(val) => Value::String { val, span },
+                        VDataEnum::Float(val) => Value::Float { val: *val, span },
+                        VDataEnum::String(val) => Value::String {
+                            val: val.to_owned(),
+                            span,
+                        },
                         VDataEnum::Tuple(vals) | VDataEnum::List(_, vals) => Value::List {
-                            vals: vals.into_iter().map(|v| to_nu_val(v, info)).collect(),
+                            vals: vals.iter().map(|v| to_nu_val(v, info)).collect(),
                             span,
                         },
-                        VDataEnum::Reference(r) => to_nu_val(
-                            std::mem::replace(
-                                &mut *r.lock().unwrap(),
-                                VDataEnum::Tuple(vec![]).to(),
-                            ),
-                            info,
-                        ),
+                        VDataEnum::Reference(r) => to_nu_val(r, info),
                         VDataEnum::EnumVariant(variant, val) => {
                             let name = info
                                 .enum_variants
                                 .iter()
                                 .find_map(|(name, id)| {
-                                    if *id == variant {
+                                    if *id == *variant {
                                         Some(name.to_owned())
                                     } else {
                                         None
@@ -107,16 +152,16 @@ impl Plugin for MersNuPlugin {
                                         val: name,
                                         span: span,
                                     },
-                                    to_nu_val(*val, info),
+                                    to_nu_val(val, info),
                                 ],
                                 span,
                             }
                         }
-                        VDataEnum::Function(func) => Value::Nothing { span },
-                        VDataEnum::Thread(t, _) => to_nu_val(t.get(), info),
-                    }
+                        VDataEnum::Function(_func) => Value::Nothing { span },
+                        VDataEnum::Thread(t, _) => to_nu_val(&t.get(), info),
+                    })
                 }
-                to_nu_val(code.run(args), code.info().as_ref())
+                to_nu_val(&code.run(args), &code.info)
             }
             Err(e) => Value::Error {
                 error: Box::new(ShellError::IncorrectValue {

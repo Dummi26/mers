@@ -1,14 +1,12 @@
 use std::{
     collections::HashMap,
     fmt::{self, Debug, Display, Formatter},
-    ops::BitOr,
-    sync::Arc,
 };
 
 use super::{
     code_runnable::{RFunction, RStatementEnum},
     fmtgs::FormatGs,
-    global_info::{self, GSInfo, GlobalScriptInfo},
+    global_info::{GSInfo, GlobalScriptInfo},
     val_data::VDataEnum,
 };
 
@@ -173,7 +171,7 @@ impl VType {
         Some(out)
     }
     pub fn reference(&self) -> Self {
-        let mut out = Self::empty();
+        let _out = Self::empty();
         Self {
             types: self
                 .types
@@ -474,7 +472,7 @@ impl VSingleType {
                 };
                 for (ins, out) in b {
                     // try everything that would be valid for b
-                    if let Some(v) = af.out(ins, info) {
+                    if let Some(v) = af.out_by_map(ins, info) {
                         if !v.fits_in(out, info).is_empty() {
                             // found something that's valid for both, but a returns something that doesn't fit in what b would have returned -> a doesn't fit.
                             break 'fnt false;
@@ -572,7 +570,7 @@ impl FormatGs for VSingleType {
                     write!(f, "(")?;
                     for i in inputs {
                         i.fmtgs(f, info, form, file)?;
-                        write!(f, " ");
+                        write!(f, " ")?;
                     }
                     output.fmtgs(f, info, form, file)?;
                     write!(f, ")")?;
