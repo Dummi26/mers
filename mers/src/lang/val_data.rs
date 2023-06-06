@@ -318,7 +318,7 @@ impl VDataEnum {
             Self::String(..) => VSingleType::String,
             Self::Tuple(v) => VSingleType::Tuple(v.iter().map(|v| v.out_single().to()).collect()),
             Self::List(t, _) => VSingleType::List(t.clone()),
-            Self::Function(f) => VSingleType::Function(f.input_output_map.clone()),
+            Self::Function(f) => VSingleType::Function(f.out_map.clone()),
             Self::Thread(_, o) => VSingleType::Thread(o.clone()),
             Self::Reference(r) => VSingleType::Reference(Box::new(r.out_single())),
             Self::EnumVariant(e, v) => VSingleType::EnumVariant(*e, v.out_single().to()),
@@ -560,7 +560,7 @@ impl FormatGs for VDataEnum {
                 write!(f, "...]")
             }
             Self::Function(func) => {
-                VSingleType::Function(func.input_output_map.clone()).fmtgs(f, info, form, file)
+                VSingleType::Function(func.out_map.clone()).fmtgs(f, info, form, file)
             }
             Self::Thread(..) => write!(f, "[TODO] THREAD"),
             Self::Reference(inner) => {

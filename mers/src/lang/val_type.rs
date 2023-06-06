@@ -2,11 +2,14 @@ use std::{
     collections::HashMap,
     fmt::{self, Debug, Display, Formatter},
     ops::BitOr,
+    sync::Arc,
 };
 
 use super::{
+    code_runnable::{RFunction, RStatementEnum},
     fmtgs::FormatGs,
     global_info::{self, GSInfo, GlobalScriptInfo},
+    val_data::VDataEnum,
 };
 
 use super::global_info::LogMsg;
@@ -25,7 +28,7 @@ pub enum VSingleType {
     String,
     Tuple(Vec<VType>),
     List(VType),
-    Function(Vec<(Vec<VSingleType>, VType)>),
+    Function(Vec<(Vec<VType>, VType)>),
     Thread(VType),
     Reference(Box<Self>),
     EnumVariant(usize, VType),
@@ -467,18 +470,24 @@ impl VSingleType {
             (Self::Tuple(_), _) => false,
             (Self::List(a), Self::List(b)) => a.fits_in(b, info).is_empty(),
             (Self::List(_), _) => false,
-            (Self::Function(a), Self::Function(b)) => 'func_out: {
-                for a in a {
-                    'search: {
-                        for b in b {
-                            if a.1.fits_in(&b.1, info).is_empty()
-                                && a.0.len() == b.0.len()
-                                && a.0.iter().zip(b.0.iter()).all(|(a, b)| *a == *b)
-                            {
-                                break 'search;
-                            }
+            (Self::Function(a), Self::Function(b)) => 'fnt: {
+                // since RFunction.out only uses out_map, we can create a dummy RFunction here.
+                let af = RFunction {
+                    inputs: vec![],
+                    input_types: vec![],
+                    statement: RStatementEnum::Value(VDataEnum::Bool(false).to()).to(),
+                    out_map: a.clone(),
+                };
+                for (ins, out) in b {
+                    // try everything that would be valid for b
+                    if let Some(v) = af.out(ins, info) {
+                        if !v.fits_in(out, info).is_empty() {
+                            // found something that's valid for both, but a returns something that doesn't fit in what b would have returned -> a doesn't fit.
+                            break 'fnt false;
                         }
-                        break 'func_out false;
+                    } else {
+                        // found something that's valid for b but not for a -> a doesn't fit.
+                        break 'fnt false;
                     }
                 }
                 true

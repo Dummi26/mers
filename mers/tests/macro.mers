@@ -1,0 +1,7 @@
+val := !(mers {
+    "macro returned value"
+})
+
+val := !(mers "my_macro.mers")
+
+true

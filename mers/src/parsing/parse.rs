@@ -192,7 +192,7 @@ pub fn parse_step_interpret(
             "args".to_string(),
             VSingleType::List(VSingleType::String.into()).to(),
         )],
-        SStatementEnum::Block(parse_block_advanced(file, Some(false), false, true, false)?).to(),
+        SStatementEnum::Block(parse_block_advanced(file, Some(false), true, true, false)?).to(),
     );
     if ginfo.log.after_parse.log() {
         ginfo.log.log(LogMsg::AfterParse(
@@ -855,6 +855,7 @@ pub mod implementation {
             file.skip_whitespaces();
             // least local (evaluated last)
             // 0 =
+            // 015 && ||
             // 020 == !=
             // 025 > < >= <=
             // 050 + -
@@ -991,35 +992,6 @@ pub mod implementation {
                     )
                     .to()
                 }
-                // 023 && ||
-                (0..=23, Some('&'))
-                    if matches!(
-                        file.get_char(file.get_pos().current_char_index + 1),
-                        Some('&')
-                    ) =>
-                {
-                    file.next();
-                    file.next();
-                    SStatementEnum::FunctionCall(
-                        "and".to_owned(),
-                        vec![out, parse_statement_adv(file, false, 24)?],
-                    )
-                    .to()
-                }
-                (0..=23, Some('|'))
-                    if matches!(
-                        file.get_char(file.get_pos().current_char_index + 1),
-                        Some('|')
-                    ) =>
-                {
-                    file.next();
-                    file.next();
-                    SStatementEnum::FunctionCall(
-                        "or".to_owned(),
-                        vec![out, parse_statement_adv(file, false, 24)?],
-                    )
-                    .to()
-                }
                 // 020 == !=
                 (0..=20, Some('='))
                     if matches!(
@@ -1046,6 +1018,35 @@ pub mod implementation {
                     SStatementEnum::FunctionCall(
                         "ne".to_owned(),
                         vec![out, parse_statement_adv(file, false, 21)?],
+                    )
+                    .to()
+                }
+                // 015 && ||
+                (0..=15, Some('&'))
+                    if matches!(
+                        file.get_char(file.get_pos().current_char_index + 1),
+                        Some('&')
+                    ) =>
+                {
+                    file.next();
+                    file.next();
+                    SStatementEnum::FunctionCall(
+                        "and".to_owned(),
+                        vec![out, parse_statement_adv(file, false, 16)?],
+                    )
+                    .to()
+                }
+                (0..=15, Some('|'))
+                    if matches!(
+                        file.get_char(file.get_pos().current_char_index + 1),
+                        Some('|')
+                    ) =>
+                {
+                    file.next();
+                    file.next();
+                    SStatementEnum::FunctionCall(
+                        "or".to_owned(),
+                        vec![out, parse_statement_adv(file, false, 16)?],
                     )
                     .to()
                 }
@@ -1145,6 +1146,7 @@ pub mod implementation {
                     file.next();
                     break;
                 }
+                Some(']') => break,
                 Some(ch) if ch.is_whitespace() => break,
                 Some(ch) if ch == ',' => {
                     file.next();
@@ -1233,6 +1235,7 @@ pub mod implementation {
                         match file.next() {
                             Some('(') => {
                                 break 'parse_single_type if name.as_str() == "fn" {
+                                    // syntax: fn((arg1 arg2 arg3) returns1 (arg1 arg2) returns2)
                                     let mut fn_types = vec![];
                                     loop {
                                         file.skip_whitespaces();
@@ -1240,6 +1243,7 @@ pub mod implementation {
                                             Some('(') => {
                                                 let mut args = vec![];
                                                 loop {
+                                                    file.skip_whitespaces();
                                                     let (t, fn_args_closed) =
                                                         parse_type_adv(file, true)?;
                                                     args.push(t);
@@ -1247,39 +1251,9 @@ pub mod implementation {
                                                         break;
                                                     }
                                                 }
-                                                let out = if let Some(v) = args.pop() {
-                                                    v
-                                                } else {
-                                                    VSingleType::Tuple(vec![]).to()
-                                                };
-                                                fn get_all_single_types(
-                                                    types: &mut Vec<VType>,
-                                                ) -> Vec<Vec<VSingleType>>
-                                                {
-                                                    if types.is_empty() {
-                                                        vec![]
-                                                    } else if types.len() == 1 {
-                                                        vec![types[0].types.clone()]
-                                                    } else {
-                                                        let last = types.pop().unwrap();
-                                                        let o = get_all_single_types(types);
-                                                        let mut out = Vec::with_capacity(
-                                                            o.len() * last.types.len(),
-                                                        );
-                                                        for other in o {
-                                                            for t in &last.types {
-                                                                let mut vec = other.clone();
-                                                                vec.push(t.clone());
-                                                                out.push(vec);
-                                                            }
-                                                        }
-                                                        types.push(last);
-                                                        out
-                                                    }
-                                                }
-                                                for t in get_all_single_types(&mut args) {
-                                                    fn_types.push((t, out.clone()));
-                                                }
+                                                file.skip_whitespaces();
+                                                let out = parse_type(file)?;
+                                                fn_types.push((args, out));
                                             }
                                             Some(')') => break,
                                             Some(other) => {

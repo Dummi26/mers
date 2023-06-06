@@ -1,5 +1,5 @@
 use std::{
-    eprintln,
+    assert_eq, eprintln,
     ops::Deref,
     sync::{Arc, Mutex},
 };
@@ -17,7 +17,7 @@ pub enum RStatementEnum {
     Value(VData),
     Tuple(Vec<RStatement>),
     List(Vec<RStatement>),
-    Variable(Arc<Mutex<VData>>, VType, bool),
+    Variable(Arc<Mutex<(VData, VType)>>, bool),
     FunctionCall(Arc<RFunction>, Vec<RStatement>),
     BuiltinFunctionCall(BuiltinFunction, Vec<RStatement>),
     LibFunctionCall(usize, usize, Vec<RStatement>, VType),
@@ -60,48 +60,51 @@ impl RBlock {
 
 #[derive(Clone, Debug)]
 pub struct RFunction {
-    pub inputs: Vec<Arc<Mutex<VData>>>,
+    pub inputs: Vec<Arc<Mutex<(VData, VType)>>>,
     pub input_types: Vec<VType>,
-    pub input_output_map: Vec<(Vec<VSingleType>, VType)>,
     pub statement: RStatement,
+    pub out_map: Vec<(Vec<VType>, VType)>,
+}
+impl PartialEq for RFunction {
+    fn eq(&self, other: &Self) -> bool {
+        false
+    }
+}
+impl Eq for RFunction {
+    fn assert_receiver_is_total_eq(&self) {}
 }
 impl RFunction {
     pub fn run(&self, info: &GSInfo) -> VData {
         self.statement.run(info)
     }
-    pub fn out(&self, input_types: &Vec<VSingleType>, info: &GlobalScriptInfo) -> VType {
-        self.input_output_map
+    pub fn out(&self, input_types: &Vec<VType>, info: &GlobalScriptInfo) -> Option<VType> {
+        // NOTE: This can ONLY use self.out_map, because it's used by the VSingleType.fits_in method.
+        let mut empty = true;
+        let out = self
+            .out_map
             .iter()
-            .find_map(|v| {
-                if v.0 == *input_types {
-                    Some(v.1.clone())
+            .fold(VType::empty(), |t, (fn_in, fn_out)| {
+                if fn_in.len() == (input_types.len())
+                    && fn_in
+                        .iter()
+                        .zip(input_types.iter())
+                        .all(|(fn_in, arg)| arg.fits_in(fn_in, info).is_empty())
+                {
+                    empty = false;
+                    t | fn_out.clone()
                 } else {
-                    None
+                    t
                 }
-            })
-            .unwrap_or_else(|| self.statement.out(info))
-    }
-    pub fn out_vt(&self, input_types: &Vec<VType>, info: &GlobalScriptInfo) -> VType {
-        let mut out = VType { types: vec![] };
-        for (itype, otype) in self.input_output_map.iter() {
-            if itype
-                .iter()
-                .zip(input_types.iter())
-                .all(|(expected, got)| got.contains(expected, info))
-            {
-                out = out | otype;
-            }
-        }
-        if out.types.is_empty() {
-            // this can happen if we used the `any` type in our function signature,
-            // so in that case we just return the most broad type possible.
-            self.statement.out(info)
+            });
+        if empty {
+            None
         } else {
-            out
+            Some(out)
         }
     }
-    pub fn out_all(&self, info: &GlobalScriptInfo) -> VType {
-        self.statement.out(info)
+    pub fn out_all(&self, _info: &GlobalScriptInfo) -> VType {
+        // self.statement.out(info)
+        self.out_map.iter().fold(VType::empty(), |t, (_, v)| t | v)
     }
     pub fn in_types(&self) -> &Vec<VType> {
         &self.input_types
@@ -179,16 +182,16 @@ impl RStatementEnum {
                 }
                 VDataEnum::List(out, w).to()
             }
-            Self::Variable(v, _, is_ref) => {
+            Self::Variable(v, is_ref) => {
                 if *is_ref {
-                    VDataEnum::Reference(v.lock().unwrap().clone_mut()).to()
+                    VDataEnum::Reference(v.lock().unwrap().0.clone_mut()).to()
                 } else {
-                    v.lock().unwrap().clone_data()
+                    v.lock().unwrap().0.clone_data()
                 }
             }
             Self::FunctionCall(func, args) => {
                 for (i, input) in func.inputs.iter().enumerate() {
-                    input.lock().unwrap().assign(args[i].run(info));
+                    input.lock().unwrap().0.assign(args[i].run(info));
                 }
                 func.run(info)
             }
@@ -333,22 +336,25 @@ impl RStatementEnum {
                 types
             })
             .into(),
-            Self::Variable(_, t, is_ref) => {
+            Self::Variable(t, is_ref) => {
                 if *is_ref {
                     VType {
                         types: t
+                            .lock()
+                            .unwrap()
+                            .1
                             .types
                             .iter()
                             .map(|t| VSingleType::Reference(Box::new(t.clone())))
                             .collect(),
                     }
                 } else {
-                    t.clone()
+                    t.lock().unwrap().1.clone()
                 }
             }
-            Self::FunctionCall(f, args) => {
-                f.out_vt(&args.iter().map(|v| v.out(info)).collect(), info)
-            }
+            Self::FunctionCall(f, args) => f
+                .out(&args.iter().map(|v| v.out(info)).collect(), info)
+                .expect("invalid args for function -> can't determine output type"),
             Self::LibFunctionCall(.., out) => out.clone(),
             Self::Block(b) => b.out(info),
             Self::If(_, a, b) => {

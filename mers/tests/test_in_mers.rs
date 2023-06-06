@@ -14,10 +14,13 @@ fn run_all() {
                 eprintln!("Checking {}", file_name);
                 let mut file = File::new(fs::read_to_string(file.path()).unwrap(), file.path());
                 // has to return true, otherwise the test will fail
-                assert!(matches!(
-                    parse::parse(&mut file).unwrap().run(vec![]).inner_cloned(),
-                    VDataEnum::Bool(true)
-                ));
+                assert!(
+                    matches!(
+                        parse::parse(&mut file).unwrap().run(vec![]).inner_cloned(),
+                        VDataEnum::Bool(true)
+                    ),
+                    "{file_name} didn't return true!"
+                );
             }
         }
     }

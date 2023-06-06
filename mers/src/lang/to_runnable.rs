@@ -4,6 +4,7 @@ use std::{
     eprintln,
     fmt::{Debug, Display},
     sync::{Arc, Mutex},
+    time::Duration,
 };
 
 use crate::{
@@ -198,7 +199,7 @@ impl FormatGs for ToRunnableError {
 // Local, used to keep local variables separated
 #[derive(Clone)]
 struct LInfo {
-    vars: HashMap<String, (Arc<Mutex<VData>>, VType)>,
+    vars: HashMap<String, Arc<Mutex<(VData, VType)>>>,
     fns: HashMap<String, Vec<Arc<RFunction>>>,
 }
 
@@ -206,17 +207,6 @@ pub fn to_runnable(
     s: SFunction,
     mut ginfo: GlobalScriptInfo,
 ) -> Result<RScript, (ToRunnableError, GSInfo)> {
-    if s.inputs.len() != 1 || s.inputs[0].0 != "args" {
-        return Err((ToRunnableError::MainWrongInput, ginfo.to_arc()));
-    }
-    assert_eq!(
-        s.inputs[0].1,
-        VType {
-            types: vec![VSingleType::List(VType {
-                types: vec![VSingleType::String],
-            })],
-        }
-    );
     let func = match function(
         &s,
         &mut ginfo,
@@ -235,44 +225,6 @@ pub fn to_runnable(
     }
 }
 
-// go over every possible known-type input for the given function, returning all possible RFunctions.
-fn get_all_functions(
-    s: &SFunction,
-    ginfo: &mut GlobalScriptInfo,
-    linfo: &mut LInfo,
-    input_vars: &Vec<Arc<Mutex<VData>>>,
-    inputs: &mut Vec<VSingleType>,
-    out: &mut Vec<(Vec<VSingleType>, VType)>,
-) -> Result<(), ToRunnableError> {
-    if s.inputs.len() > inputs.len() {
-        let input_here = &s.inputs[inputs.len()].1;
-        for t in &input_here.types {
-            let mut t = t.clone();
-            stype(&mut t, ginfo)?;
-            inputs.push(t);
-            get_all_functions(s, ginfo, linfo, input_vars, inputs, out)?;
-            inputs.pop();
-        }
-        Ok(())
-    } else {
-        // set the types
-        for (varid, vartype) in s.inputs.iter().zip(inputs.iter()) {
-            linfo.vars.get_mut(&varid.0).unwrap().1 = {
-                let mut vartype = vartype.clone();
-                stype(&mut vartype, ginfo)?;
-                vartype.to()
-            }
-        }
-        // the statement is parsed multiple times (this is why we get duplicates in stderr):
-        // - n times for the function args to generate the input-output map
-        // - 1 more time here, where the function args aren't single types
-        out.push((
-            inputs.clone(),
-            statement(&s.statement, ginfo, &mut linfo.clone())?.out(ginfo),
-        ));
-        Ok(())
-    }
-}
 fn function(
     s: &SFunction,
     ginfo: &mut GlobalScriptInfo,
@@ -283,32 +235,74 @@ fn function(
     for (iname, itype) in &s.inputs {
         let mut itype = itype.to_owned();
         stypes(&mut itype, ginfo)?;
-        let var = Arc::new(Mutex::new(VData::new_placeholder()));
-        linfo
-            .vars
-            .insert(iname.clone(), (Arc::clone(&var), itype.clone()));
+        let var = Arc::new(Mutex::new((VData::new_placeholder(), itype.clone())));
+        linfo.vars.insert(iname.clone(), Arc::clone(&var));
         input_vars.push(var);
         input_types.push(itype);
     }
-    let mut all_outs = vec![];
-    get_all_functions(
-        s,
-        ginfo,
-        &mut linfo,
-        &input_vars,
-        &mut Vec::with_capacity(s.inputs.len()),
-        &mut all_outs,
-    )?;
     // set the types to all possible types (get_all_functions sets the types to one single type to get the return type of the block for that case)
     for (varid, vartype) in s.inputs.iter().zip(input_types.iter()) {
-        linfo.vars.get_mut(&varid.0).unwrap().1 = vartype.clone();
+        linfo.vars.get(&varid.0).unwrap().lock().unwrap().1 = vartype.clone();
     }
-    Ok(RFunction {
+    let mut o = RFunction {
+        out_map: vec![],
         inputs: input_vars,
         input_types,
-        input_output_map: all_outs,
         statement: statement(&s.statement, ginfo, &mut linfo.clone())?,
-    })
+    };
+    o.out_map = {
+        let mut map = vec![];
+        let mut indices: Vec<_> = o.input_types.iter().map(|_| 0).collect();
+        // like counting: advance first index, when we reach the end, reset to zero and advance the next index, ...
+        loop {
+            let mut current_types = Vec::with_capacity(o.input_types.len());
+            let mut adv = true;
+            let mut was_last = o.input_types.is_empty();
+            for i in 0..o.input_types.len() {
+                current_types.push(match o.input_types[i].types.get(indices[i]) {
+                    Some(v) => v.clone().to(),
+                    None => VType::empty(),
+                });
+                if adv {
+                    if indices[i] + 1 < o.input_types[i].types.len() {
+                        indices[i] += 1;
+                        adv = false;
+                    } else {
+                        indices[i] = 0;
+                        // we just reset the last index back to 0 - if we don't break
+                        // from the loop, we will just start all over again.
+                        if i + 1 == o.input_types.len() {
+                            was_last = true;
+                        }
+                    }
+                }
+            }
+            // let out = o.out(&current_types, ginfo).expect("invalid args????");
+            let out = {
+                let mut actual = Vec::with_capacity(o.inputs.len());
+                // simulate these variable types
+                for (fn_input, c_type) in o.inputs.iter().zip(current_types.iter()) {
+                    actual.push(std::mem::replace(
+                        &mut fn_input.lock().unwrap().1,
+                        c_type.clone(),
+                    ));
+                }
+                // not get the return type if these were the actual types
+                let out = o.statement.out(ginfo);
+                // reset
+                for (fn_input, actual) in o.inputs.iter().zip(actual) {
+                    std::mem::replace(&mut fn_input.lock().unwrap().1, actual);
+                }
+                // return
+                out
+            };
+            map.push((current_types, out));
+            if was_last {
+                break map;
+            }
+        }
+    };
+    Ok(o)
 }
 
 fn block(
@@ -364,7 +358,7 @@ pub fn stype(t: &mut VSingleType, ginfo: &mut GlobalScriptInfo) -> Result<(), To
         VSingleType::Function(io_map) => {
             for io_variant in io_map {
                 for i in &mut io_variant.0 {
-                    stype(i, ginfo)?;
+                    stypes(i, ginfo)?;
                 }
                 stypes(&mut io_variant.1, ginfo)?;
             }
@@ -449,24 +443,14 @@ fn statement_adv(
                     let var = VData::new_placeholder();
                     #[cfg(debug_assertions)]
                     let var = VData::new_placeholder_with_name(v.to_owned());
-                    let var_arc = Arc::new(Mutex::new(var));
-                    linfo
-                        .vars
-                        .insert(v.to_owned(), (Arc::clone(&var_arc), t.clone()));
-                    RStatementEnum::Variable(var_arc, t.clone(), true)
+                    let var_arc = Arc::new(Mutex::new((var, t.clone())));
+                    linfo.vars.insert(v.to_owned(), Arc::clone(&var_arc));
+                    RStatementEnum::Variable(var_arc, true)
                 } else {
                     return Err(ToRunnableError::UseOfUndefinedVariable(v.clone()));
                 }
             } else if let Some(var) = existing_var {
-                RStatementEnum::Variable(
-                    Arc::clone(&var.0),
-                    {
-                        let mut v = var.1.clone();
-                        stypes(&mut v, ginfo)?;
-                        v
-                    },
-                    *is_ref,
-                )
+                RStatementEnum::Variable(Arc::clone(&var), *is_ref)
             } else {
                 return Err(ToRunnableError::UseOfUndefinedVariable(v.clone()));
             }
@@ -477,45 +461,23 @@ fn statement_adv(
             for arg in args.iter() {
                 rargs.push(statement(arg, ginfo, linfo)?);
             }
-            fn check_fn_args(
-                args: &Vec<VType>,
-                inputs: &Vec<(Vec<VType>, VType)>,
-                ginfo: &GlobalScriptInfo,
-            ) -> Option<VType> {
-                let mut fit_any = false;
-                let mut out = VType::empty();
-                for (inputs, output) in inputs {
-                    if args.len() == inputs.len()
-                        && args
-                            .iter()
-                            .zip(inputs.iter())
-                            .all(|(arg, input)| arg.fits_in(input, ginfo).is_empty())
-                    {
-                        fit_any = true;
-                        out = out | output;
-                    }
-                }
-                if fit_any {
-                    Some(out)
-                } else {
-                    None
-                }
-            }
             let arg_types: Vec<_> = rargs.iter().map(|v| v.out(ginfo)).collect();
+            fn check_fn_args(
+                arg_types: &Vec<VType>,
+                func: &RFunction,
+                ginfo: &GlobalScriptInfo,
+            ) -> bool {
+                func.inputs.len() == arg_types.len()
+                    && func
+                        .inputs
+                        .iter()
+                        .zip(arg_types.iter())
+                        .all(|(fn_in, arg)| arg.fits_in(&fn_in.lock().unwrap().1, ginfo).is_empty())
+            }
             if let Some(funcs) = linfo.fns.get(v) {
                 'find_func: {
                     for func in funcs.iter().rev() {
-                        if let Some(_out) = check_fn_args(
-                            &arg_types,
-                            &func
-                                .input_output_map
-                                .iter()
-                                .map(|v| {
-                                    (v.0.iter().map(|v| v.clone().to()).collect(), v.1.to_owned())
-                                })
-                                .collect(),
-                            ginfo,
-                        ) {
+                        if check_fn_args(&arg_types, &func, ginfo) {
                             break 'find_func RStatementEnum::FunctionCall(
                                 Arc::clone(&func),
                                 rargs,
@@ -545,14 +507,27 @@ fn statement_adv(
                     if let Some((libid, fnid)) = ginfo.lib_fns.get(v) {
                         let lib = &ginfo.libs[*libid];
                         let libfn = &lib.registered_fns[*fnid];
-                        if let Some(fn_out) = check_fn_args(&arg_types, &libfn.1, ginfo) {
-                            RStatementEnum::LibFunctionCall(*libid, *fnid, rargs, fn_out.clone())
-                        } else {
+                        let mut empty = true;
+                        let fn_out = libfn.1.iter().fold(VType::empty(), |t, (fn_in, fn_out)| {
+                            if fn_in.len() == arg_types.len()
+                                && fn_in
+                                    .iter()
+                                    .zip(arg_types.iter())
+                                    .all(|(fn_in, arg)| arg.fits_in(fn_in, ginfo).is_empty())
+                            {
+                                empty = false;
+                                t | fn_out.clone()
+                            } else {
+                                t
+                            }
+                        });
+                        if empty {
                             return Err(ToRunnableError::WrongArgsForLibFunction(
                                 v.to_owned(),
                                 arg_types,
                             ));
                         }
+                        RStatementEnum::LibFunctionCall(*libid, *fnid, rargs, fn_out.clone())
                     } else {
                         return Err(ToRunnableError::UseOfUndefinedFunction(v.clone()));
                     }

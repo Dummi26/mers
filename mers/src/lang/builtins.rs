@@ -561,14 +561,26 @@ impl BuiltinFunction {
                     let mut out = VType { types: vec![] };
                     for func in &funcs.types {
                         if let VSingleType::Function(io) = func {
-                            for (i, o) in io {
-                                if i.iter()
-                                    .zip(input.iter().skip(1))
-                                    .all(|(i, input)| input.contains(i, info))
+                            let mut empty = true;
+                            let fn_out = io.iter().fold(VType::empty(), |t, (fn_in, fn_out)| {
+                                if fn_in.len() == (input.len() - 1)
+                                    && fn_in
+                                        .iter()
+                                        .zip(input.iter().skip(1))
+                                        .all(|(fn_in, arg)| arg.fits_in(fn_in, info).is_empty())
                                 {
-                                    out = out | o;
+                                    empty = false;
+                                    t | fn_out.clone()
+                                } else {
+                                    t
                                 }
+                            });
+                            if empty {
+                                unreachable!(
+                                    "fn args are incorrect for builtin run() or thread()!"
+                                );
                             }
+                            out = out | fn_out;
                         } else {
                             unreachable!("run called, first arg not a function")
                         }
@@ -961,7 +973,7 @@ impl BuiltinFunction {
                     }
                     for (i, var) in f.inputs.iter().enumerate() {
                         let val = args[i + 1].run(info).clone_data();
-                        *var.lock().unwrap() = val;
+                        var.lock().unwrap().0 = val;
                     }
                     f.run(info)
                 } else {
@@ -977,9 +989,14 @@ impl BuiltinFunction {
                     for (i, var) in f.inputs.iter().enumerate() {
                         let val = args[i + 1].run(info).clone_data();
                         run_input_types.push(val.out_single());
-                        *var.lock().unwrap() = val;
+                        var.lock().unwrap().0 = val;
                     }
-                    let out_type = f.out(&run_input_types, &info);
+                    let out_type = f
+                        .out(
+                            &run_input_types.iter().map(|v| v.clone().into()).collect(),
+                            &info,
+                        )
+                        .unwrap();
                     let info = Arc::clone(info);
                     let f = Arc::clone(f);
                     VDataEnum::Thread(
