@@ -495,8 +495,9 @@ impl ByteDataA for VDataEnum {
                 vec.push(b't');
                 c.as_byte_data(vec);
             }
-            Self::List(_, data) => {
+            Self::List(t, data) => {
                 vec.push(b'l');
+                t.as_byte_data(vec);
                 data.as_byte_data(vec);
             }
             // TODO?
@@ -525,13 +526,10 @@ impl ByteData for VDataEnum {
             b'f' => Self::Float(ByteData::from_byte_data(data)?),
             b'"' => Self::String(ByteData::from_byte_data(data)?),
             b't' => Self::Tuple(ByteData::from_byte_data(data)?),
-            b'l' => {
-                let entries: Vec<VData> = ByteData::from_byte_data(data)?;
-                Self::List(
-                    entries.iter().fold(VType::empty(), |t, v| t | v.out()),
-                    entries,
-                )
-            }
+            b'l' => Self::List(
+                ByteData::from_byte_data(data)?,
+                ByteData::from_byte_data(data)?,
+            ),
             b'E' => Self::EnumVariant(
                 ByteData::from_byte_data(data)?,
                 Box::new(ByteData::from_byte_data(data)?),

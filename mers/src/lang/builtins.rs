@@ -381,7 +381,7 @@ impl BuiltinFunction {
                     if let Some(true) = vec.is_reference() {
                         if let Some(t) = vec.get_any(info) {
                             el.fits_in(
-                                &t.dereference()
+                                &t.dereference(info)
                                     .expect("running get() on &[ ...] should give a reference"),
                                 info,
                             )
@@ -402,7 +402,7 @@ impl BuiltinFunction {
                     if let Some(true) = vec.is_reference() {
                         if let Some(t) = vec.get_any(info) {
                             el.fits_in(
-                                &t.dereference()
+                                &t.dereference(info)
                                     .expect("running get() on a &[ ...] should give a reference."),
                                 info,
                             )
@@ -519,10 +519,10 @@ impl BuiltinFunction {
                     match t {
                         VSingleType::Tuple(v) => {
                             if !v.is_empty() {
-                                out = out | &v[0];
+                                out.add_typesr(&v[0], info)
                             }
                         }
-                        v => out = out | v.clone().to(),
+                        v => out.add_typer(v, info),
                     }
                 }
                 out
@@ -532,15 +532,15 @@ impl BuiltinFunction {
                 for t in &input[0].types {
                     match t {
                         VSingleType::EnumVariant(..) | VSingleType::EnumVariantS(..) => (),
-                        t => out = out | t.clone().to(),
+                        t => out.add_typer(t, info),
                     }
                 }
                 out
             }
-            Self::NoEnum => input[0].clone().noenum(),
-            Self::Matches => input[0].matches().1,
+            Self::NoEnum => input[0].clone().noenum(info),
+            Self::Matches => input[0].matches(info).1,
             Self::Clone => input[0]
-                .dereference()
+                .dereference(info)
                 .expect("type is a reference, so it can be dereferenced"),
             // []
             Self::Print | Self::Println | Self::Debug | Self::Sleep => VType {
@@ -562,25 +562,25 @@ impl BuiltinFunction {
                     for func in &funcs.types {
                         if let VSingleType::Function(io) = func {
                             let mut empty = true;
-                            let fn_out = io.iter().fold(VType::empty(), |t, (fn_in, fn_out)| {
-                                if fn_in.len() == (input.len() - 1)
-                                    && fn_in
-                                        .iter()
-                                        .zip(input.iter().skip(1))
-                                        .all(|(fn_in, arg)| arg.fits_in(fn_in, info).is_empty())
-                                {
-                                    empty = false;
-                                    t | fn_out.clone()
-                                } else {
+                            let fn_out =
+                                io.iter().fold(VType::empty(), |mut t, (fn_in, fn_out)| {
+                                    if fn_in.len() == (input.len() - 1)
+                                        && fn_in
+                                            .iter()
+                                            .zip(input.iter().skip(1))
+                                            .all(|(fn_in, arg)| arg.fits_in(fn_in, info).is_empty())
+                                    {
+                                        empty = false;
+                                        t.add_typesr(fn_out, info);
+                                    }
                                     t
-                                }
-                            });
+                                });
                             if empty {
                                 unreachable!(
                                     "fn args are incorrect for builtin run() or thread()!"
                                 );
                             }
-                            out = out | fn_out;
+                            out.add_types(fn_out, info);
                         } else {
                             unreachable!("run called, first arg not a function")
                         }
@@ -599,7 +599,7 @@ impl BuiltinFunction {
                     let mut out = VType { types: vec![] };
                     for v in &v.types {
                         if let VSingleType::Thread(v) = v {
-                            out = out | v;
+                            out.add_typesr(v, info);
                         } else {
                             unreachable!("await called with non-thread arg")
                         }
@@ -611,7 +611,7 @@ impl BuiltinFunction {
             }
             Self::Pop => {
                 if let Some(v) = input.first() {
-                    if let Some(v) = v.dereference() {
+                    if let Some(v) = v.dereference(info) {
                         VType {
                             types: vec![
                                 VSingleType::Tuple(vec![]),
@@ -629,14 +629,14 @@ impl BuiltinFunction {
             }
             Self::Remove => {
                 if input[1].fits_in(&VSingleType::Int.to(), info).is_empty() {
-                    if let Some(v) = input[0].dereference() {
+                    if let Some(v) = input[0].dereference(info) {
                         VType {
                             types: vec![
                                 VSingleType::Tuple(vec![]),
                                 VSingleType::Tuple(vec![v
                                     .get_any(info)
                                     .expect("cannot use get on this type")
-                                    .dereference()
+                                    .dereference(info)
                                     .expect(
                                         "running get_any() on &[ ...] should give a reference...",
                                     )]),
@@ -745,7 +745,7 @@ impl BuiltinFunction {
                             (false, false) => (),
                         }
                     }
-                    let o = match (
+                    let mut o = match (
                         (
                             input[0].contains(&VSingleType::Int, info),
                             input[0].contains(&VSingleType::Float, info),
@@ -763,10 +763,9 @@ impl BuiltinFunction {
                         _ => VSingleType::Float.to(),
                     };
                     if might_be_string {
-                        o | VSingleType::String.to()
-                    } else {
-                        o
+                        o.add_type(VSingleType::String, info);
                     }
+                    o
                 } else {
                     unreachable!("called add/sub/mul/div/mod/pow with args != 2")
                 }

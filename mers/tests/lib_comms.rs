@@ -1,6 +1,6 @@
 use std::io::Cursor;
 
-use mers_libs::prelude::*;
+use mers_libs::{prelude::*, GlobalScriptInfo};
 use mers_libs::{ByteData, ByteDataA};
 
 #[test]
@@ -14,9 +14,10 @@ fn list_type() {
     );
 
     let a = VSingleType::List(VSingleType::Int.to()).to();
-    assert_eq!(
-        VType::from_byte_data(&mut Cursor::new(a.as_byte_data_vec())).unwrap(),
-        a
+    assert!(
+        VType::from_byte_data(&mut Cursor::new(a.as_byte_data_vec()))
+            .unwrap()
+            .eq(&a, &GlobalScriptInfo::default()),
     );
 
     let a = VSingleType::Tuple(vec![
@@ -27,8 +28,9 @@ fn list_type() {
         VSingleType::EnumVariant(12, VSingleType::Float.to()).to(),
     ])
     .to();
-    assert_eq!(
-        VType::from_byte_data(&mut Cursor::new(a.as_byte_data_vec())).unwrap(),
-        a
+    assert!(
+        VType::from_byte_data(&mut Cursor::new(a.as_byte_data_vec()))
+            .unwrap()
+            .eq(&a, &GlobalScriptInfo::default())
     );
 }

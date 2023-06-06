@@ -508,19 +508,21 @@ fn statement_adv(
                         let lib = &ginfo.libs[*libid];
                         let libfn = &lib.registered_fns[*fnid];
                         let mut empty = true;
-                        let fn_out = libfn.1.iter().fold(VType::empty(), |t, (fn_in, fn_out)| {
-                            if fn_in.len() == arg_types.len()
-                                && fn_in
-                                    .iter()
-                                    .zip(arg_types.iter())
-                                    .all(|(fn_in, arg)| arg.fits_in(fn_in, ginfo).is_empty())
-                            {
-                                empty = false;
-                                t | fn_out.clone()
-                            } else {
-                                t
-                            }
-                        });
+                        let fn_out =
+                            libfn
+                                .1
+                                .iter()
+                                .fold(VType::empty(), |mut t, (fn_in, fn_out)| {
+                                    if fn_in.len() == arg_types.len()
+                                        && fn_in.iter().zip(arg_types.iter()).all(|(fn_in, arg)| {
+                                            arg.fits_in(fn_in, ginfo).is_empty()
+                                        })
+                                    {
+                                        empty = false;
+                                        t.add_typesr(fn_out, ginfo);
+                                    }
+                                    t
+                                });
                         if empty {
                             return Err(ToRunnableError::WrongArgsForLibFunction(
                                 v.to_owned(),
@@ -579,7 +581,7 @@ fn statement_adv(
         SStatementEnum::For(v, c, b) => {
             let mut linfo = linfo.clone();
             let container = statement(&c, ginfo, &mut linfo)?;
-            let inner = container.out(ginfo).inner_types();
+            let inner = container.out(ginfo).inner_types(ginfo);
             if inner.types.is_empty() {
                 return Err(ToRunnableError::ForLoopContainerHasNoInnerTypes);
             }
@@ -601,7 +603,7 @@ fn statement_adv(
                     stypes(&mut v, ginfo)?;
                     v
                 };
-                covered_types = covered_types | &case_type;
+                covered_types.add_typesr(&case_type, ginfo);
                 ncases.push((
                     case_type.clone(),
                     statement_adv(
@@ -633,7 +635,7 @@ fn statement_adv(
             for (condition, assign_to, action) in cases.iter() {
                 let mut linfo = linfo.clone();
                 let condition = statement(condition, ginfo, &mut linfo)?;
-                let (can_fail, matches) = condition.out(ginfo).matches();
+                let (can_fail, matches) = condition.out(ginfo).matches(ginfo);
                 let assign_to = statement_adv(
                     assign_to,
                     ginfo,
@@ -647,7 +649,7 @@ fn statement_adv(
                 }
             }
             if may_not_match {
-                out_type = out_type | VSingleType::Tuple(vec![]).to();
+                out_type.add_type(VSingleType::Tuple(vec![]), ginfo);
             }
 
             RStatementEnum::Match(ncases).to()

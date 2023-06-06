@@ -14,12 +14,12 @@ use super::{
 
 use super::global_info::LogMsg;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct VType {
     pub types: Vec<VSingleType>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub enum VSingleType {
     Any,
     Bool,
@@ -128,21 +128,21 @@ impl VType {
     pub fn get(&self, i: usize, info: &GlobalScriptInfo) -> Option<VType> {
         let mut out = VType { types: vec![] };
         for t in &self.types {
-            out = out | t.get(i, info)?; // if we can't use *get* on one type, we can't use it at all.
+            out.add_types(t.get(i, info)?, info); // if we can't use *get* on one type, we can't use it at all.
         }
         Some(out)
     }
     pub fn get_always(&self, i: usize, info: &GlobalScriptInfo) -> Option<VType> {
         let mut out = VType { types: vec![] };
         for t in &self.types {
-            out = out | t.get_always(i, info)?; // if we can't use *get* on one type, we can't use it at all.
+            out.add_types(t.get_always(i, info)?, info); // if we can't use *get* on one type, we can't use it at all.
         }
         Some(out)
     }
     pub fn get_always_ref(&self, i: usize, info: &GlobalScriptInfo) -> Option<VType> {
         let mut out = VType { types: vec![] };
         for t in &self.types {
-            out = out | t.get_always_ref(i, info)?; // if we can't use *get* on one type, we can't use it at all.
+            out.add_types(t.get_always_ref(i, info)?, info); // if we can't use *get* on one type, we can't use it at all.
         }
         Some(out)
     }
@@ -165,10 +165,10 @@ impl VType {
         }
     }
     /// returns Some(t) where t is the type you get from dereferencing self or None if self contains even a single type that cannot be dereferenced.
-    pub fn dereference(&self) -> Option<Self> {
+    pub fn dereference(&self, info: &GlobalScriptInfo) -> Option<Self> {
         let mut out = Self::empty();
         for t in self.types.iter() {
-            out = out | t.deref()?.to();
+            out.add_type(t.deref()?, info);
         }
         Some(out)
     }
@@ -194,7 +194,10 @@ impl VSingleType {
             | Self::Function(..)
             | Self::Thread(..) => None,
             Self::String => Some(VSingleType::String.into()),
-            Self::Tuple(t) => Some(t.iter().fold(VType { types: vec![] }, |a, b| a | b)),
+            Self::Tuple(t) => Some(t.iter().fold(VType::empty(), |mut a, b| {
+                a.add_typesr(b, info);
+                a
+            })),
             Self::List(t) => Some(t.clone()),
             Self::Reference(r) => r.get_any_ref(info),
             Self::EnumVariant(_, t) => t.get_any(info),
@@ -212,10 +215,10 @@ impl VSingleType {
             | Self::Function(..)
             | Self::Thread(..) => None,
             Self::String => Some(VSingleType::String.into()),
-            Self::Tuple(t) => Some(
-                t.iter()
-                    .fold(VType { types: vec![] }, |a, b| a | b.reference()),
-            ),
+            Self::Tuple(t) => Some(t.iter().fold(VType::empty(), |mut a, b| {
+                a.add_types(b.reference(), info);
+                a
+            })),
             Self::List(t) => Some(t.reference()),
             // TODO: idk if this is right...
             Self::Reference(r) => r.get_any_ref(info),
@@ -243,14 +246,14 @@ impl VType {
     pub fn get_any(&self, info: &GlobalScriptInfo) -> Option<VType> {
         let mut out = VType { types: vec![] };
         for t in &self.types {
-            out = out | t.get_any(info)?; // if we can't use *get* on one type, we can't use it at all.
+            out.add_types(t.get_any(info)?, info); // if we can't use *get* on one type, we can't use it at all.
         }
         Some(out)
     }
     pub fn get_any_ref(&self, info: &GlobalScriptInfo) -> Option<VType> {
         let mut out = VType { types: vec![] };
         for t in &self.types {
-            out = out | t.get_any_ref(info)?; // if we can't use *get* on one type, we can't use it at all.
+            out.add_types(t.get_any_ref(info)?, info); // if we can't use *get* on one type, we can't use it at all.
         }
         Some(out)
     }
@@ -272,12 +275,10 @@ impl VType {
         }
         no
     }
-    pub fn inner_types(&self) -> VType {
+    pub fn inner_types(&self, info: &GlobalScriptInfo) -> VType {
         let mut out = VType { types: vec![] };
         for t in &self.types {
-            for it in t.inner_types() {
-                out = out | it.to();
-            }
+            out.add_types(t.inner_types(info), info);
         }
         out
     }
@@ -289,36 +290,45 @@ impl VType {
     pub fn contains(&self, t: &VSingleType, info: &GlobalScriptInfo) -> bool {
         t.fits_in_type(self, info)
     }
-    pub fn noenum(self) -> Self {
+    pub fn noenum(self, info: &GlobalScriptInfo) -> Self {
         let mut o = Self { types: vec![] };
         for t in self.types {
-            o = o | t.noenum();
+            o.add_types(t.noenum(), info);
         }
         o
     }
 }
-impl BitOr for VType {
-    type Output = Self;
-    fn bitor(self, rhs: Self) -> Self::Output {
-        let mut types = self.types;
-        for t in rhs.types {
-            if !types.contains(&t) {
-                types.push(t)
-            }
-        }
-        Self { types }
+
+impl VType {
+    pub fn eq(&self, rhs: &Self, info: &GlobalScriptInfo) -> bool {
+        self.fits_in(rhs, info).is_empty() && rhs.fits_in(self, info).is_empty()
     }
 }
-impl BitOr<&VType> for VType {
-    type Output = Self;
-    fn bitor(self, rhs: &Self) -> Self::Output {
-        let mut types = self.types;
-        for t in &rhs.types {
-            if !types.contains(t) {
-                types.push(t.clone())
-            }
+impl VSingleType {
+    pub fn eq(&self, rhs: &Self, info: &GlobalScriptInfo) -> bool {
+        self.fits_in(rhs, info) && rhs.fits_in(self, info)
+    }
+}
+impl VType {
+    pub fn add_types(&mut self, new: Self, info: &GlobalScriptInfo) {
+        for t in new.types {
+            self.add_type(t, info)
         }
-        Self { types }
+    }
+    pub fn add_type(&mut self, new: VSingleType, info: &GlobalScriptInfo) {
+        if !self.contains(&new, info) {
+            self.types.push(new)
+        }
+    }
+    pub fn add_typesr(&mut self, new: &Self, info: &GlobalScriptInfo) {
+        for t in &new.types {
+            self.add_typer(t, info)
+        }
+    }
+    pub fn add_typer(&mut self, new: &VSingleType, info: &GlobalScriptInfo) {
+        if !self.contains(new, info) {
+            self.types.push(new.clone())
+        }
     }
 }
 
@@ -326,65 +336,49 @@ impl VSingleType {
     pub fn to(self) -> VType {
         VType { types: vec![self] }
     }
-    pub fn inner_types(&self) -> Vec<VSingleType> {
+    pub fn inner_types(&self, info: &GlobalScriptInfo) -> VType {
         match self {
             Self::Tuple(v) => {
-                let mut types = vec![];
+                let mut out = VType::empty();
                 for it in v {
-                    // the tuple values
-                    for it in &it.types {
-                        // the possible types for each value
-                        if !types.contains(it) {
-                            types.push(it.clone());
-                        }
-                    }
+                    out.add_typesr(it, info);
                 }
-                types
+                out
             }
-            Self::List(v) => v.types.clone(),
+            Self::List(v) => v.clone(),
             // NOTE: to make ints work in for loops
-            Self::Int => vec![Self::Int],
+            Self::Int => Self::Int.to(),
             // for iterators in for loops: the match of the function's returned value make up the inner type
             Self::Function(f) => {
                 // function that takes no inputs
                 if let Some(out) = f.iter().find_map(|(args, out)| {
                     if args.is_empty() {
-                        Some(out.clone().inner_types())
+                        Some(out.clone())
                     } else {
                         None
                     }
                 }) {
-                    out.types
+                    out
                 } else {
-                    vec![]
+                    VType::empty()
                 }
             }
-            Self::Reference(r) => r.inner_types_ref(),
-            _ => vec![],
+            Self::Reference(r) => r.inner_types_ref(info),
+            _ => VType::empty(),
         }
     }
-    pub fn inner_types_ref(&self) -> Vec<VSingleType> {
+    pub fn inner_types_ref(&self, info: &GlobalScriptInfo) -> VType {
         match self {
             Self::Tuple(v) => {
-                let mut types = vec![];
+                let mut out = VType::empty();
                 for it in v {
-                    // the tuple values
-                    for it in &it.types {
-                        // the possible types for each value
-                        if !types.contains(it) {
-                            types.push(Self::Reference(Box::new(it.clone())));
-                        }
-                    }
+                    out.add_types(it.reference(), info);
                 }
-                types
+                out
             }
-            Self::List(v) => v
-                .types
-                .iter()
-                .map(|v| Self::Reference(Box::new(v.clone())))
-                .collect(),
-            Self::Reference(r) => r.inner_types_ref(),
-            _ => vec![],
+            Self::List(v) => v.reference(),
+            Self::Reference(r) => r.inner_types_ref(info),
+            _ => VType::empty(),
         }
     }
     pub fn noenum(self) -> VType {

@@ -83,7 +83,7 @@ impl RFunction {
         let out = self
             .out_map
             .iter()
-            .fold(VType::empty(), |t, (fn_in, fn_out)| {
+            .fold(VType::empty(), |mut t, (fn_in, fn_out)| {
                 if fn_in.len() == (input_types.len())
                     && fn_in
                         .iter()
@@ -91,10 +91,9 @@ impl RFunction {
                         .all(|(fn_in, arg)| arg.fits_in(fn_in, info).is_empty())
                 {
                     empty = false;
-                    t | fn_out.clone()
-                } else {
-                    t
+                    t.add_typesr(fn_out, info);
                 }
+                t
             });
         if empty {
             None
@@ -102,9 +101,12 @@ impl RFunction {
             Some(out)
         }
     }
-    pub fn out_all(&self, _info: &GlobalScriptInfo) -> VType {
+    pub fn out_all(&self, info: &GlobalScriptInfo) -> VType {
         // self.statement.out(info)
-        self.out_map.iter().fold(VType::empty(), |t, (_, v)| t | v)
+        self.out_map.iter().fold(VType::empty(), |mut t, (_, v)| {
+            t.add_typesr(v, info);
+            t
+        })
     }
     pub fn in_types(&self) -> &Vec<VType> {
         &self.input_types
@@ -155,7 +157,7 @@ impl RStatement {
         }
         let mut o = self.statement.out(info);
         for _ in 0..self.derefs {
-            o = o.dereference().expect("can't dereference (out())");
+            o = o.dereference(info).expect("can't dereference (out())");
         }
         o
     }
@@ -177,7 +179,7 @@ impl RStatementEnum {
                 let mut out = VType { types: vec![] };
                 for v in v {
                     let val = v.run(info);
-                    out = out | val.out();
+                    out.add_types(val.out(), &info);
                     w.push(val);
                 }
                 VDataEnum::List(out, w).to()
@@ -331,7 +333,7 @@ impl RStatementEnum {
             Self::List(v) => VSingleType::List({
                 let mut types = VType { types: vec![] };
                 for t in v {
-                    types = types | t.out(info);
+                    types.add_types(t.out(info), info);
                 }
                 types
             })
@@ -358,14 +360,20 @@ impl RStatementEnum {
             Self::LibFunctionCall(.., out) => out.clone(),
             Self::Block(b) => b.out(info),
             Self::If(_, a, b) => {
+                let mut out = a.out(info);
                 if let Some(b) = b {
-                    a.out(info) | b.out(info)
+                    out.add_types(b.out(info), info);
                 } else {
-                    a.out(info) | VSingleType::Tuple(vec![]).to()
+                    out.add_type(VSingleType::Tuple(vec![]), info);
                 }
+                out
             }
-            Self::Loop(c) => c.out(info).matches().1,
-            Self::For(_, _, b) => VSingleType::Tuple(vec![]).to() | b.out(info).matches().1,
+            Self::Loop(c) => c.out(info).matches(info).1,
+            Self::For(_, _, b) => {
+                let mut out = b.out(info).matches(info).1;
+                out.add_type(VSingleType::Tuple(vec![]), info);
+                out
+            }
             Self::BuiltinFunctionCall(f, args) => {
                 f.returns(args.iter().map(|rs| rs.out(info)).collect(), info)
             }
@@ -379,7 +387,7 @@ impl RStatementEnum {
                 };
                 for switch_on in switch_on {
                     for (_on_type, _assign_to, case) in cases.iter() {
-                        out = out | case.out(info);
+                        out.add_types(case.out(info), info);
                     }
                 }
                 out
@@ -388,14 +396,14 @@ impl RStatementEnum {
                 let mut out = VType::empty();
                 let mut can_fail_to_match = true;
                 for (condition, _assign_to, action) in cases {
-                    out = out | action.out(info);
-                    if !condition.out(info).matches().0 {
+                    out.add_types(action.out(info), info);
+                    if !condition.out(info).matches(info).0 {
                         can_fail_to_match = false;
                         break;
                     }
                 }
                 if can_fail_to_match {
-                    out = out | VSingleType::Tuple(vec![]).to()
+                    out.add_type(VSingleType::Tuple(vec![]), info);
                 }
                 out
             }

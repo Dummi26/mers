@@ -417,13 +417,13 @@ impl VSingleType {
 }
 impl VType {
     /// returns (can_fail_to_match, matches_as)
-    pub fn matches(&self) -> (bool, VType) {
+    pub fn matches(&self, info: &GlobalScriptInfo) -> (bool, VType) {
         let mut can_fail = false;
         let mut matches_as = VType { types: vec![] };
         for t in self.types.iter() {
             let (f, t) = t.matches();
             can_fail |= f;
-            matches_as = matches_as | t;
+            matches_as.add_types(t, info);
         }
         (can_fail, matches_as)
     }
