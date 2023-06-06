@@ -1,6 +1,3 @@
-#![allow(unused)]
-#![allow(dead_code)]
-
 use std::{fs, time::Instant};
 
 use lang::global_info::ColorFormatMode;

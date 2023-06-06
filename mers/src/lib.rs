@@ -1,6 +1,3 @@
-#![allow(unused)]
-#![allow(dead_code)]
-
 mod lang;
 mod libs;
 mod parsing;
