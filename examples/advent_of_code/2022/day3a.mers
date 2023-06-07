@@ -1,0 +1,24 @@
+input := fs_read("/tmp/pin.txt").assume_no_enum().bytes_to_string().assume_no_enum()
+
+fn prio(s string) {
+    switch! "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".index_of(s) {
+        [] [] 0
+        int n n + 1
+    }
+}
+
+sum := 0
+for line input.regex(".*").assume_no_enum() {
+    left := line.substring(0, line.len() / 2)
+    right := line.substring(line.len() / 2)
+    for ch right.regex(".").assume_no_enum() {
+        if left.contains(ch) {
+            &sum = sum + prio(ch)
+            true
+        }
+    }
+    []
+}
+
+println("sum: " + sum.to_string())
+

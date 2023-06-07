@@ -1,0 +1,29 @@
+input := fs_read("/tmp/pin.txt").assume_no_enum().bytes_to_string().assume_no_enum()
+
+fn get_pair(s string) {
+    list := s.regex("[^-]+").assume_no_enum()
+    [
+        list.get(0).assume1().parse_int().assume1()
+        list.get(1).assume1().parse_int().assume1()
+    ]
+}
+
+count := 0
+for pair input.regex(".+").assume_no_enum() {
+    s := pair.regex("[^,]*").assume_no_enum()
+    s1 := get_pair(s.get(0).assume1())
+    s2 := get_pair(s.get(1).assume1())
+    if {
+        s1.0 <= s2.0 && s2.0 <= s1.1
+    } || {
+        s1.0 <= s2.1 && s2.1 <= s1.1
+    } || {
+        s2.0 <= s1.0 && s1.0 <= s2.1
+    } || {
+        s2.0 <= s1.1 && s1.1 <= s2.1
+    } {
+        &count = count + 1
+    }
+}
+
+println("count: " + count.to_string())
