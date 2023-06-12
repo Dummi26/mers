@@ -31,9 +31,9 @@ Now, create a new text file (or choose one from the examples) and run it: `mers 
 
 ## Docs
 
-[syntax cheat sheet](docs/syntax_cheat_sheet.md)
-
 [intro](docs/intro.md)
+
+[syntax cheat sheet](docs/syntax_cheat_sheet.md)
 
 [builtins](docs/builtins.md)
 

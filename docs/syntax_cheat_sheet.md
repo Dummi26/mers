@@ -10,7 +10,7 @@
 - list: `[<type> ...]`
 - function: `fn(<input-output-map>)` (might change? depends on implementation of generics)
 - thread: `thread(<return_type>)`
-- reference: `&<type>`
+- reference: `&<type>` or `&(<type1>/<type2>/<...>)`
 - enum: `EnumName(<type>)`
 - one of multiple types: `<type1>/<type2>/<type3>`
 
