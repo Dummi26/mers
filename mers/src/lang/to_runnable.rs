@@ -312,7 +312,7 @@ pub fn stype(t: &mut VSingleType, ginfo: &mut GlobalScriptInfo) -> Result<(), To
             }
         }
         VSingleType::List(t) => stypes(t, ginfo)?,
-        VSingleType::Reference(t) => stype(t, ginfo)?,
+        VSingleType::Reference(t) => stypes(t, ginfo)?,
         VSingleType::Thread(t) => stypes(t, ginfo)?,
         VSingleType::EnumVariantS(e, v) => {
             *t = VSingleType::EnumVariant(

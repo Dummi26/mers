@@ -486,7 +486,7 @@ impl BuiltinFunction {
                             &VType {
                                 types: vec![
                                     VSingleType::String,
-                                    VSingleType::Reference(Box::new(VSingleType::String)),
+                                    VSingleType::Reference(VSingleType::String.to()),
                                 ],
                             },
                             info,

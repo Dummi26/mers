@@ -448,7 +448,7 @@ impl ByteData for VSingleType {
             b'l' => Self::List(ByteData::from_byte_data(data)?),
             b'F' => Self::Function(ByteData::from_byte_data(data)?),
             b'T' => Self::Thread(ByteData::from_byte_data(data)?),
-            b'R' => Self::Reference(Box::new(ByteData::from_byte_data(data)?)),
+            b'R' => Self::Reference(ByteData::from_byte_data(data)?),
             b'e' => Self::EnumVariant(
                 ByteData::from_byte_data(data)?,
                 ByteData::from_byte_data(data)?,

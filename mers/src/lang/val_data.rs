@@ -318,7 +318,7 @@ impl VDataEnum {
             Self::List(t, _) => VSingleType::List(t.clone()),
             Self::Function(f) => VSingleType::Function(f.out_map.clone()),
             Self::Thread(_, o) => VSingleType::Thread(o.clone()),
-            Self::Reference(r) => VSingleType::Reference(Box::new(r.out_single())),
+            Self::Reference(r) => VSingleType::Reference(r.out()),
             Self::EnumVariant(e, v) => VSingleType::EnumVariant(*e, v.out_single().to()),
         }
     }

@@ -312,6 +312,7 @@ pub enum ParseErrors {
     FoundEofInFunctionArgName,
     FoundEofInType,
     FoundEofInsteadOfType,
+    RefTypeWithBracketsNotClosedProperly,
     InvalidType(String),
     CannotUseFixedIndexingWithThisType(VType),
     CannotWrapWithThisStatement(SStatementEnum),
@@ -350,6 +351,9 @@ impl FormatGs for ParseErrors {
             }
             Self::FoundEofInType => write!(f, "found EOF in type."),
             Self::FoundEofInsteadOfType => write!(f, "expected type, found EOF instead."),
+            Self::RefTypeWithBracketsNotClosedProperly => {
+                write!(f, "ref type with brackets &(...) wasn't closed properly.")
+            }
             Self::InvalidType(name) => write!(f, "\"{name}\" is not a type."),
             Self::CannotUseFixedIndexingWithThisType(t) => {
                 write!(f, "cannot use fixed-indexing with type ")?;
@@ -1178,11 +1182,31 @@ pub mod implementation {
         Ok((
             match file.next() {
                 Some('&') => {
-                    let parse_output = parse_single_type_adv(file, in_fn_args)?;
-                    if parse_output.1 {
-                        closed_bracket_in_fn_args = true;
-                    }
-                    VSingleType::Reference(Box::new(parse_output.0))
+                    let output = if let Some('(') = file.peek() {
+                        file.next();
+                        let (parse_output, closed_bracket) = parse_type_adv(file, true)?;
+                        if !closed_bracket {
+                            return Err(ParseError {
+                                err: ParseErrors::RefTypeWithBracketsNotClosedProperly,
+                                location: err_start_of_single_type,
+                                location_end: Some(*file.get_pos()),
+                                context: vec![],
+                                info: None,
+                            });
+                        }
+                        if let Some(')') = file.peek() {
+                            file.next();
+                            closed_bracket_in_fn_args = true;
+                        }
+                        parse_output
+                    } else {
+                        let (o, i_f) = parse_single_type_adv(file, in_fn_args)?;
+                        if i_f {
+                            closed_bracket_in_fn_args = true;
+                        }
+                        o.to()
+                    };
+                    VSingleType::Reference(output)
                 }
                 // Tuple or Array
                 Some('[') => {

@@ -28,7 +28,7 @@ pub enum VSingleType {
     List(VType),
     Function(Vec<(Vec<VType>, VType)>),
     Thread(VType),
-    Reference(Box<Self>),
+    Reference(VType),
     EnumVariant(usize, VType),
     EnumVariantS(String, VType),
     CustomType(usize),
@@ -50,28 +50,8 @@ impl VSingleType {
             Self::String => Some(VSingleType::String.into()),
             Self::Tuple(t) => t.get(i).cloned(),
             Self::List(t) => Some(t.clone()),
-            Self::Reference(r) => r.get_ref(i, gsinfo),
+            Self::Reference(r) => Some(r.get(i, gsinfo)?.reference()),
             Self::CustomType(t) => gsinfo.custom_types[*t].get(i, gsinfo),
-            &Self::CustomTypeS(_) => {
-                unreachable!("CustomTypeS instead of CustomType, compiler bug? [get]")
-            }
-        }
-    }
-    pub fn get_ref(&self, i: usize, gsinfo: &GlobalScriptInfo) -> Option<VType> {
-        match self {
-            Self::Any
-            | Self::Bool
-            | Self::Int
-            | Self::Float
-            | Self::Function(..)
-            | Self::Thread(..)
-            | Self::EnumVariant(..)
-            | Self::EnumVariantS(..) => None,
-            Self::String => Some(VSingleType::String.into()),
-            Self::Tuple(t) => t.get(i).map(|v| v.reference()),
-            Self::List(t) => Some(t.reference()),
-            Self::Reference(r) => r.get_ref(i, gsinfo),
-            Self::CustomType(t) => Some(gsinfo.custom_types[*t].get(i, gsinfo)?.reference()),
             &Self::CustomTypeS(_) => {
                 unreachable!("CustomTypeS instead of CustomType, compiler bug? [get]")
             }
@@ -166,19 +146,12 @@ impl VType {
     pub fn dereference(&self, info: &GlobalScriptInfo) -> Option<Self> {
         let mut out = Self::empty();
         for t in self.types.iter() {
-            out.add_type(t.deref()?, info);
+            out.add_types(t.deref()?, info);
         }
         Some(out)
     }
     pub fn reference(&self) -> Self {
-        let _out = Self::empty();
-        Self {
-            types: self
-                .types
-                .iter()
-                .map(|v| VSingleType::Reference(Box::new(v.clone())))
-                .collect(),
-        }
+        VSingleType::Reference(self.clone()).to()
     }
 }
 
@@ -232,9 +205,9 @@ impl VSingleType {
             _ => false,
         }
     }
-    pub fn deref(&self) -> Option<VSingleType> {
+    pub fn deref(&self) -> Option<VType> {
         if let Self::Reference(v) = self {
-            Some(*v.clone())
+            Some(v.clone())
         } else {
             None
         }
@@ -361,7 +334,7 @@ impl VSingleType {
                     VType::empty()
                 }
             }
-            Self::Reference(r) => r.inner_types_ref(info),
+            Self::Reference(r) => r.inner_types(info).reference(),
             _ => VType::empty(),
         }
     }
@@ -375,7 +348,7 @@ impl VSingleType {
                 out
             }
             Self::List(v) => v.reference(),
-            Self::Reference(r) => r.inner_types_ref(info),
+            Self::Reference(r) => r.inner_types(info).reference(),
             _ => VType::empty(),
         }
     }
@@ -424,7 +397,8 @@ impl VSingleType {
         let o = match (self, rhs) {
             (_, Self::Any) => true,
             (Self::Any, _) => false,
-            (Self::Reference(r), Self::Reference(b)) => r.fits_in(b, info),
+            // references have to be eq, not fits_in; otherwise whoever gets our reference could write invalid data to it!
+            (Self::Reference(a), Self::Reference(b)) => a.eq(b, info),
             (Self::Reference(_), _) | (_, Self::Reference(_)) => false,
             (Self::EnumVariant(v1, t1), Self::EnumVariant(v2, t2)) => {
                 *v1 == *v2 && t1.fits_in(&t2, info).is_empty()
@@ -583,8 +557,16 @@ impl FormatGs for VSingleType {
                 write!(f, ")")
             }
             Self::Reference(inner) => {
-                write!(f, "&")?;
-                inner.fmtgs(f, info, form, file)
+                if inner.types.len() != 1 {
+                    write!(f, "&(")?;
+                } else {
+                    write!(f, "&")?;
+                }
+                inner.fmtgs(f, info, form, file)?;
+                if inner.types.len() != 1 {
+                    write!(f, ")")?;
+                }
+                Ok(())
             }
             Self::EnumVariant(variant, inner) => {
                 if let Some(name) = if let Some(info) = info {

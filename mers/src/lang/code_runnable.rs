@@ -349,16 +349,7 @@ impl RStatementEnum {
             .into(),
             Self::Variable(t, is_ref) => {
                 if *is_ref {
-                    VType {
-                        types: t
-                            .lock()
-                            .unwrap()
-                            .1
-                            .types
-                            .iter()
-                            .map(|t| VSingleType::Reference(Box::new(t.clone())))
-                            .collect(),
-                    }
+                    VSingleType::Reference(t.lock().unwrap().1.clone()).to()
                 } else {
                     t.lock().unwrap().1.clone()
                 }
