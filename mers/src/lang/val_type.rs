@@ -35,70 +35,6 @@ pub enum VSingleType {
     CustomTypeS(String),
 }
 
-impl VSingleType {
-    /// None => Cannot get, Some(t) => getting can return t or nothing
-    pub fn get(&self, i: usize, gsinfo: &GlobalScriptInfo) -> Option<VType> {
-        match self {
-            Self::Any
-            | Self::Bool
-            | Self::Int
-            | Self::Float
-            | Self::Function(..)
-            | Self::Thread(..)
-            | Self::EnumVariant(..)
-            | Self::EnumVariantS(..) => None,
-            Self::String => Some(VSingleType::String.into()),
-            Self::Tuple(t) => t.get(i).cloned(),
-            Self::List(t) => Some(t.clone()),
-            Self::Reference(r) => Some(r.get(i, gsinfo)?.reference()),
-            Self::CustomType(t) => gsinfo.custom_types[*t].get(i, gsinfo),
-            &Self::CustomTypeS(_) => {
-                unreachable!("CustomTypeS instead of CustomType, compiler bug? [get]")
-            }
-        }
-    }
-    /// None => might not always return t, Some(t) => can only return t
-    pub fn get_always(&self, i: usize, info: &GlobalScriptInfo) -> Option<VType> {
-        match self {
-            Self::Any
-            | Self::Bool
-            | Self::Int
-            | Self::Float
-            | Self::String
-            | Self::List(_)
-            | Self::Function(..)
-            | Self::Thread(..)
-            | Self::EnumVariant(..)
-            | Self::EnumVariantS(..) => None,
-            Self::Tuple(t) => t.get(i).cloned(),
-            Self::Reference(r) => r.get_always_ref(i, info),
-            Self::CustomType(t) => info.custom_types[*t].get_always(i, info),
-            Self::CustomTypeS(_) => {
-                unreachable!("CustomTypeS instead of CustomType, compiler bug? [get_always]")
-            }
-        }
-    }
-    pub fn get_always_ref(&self, i: usize, info: &GlobalScriptInfo) -> Option<VType> {
-        match self {
-            Self::Any
-            | Self::Bool
-            | Self::Int
-            | Self::Float
-            | Self::String
-            | Self::List(_)
-            | Self::Function(..)
-            | Self::Thread(..)
-            | Self::EnumVariant(..)
-            | Self::EnumVariantS(..) => None,
-            Self::Tuple(t) => Some(t.get(i)?.reference()),
-            Self::Reference(r) => r.get_always_ref(i, info),
-            Self::CustomType(t) => info.custom_types[*t].get_always_ref(i, info),
-            Self::CustomTypeS(_) => {
-                unreachable!("CustomTypeS instead of CustomType, compiler bug? [get_always]")
-            }
-        }
-    }
-}
 impl VType {
     pub fn empty() -> Self {
         Self { types: vec![] }
@@ -114,13 +50,6 @@ impl VType {
         let mut out = VType { types: vec![] };
         for t in &self.types {
             out.add_types(t.get_always(i, info)?, info); // if we can't use *get* on one type, we can't use it at all.
-        }
-        Some(out)
-    }
-    pub fn get_always_ref(&self, i: usize, info: &GlobalScriptInfo) -> Option<VType> {
-        let mut out = VType { types: vec![] };
-        for t in &self.types {
-            out.add_types(t.get_always_ref(i, info)?, info); // if we can't use *get* on one type, we can't use it at all.
         }
         Some(out)
     }
@@ -156,6 +85,27 @@ impl VType {
 }
 
 impl VSingleType {
+    /// None => Cannot get, Some(t) => getting can return t or nothing
+    pub fn get(&self, i: usize, gsinfo: &GlobalScriptInfo) -> Option<VType> {
+        match self {
+            Self::Any
+            | Self::Bool
+            | Self::Int
+            | Self::Float
+            | Self::Function(..)
+            | Self::Thread(..)
+            | Self::EnumVariant(..)
+            | Self::EnumVariantS(..) => None,
+            Self::String => Some(VSingleType::String.into()),
+            Self::Tuple(t) => t.get(i).cloned(),
+            Self::List(t) => Some(t.clone()),
+            Self::Reference(r) => Some(r.get(i, gsinfo)?.reference()),
+            Self::CustomType(t) => gsinfo.custom_types[*t].get(i, gsinfo),
+            &Self::CustomTypeS(_) => {
+                unreachable!("CustomTypeS instead of CustomType, compiler bug? [get]")
+            }
+        }
+    }
     pub fn get_any(&self, info: &GlobalScriptInfo) -> Option<VType> {
         match self {
             Self::Any
@@ -170,33 +120,40 @@ impl VSingleType {
                 a
             })),
             Self::List(t) => Some(t.clone()),
-            Self::Reference(r) => r.get_any_ref(info),
+            Self::Reference(r) => Some(VType {
+                // this is &a/&b/..., NOT &(a/b/...)!
+                types: r
+                    .get_any(info)?
+                    .types
+                    .iter()
+                    .map(|v| VSingleType::Reference(v.clone().to()))
+                    .collect(),
+            }),
             Self::EnumVariant(_, t) => t.get_any(info),
             Self::EnumVariantS(..) => unreachable!(),
             Self::CustomType(t) => info.custom_types[*t].get_any(info),
             Self::CustomTypeS(_) => unreachable!(),
         }
     }
-    pub fn get_any_ref(&self, info: &GlobalScriptInfo) -> Option<VType> {
+    /// None => might not always return t, Some(t) => can only return t
+    pub fn get_always(&self, i: usize, info: &GlobalScriptInfo) -> Option<VType> {
         match self {
             Self::Any
             | Self::Bool
             | Self::Int
             | Self::Float
+            | Self::String
+            | Self::List(_)
             | Self::Function(..)
-            | Self::Thread(..) => None,
-            Self::String => Some(VSingleType::String.into()),
-            Self::Tuple(t) => Some(t.iter().fold(VType::empty(), |mut a, b| {
-                a.add_types(b.reference(), info);
-                a
-            })),
-            Self::List(t) => Some(t.reference()),
-            // TODO: idk if this is right...
-            Self::Reference(r) => r.get_any_ref(info),
-            Self::EnumVariant(_, t) => t.get_any_ref(info),
-            Self::EnumVariantS(..) => unreachable!(),
-            Self::CustomType(t) => info.custom_types[*t].get_any(info),
-            Self::CustomTypeS(_) => unreachable!(),
+            | Self::Thread(..)
+            | Self::EnumVariant(..)
+            | Self::EnumVariantS(..) => None,
+            Self::Tuple(t) => t.get(i).cloned(),
+            Self::Reference(r) => Some(VSingleType::Reference(r.get_any(info)?).to()),
+            Self::CustomType(t) => info.custom_types[*t].get_always(i, info),
+            Self::CustomTypeS(_) => {
+                unreachable!("CustomTypeS instead of CustomType, compiler bug? [get_always]")
+            }
         }
     }
     pub fn is_reference(&self) -> bool {
@@ -221,13 +178,6 @@ impl VType {
         }
         Some(out)
     }
-    pub fn get_any_ref(&self, info: &GlobalScriptInfo) -> Option<VType> {
-        let mut out = VType { types: vec![] };
-        for t in &self.types {
-            out.add_types(t.get_any_ref(info)?, info); // if we can't use *get* on one type, we can't use it at all.
-        }
-        Some(out)
-    }
 }
 
 impl VType {
@@ -246,10 +196,10 @@ impl VType {
         }
         no
     }
-    pub fn inner_types(&self, info: &GlobalScriptInfo) -> VType {
+    pub fn inner_types_for_iters(&self, info: &GlobalScriptInfo) -> VType {
         let mut out = VType { types: vec![] };
         for t in &self.types {
-            out.add_types(t.inner_types(info), info);
+            out.add_types(t.inner_types_for_iters(info), info);
         }
         out
     }
@@ -307,7 +257,7 @@ impl VSingleType {
     pub fn to(self) -> VType {
         VType { types: vec![self] }
     }
-    pub fn inner_types(&self, info: &GlobalScriptInfo) -> VType {
+    pub fn inner_types_for_iters(&self, info: &GlobalScriptInfo) -> VType {
         match self {
             Self::Tuple(v) => {
                 let mut out = VType::empty();
@@ -324,7 +274,7 @@ impl VSingleType {
                 // function that takes no inputs
                 if let Some(out) = f.iter().find_map(|(args, out)| {
                     if args.is_empty() {
-                        Some(out.clone())
+                        Some(out.clone().matches(info).1)
                     } else {
                         None
                     }
@@ -334,21 +284,7 @@ impl VSingleType {
                     VType::empty()
                 }
             }
-            Self::Reference(r) => r.inner_types(info).reference(),
-            _ => VType::empty(),
-        }
-    }
-    pub fn inner_types_ref(&self, info: &GlobalScriptInfo) -> VType {
-        match self {
-            Self::Tuple(v) => {
-                let mut out = VType::empty();
-                for it in v {
-                    out.add_types(it.reference(), info);
-                }
-                out
-            }
-            Self::List(v) => v.reference(),
-            Self::Reference(r) => r.inner_types(info).reference(),
+            Self::Reference(r) => r.inner_types_for_iters(info).reference(),
             _ => VType::empty(),
         }
     }

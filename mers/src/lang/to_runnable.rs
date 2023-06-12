@@ -557,7 +557,7 @@ fn statement_adv(
         SStatementEnum::For(v, c, b) => {
             let mut linfo = linfo.clone();
             let container = statement(&c, ginfo, &mut linfo)?;
-            let inner = container.out(ginfo).inner_types(ginfo);
+            let inner = container.out(ginfo).inner_types_for_iters(ginfo);
             if inner.types.is_empty() {
                 return Err(ToRunnableError::ForLoopContainerHasNoInnerTypes);
             }
@@ -591,7 +591,6 @@ fn statement_adv(
                     statement(case_action, ginfo, &mut linfo)?,
                 ));
             }
-
             if *force {
                 let types_not_covered = og_type.fits_in(&covered_types, ginfo);
                 if !types_not_covered.is_empty() {

@@ -3,7 +3,17 @@ type myStruct [
     int,
     string
 ]
-to give names to the fields, we define functions:
+// to give names to the fields, we define functions:
 fn count(s myStruct) s.0
 // to allow users to change the value, add &myStruct to the valid types for s (only through references can values be changed)
 fn note(s myStruct/&myStruct) s.1
+
+my_struct := [12, "test"]
+
+my_struct.count().debug()
+
+my_struct.note().debug()
+
+&my_struct.note() = "changed"
+
+my_struct.note().debug()

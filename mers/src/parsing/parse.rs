@@ -83,8 +83,6 @@ impl FormatGs for ScriptError {
     }
 }
 
-pub const PARSE_VERSION: u64 = 0;
-
 pub struct Error {
     pub err: ScriptError,
     pub ginfo: GSInfo,
@@ -313,7 +311,6 @@ pub enum ParseErrors {
     FoundEofInType,
     FoundEofInsteadOfType,
     RefTypeWithBracketsNotClosedProperly,
-    InvalidType(String),
     CannotUseFixedIndexingWithThisType(VType),
     CannotWrapWithThisStatement(SStatementEnum),
     ErrorParsingFunctionArgs(Box<ParseError>),
@@ -354,7 +351,6 @@ impl FormatGs for ParseErrors {
             Self::RefTypeWithBracketsNotClosedProperly => {
                 write!(f, "ref type with brackets &(...) wasn't closed properly.")
             }
-            Self::InvalidType(name) => write!(f, "\"{name}\" is not a type."),
             Self::CannotUseFixedIndexingWithThisType(t) => {
                 write!(f, "cannot use fixed-indexing with type ")?;
                 t.fmtgs(f, info, form, file)?;
@@ -1166,12 +1162,12 @@ pub mod implementation {
         }
         Ok((VType { types }, closed_fn_args))
     }
-    fn parse_single_type(file: &mut File) -> Result<VSingleType, ParseError> {
-        match parse_single_type_adv(file, false) {
-            Ok((v, _)) => Ok(v),
-            Err(e) => Err(e),
-        }
-    }
+    // fn parse_single_type(file: &mut File) -> Result<VSingleType, ParseError> {
+    //     match parse_single_type_adv(file, false) {
+    //         Ok((v, _)) => Ok(v),
+    //         Err(e) => Err(e),
+    //     }
+    // }
     fn parse_single_type_adv(
         file: &mut File,
         in_fn_args: bool,
@@ -1277,8 +1273,11 @@ pub mod implementation {
                                                     }
                                                 }
                                                 file.skip_whitespaces();
-                                                let out = parse_type(file)?;
+                                                let (out, close) = parse_type_adv(file, true)?;
                                                 fn_types.push((args, out));
+                                                if close {
+                                                    break;
+                                                };
                                             }
                                             Some(')') => break,
                                             Some(other) => {

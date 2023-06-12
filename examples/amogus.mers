@@ -9,7 +9,7 @@ fn random(min int max int) {
 }
 fn rnd() {
     r := random(5 15)
-    switch r {
+    switch! r {
         int r r
         [] [] 10
     }

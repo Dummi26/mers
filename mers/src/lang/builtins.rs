@@ -636,11 +636,7 @@ impl BuiltinFunction {
                                 VSingleType::Tuple(vec![]),
                                 VSingleType::Tuple(vec![v
                                     .get_any(info)
-                                    .expect("cannot use get on this type")
-                                    .dereference(info)
-                                    .expect(
-                                        "running get_any() on &[ ...] should give a reference...",
-                                    )]),
+                                    .expect("cannot use get on this type")]),
                             ],
                         }
                     } else {

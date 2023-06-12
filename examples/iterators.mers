@@ -1,4 +1,4 @@
-fn map_string_to_int(list [string ...] func fn((string int))) {
+fn map_string_to_int(list [string ...], func fn((string) int)) {
     // return a function that can be used as an iterator
     () {
         // this function will be called by the for loop
