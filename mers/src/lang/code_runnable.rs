@@ -433,7 +433,9 @@ impl RScript {
         Ok(Self { main, info })
     }
     pub fn run(&self, args: Vec<VData>) -> VData {
-        self.main.inputs[0].lock().unwrap().0 = VDataEnum::List(VSingleType::Any.into(), args).to();
+        for (input, arg) in self.main.inputs.iter().zip(args.into_iter()) {
+            input.lock().unwrap().0 = arg;
+        }
         self.main.run(&self.info)
     }
 }

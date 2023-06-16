@@ -192,17 +192,19 @@ fn normal_main() {
     };
     info.main_fn_args = vec![(
         "args".to_string(),
-        VSingleType::List(VSingleType::Any.into()).to(),
+        VSingleType::List(VSingleType::String.into()).to(),
     )];
     match parsing::parse::parse_custom_info(&mut file, info) {
         Ok(script) => {
             if run {
-                script.run(
+                script.run(vec![VDataEnum::List(
+                    VSingleType::String.to(),
                     std::env::args()
                         .skip(args_to_skip)
                         .map(|v| VDataEnum::String(v).to())
                         .collect(),
-                );
+                )
+                .to()]);
             }
         }
         Err(e) => {
