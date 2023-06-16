@@ -31,6 +31,7 @@ impl Display for FilePosition {
 }
 
 impl File {
+    /// creates a file from its contents and its path. Path can be PathBuf::new(), but this disables relative MersLibs.
     pub fn new(data: String, path: PathBuf) -> Self {
         let data = if data.starts_with("#!") {
             &data[data.lines().next().unwrap().len()..].trim_start()

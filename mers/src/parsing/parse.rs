@@ -187,10 +187,7 @@ pub fn parse_step_interpret(
     ginfo: &GlobalScriptInfo,
 ) -> Result<SFunction, ParseError> {
     let o = SFunction::new(
-        vec![(
-            "args".to_string(),
-            VSingleType::List(VSingleType::Any.into()).to(),
-        )],
+        ginfo.main_fn_args.clone(),
         SStatementEnum::Block(parse_block_advanced(file, Some(false), true, true, false)?).to(),
     );
     if ginfo.log.after_parse.log() {

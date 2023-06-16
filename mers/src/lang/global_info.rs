@@ -14,6 +14,9 @@ pub type GSInfo = Arc<GlobalScriptInfo>;
 
 pub struct GlobalScriptInfo {
     pub libs: Vec<crate::libs::Lib>,
+
+    pub main_fn_args: Vec<(String, VType)>,
+
     pub lib_fns: HashMap<String, (usize, usize)>,
 
     pub enum_variants: HashMap<String, usize>,
@@ -92,6 +95,7 @@ impl Default for GlobalScriptInfo {
         Self {
             libs: vec![],
             lib_fns: HashMap::new(),
+            main_fn_args: vec![],
             enum_variants: Self::default_enum_variants(),
             custom_type_names: HashMap::new(),
             custom_types: vec![],
