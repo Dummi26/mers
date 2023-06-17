@@ -21,7 +21,6 @@ use super::{
 };
 
 pub enum ToRunnableError {
-    MainWrongInput,
     UseOfUndefinedVariable(String),
     UseOfUndefinedFunction(String),
     UnknownType(String),
@@ -63,10 +62,6 @@ impl FormatGs for ToRunnableError {
         file: Option<&crate::parsing::file::File>,
     ) -> std::fmt::Result {
         match self {
-            Self::MainWrongInput => write!(
-                f,
-                "Main function had the wrong input. This is a bug and should never happen."
-            ),
             Self::UseOfUndefinedVariable(v) => {
                 write!(f, "Cannot use variable \"{v}\" as it isn't defined (yet?).")
             }

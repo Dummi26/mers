@@ -427,9 +427,6 @@ pub struct RScript {
 }
 impl RScript {
     pub fn new(main: RFunction, info: GSInfo) -> Result<Self, ToRunnableError> {
-        if main.inputs.len() != 1 {
-            return Err(ToRunnableError::MainWrongInput);
-        }
         Ok(Self { main, info })
     }
     pub fn run(&self, args: Vec<VData>) -> VData {
