@@ -4,7 +4,7 @@ Welcome to mers! Start by creating a file for your mers code:
 
     println("Hello, world!")
 
-now run it: `mers <file>` (replace mers the location of the compiled executable if it's not in your PATH)
+now run it: `mers <file>` (replace mers with the location of the compiled executable if it's not in your PATH)
 
 # The basics
 
