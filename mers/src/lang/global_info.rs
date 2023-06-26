@@ -113,6 +113,22 @@ impl GlobalScriptInfo {
             .map(|(i, v)| (v.to_string(), i))
             .collect()
     }
+    pub fn set_main_fn_args(&mut self, args: Vec<(String, VType)>) {
+        self.main_fn_args = args;
+    }
+    #[allow(unused)]
+    pub fn add_enum_variant(&mut self, name: String) -> usize {
+        let id = self.enum_variants.len();
+        self.enum_variants.insert(name, id);
+        id
+    }
+    #[allow(unused)]
+    pub fn add_custom_type(&mut self, name: String, t: VType) -> usize {
+        let id = self.custom_types.len();
+        self.custom_types.push(t);
+        self.custom_type_names.insert(name, id);
+        id
+    }
 }
 
 #[derive(Debug)]
