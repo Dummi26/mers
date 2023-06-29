@@ -157,4 +157,19 @@ replaces occurences of arg1 in arg0 with arg2
 
 ### regex
 
-returns a list of matches of the arg0 regex that were found in the string arg1
+given a regex (in string form), this function returns either `Err(string)` or a function which, when called with another string, returns a list of matches found in that string:
+
+    lines_regex := regex(".*").assume_no_enum()
+    fn lines(s string) {
+      lines_regex.run(s)
+    }
+    debug("a string\nwith multiple\nlines!".lines())
+
+This is done because compiling regex is somewhat slow, so if multiple strings have to be searched by the regex,
+it would be inefficient to recompile the regex every time. (btw: credit goes to the Regex crate, which is used to implement this)
+
+### split
+
+given two strings, splits the first one at the pattern specified by the second one:
+
+    word_count := "a string containing five words".split(" ").len()

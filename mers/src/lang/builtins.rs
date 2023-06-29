@@ -1,7 +1,7 @@
 use std::{io::Write, path::PathBuf, sync::Arc, time::Duration};
 
 use super::{
-    code_runnable::RStatement,
+    code_runnable::{RFunction, RFunctionType, RStatement},
     global_info::{GSInfo, GlobalScriptInfo},
     val_data::{thread::VDataThreadEnum, VData, VDataEnum},
     val_type::{VSingleType, VType},
@@ -82,6 +82,7 @@ pub enum BuiltinFunction {
     Substring,
     Replace,
     Regex,
+    Split,
 }
 
 impl BuiltinFunction {
@@ -145,6 +146,7 @@ impl BuiltinFunction {
             "substring" => Self::Substring,
             "replace" => Self::Replace,
             "regex" => Self::Regex,
+            "split" => Self::Split,
             _ => return None,
         })
     }
@@ -472,7 +474,7 @@ impl BuiltinFunction {
                 }
             }
             // two strings
-            Self::Contains | Self::StartsWith | Self::EndsWith | Self::Regex => {
+            Self::Contains | Self::StartsWith | Self::EndsWith => {
                 input.len() == 2
                     && input
                         .iter()
@@ -502,6 +504,15 @@ impl BuiltinFunction {
             }
             Self::Trim => {
                 input.len() == 1 && input[0].fits_in(&VSingleType::String.to(), info).is_empty()
+            }
+            Self::Regex => {
+                input.len() == 1 && input[0].fits_in(&VSingleType::String.to(), info).is_empty()
+            }
+            Self::Split => {
+                input.len() == 2
+                    && input
+                        .iter()
+                        .all(|v| v.fits_in(&VSingleType::String.to(), info).is_empty())
             }
         }
     }
@@ -781,12 +792,20 @@ impl BuiltinFunction {
             Self::Replace => VSingleType::String.to(),
             Self::Regex => VType {
                 types: vec![
-                    // [string ...]
-                    VSingleType::List(VSingleType::String.to()),
+                    // fn((string [string ...]))
+                    VSingleType::Function(vec![(
+                        vec![VSingleType::String.to()],
+                        VSingleType::List(VSingleType::String.to()).to(),
+                    )]),
                     // Err(string)
                     VSingleType::EnumVariant(EV_ERR, VSingleType::String.to()),
                 ],
             },
+            Self::Split => VSingleType::List(
+                // [string ...]
+                VSingleType::String.to(),
+            )
+            .to(),
         }
     }
     pub fn run(&self, args: &Vec<RStatement>, info: &GSInfo) -> VData {
@@ -964,39 +983,22 @@ impl BuiltinFunction {
             }),
             BuiltinFunction::Run => args[0].run(info).operate_on_data_immut(|v| {
                 if let VDataEnum::Function(f) = v {
-                    if f.inputs.len() != args.len() - 1 {
-                        unreachable!("wrong input count")
-                    }
-                    for (i, var) in f.inputs.iter().enumerate() {
-                        let val = args[i + 1].run(info).clone_data();
-                        var.lock().unwrap().0 = val;
-                    }
-                    f.run(info)
+                    f.run(info, args.iter().skip(1).map(|v| v.run(info)).collect())
                 } else {
                     unreachable!()
                 }
             }),
             BuiltinFunction::Thread => args[0].run(info).operate_on_data_immut(|v| {
                 if let VDataEnum::Function(f) = v {
-                    if f.inputs.len() != args.len() - 1 {
-                        unreachable!("wrong input count")
-                    }
-                    let mut run_input_types = vec![];
-                    for (i, var) in f.inputs.iter().enumerate() {
-                        let val = args[i + 1].run(info).clone_data();
-                        run_input_types.push(val.out_single());
-                        var.lock().unwrap().0 = val;
-                    }
+                    let args: Vec<_> = args.into_iter().skip(1).map(|v| v.run(info)).collect();
                     let out_type = f
-                        .out_by_map(
-                            &run_input_types.iter().map(|v| v.clone().into()).collect(),
-                            &info,
-                        )
+                        .out_by_map(&args.iter().map(|v| v.out()).collect(), &info)
                         .unwrap();
                     let info = Arc::clone(info);
                     let f = Arc::clone(f);
                     VDataEnum::Thread(
-                        VDataThreadEnum::Running(std::thread::spawn(move || f.run(&info))).to(),
+                        VDataThreadEnum::Running(std::thread::spawn(move || f.run(&info, args)))
+                            .to(),
                         out_type,
                     )
                     .to()
@@ -1680,28 +1682,67 @@ impl BuiltinFunction {
                     })
                 })
             }),
-            Self::Regex => args[0].run(info).operate_on_data_immut(|a| {
-                args[1].run(info).operate_on_data_immut(|regex| {
-                    if let (VDataEnum::String(a), VDataEnum::String(regex)) = (a, regex) {
-                        match regex::Regex::new(regex.as_str()) {
-                            Ok(regex) => VDataEnum::List(
+            Self::Regex => args[0].run(info).operate_on_data_immut(|regex_string| {
+                if let VDataEnum::String(regex_string) = regex_string {
+                    match regex::RegexBuilder::new(&regex_string).build() {
+                        Ok(regex) => VDataEnum::Function(Arc::new(RFunction {
+                            statement: RFunctionType::Func(Box::new(move |_info, args| {
+                                // this is the function returned by regex().
+                                // it takes one string as its argument
+                                // and returns another function
+                                args[0].operate_on_data_immut(|s| {
+                                    if let VDataEnum::String(s) = s {
+                                        // when the regex function is given a string to operate on,
+                                        // it returns all the matches.
+                                        VDataEnum::List(
+                                            VSingleType::String.to(),
+                                            regex
+                                                .find_iter(s)
+                                                .map(|m| {
+                                                    VDataEnum::String(
+                                                        s[m.start()..m.end()].to_owned(),
+                                                    )
+                                                    .to()
+                                                })
+                                                .collect(),
+                                        )
+                                        .to()
+                                    } else {
+                                        unreachable!()
+                                    }
+                                })
+                            })),
+                            out_map: vec![],
+                        }))
+                        .to(),
+                        Err(err) => VDataEnum::EnumVariant(
+                            EV_ERR,
+                            Box::new(VDataEnum::String(err.to_string()).to()),
+                        )
+                        .to(),
+                    }
+                } else {
+                    unreachable!()
+                }
+            }),
+            Self::Split => args[0].run(info).operate_on_data_immut(|a| {
+                if let VDataEnum::String(a) = a {
+                    args[1].run(info).operate_on_data_immut(|b| {
+                        if let VDataEnum::String(b) = b {
+                            VDataEnum::List(
                                 VSingleType::String.to(),
-                                regex
-                                    .find_iter(a.as_str())
-                                    .map(|v| VDataEnum::String(v.as_str().to_string()).to())
+                                a.split(b)
+                                    .map(|v| VDataEnum::String(v.to_owned()).to())
                                     .collect(),
                             )
-                            .to(),
-                            Err(e) => VDataEnum::EnumVariant(
-                                EV_ERR,
-                                Box::new(VDataEnum::String(e.to_string()).to()),
-                            )
-                            .to(),
+                            .to()
+                        } else {
+                            unreachable!()
                         }
-                    } else {
-                        unreachable!()
-                    }
-                })
+                    })
+                } else {
+                    unreachable!()
+                }
             }),
         }
     }

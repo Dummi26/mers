@@ -4,10 +4,9 @@ use std::{
 };
 
 use super::{
-    code_runnable::{RFunction, RStatementEnum},
+    code_runnable::{RFunction, RFunctionType},
     fmtgs::FormatGs,
     global_info::{GSInfo, GlobalScriptInfo},
-    val_data::VDataEnum,
 };
 
 use super::global_info::LogMsg;
@@ -375,9 +374,7 @@ impl VSingleType {
             (Self::Function(a), Self::Function(b)) => 'fnt: {
                 // since RFunction.out only uses out_map, we can create a dummy RFunction here.
                 let af = RFunction {
-                    inputs: vec![],
-                    input_types: vec![],
-                    statement: RStatementEnum::Value(VDataEnum::Bool(false).to()).to(),
+                    statement: RFunctionType::Dummy,
                     out_map: a.clone(),
                 };
                 for (ins, out) in b {

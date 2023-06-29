@@ -15,7 +15,7 @@ use super::{
     builtins::BuiltinFunction,
     code_macro::Macro,
     code_parsed::{SBlock, SFunction, SStatement, SStatementEnum},
-    code_runnable::{RBlock, RFunction, RScript, RStatement, RStatementEnum},
+    code_runnable::{RBlock, RFunction, RFunctionType, RScript, RStatement, RStatementEnum},
     fmtgs::FormatGs,
     global_info::GSInfo,
 };
@@ -235,41 +235,54 @@ fn function(
     }
     let mut o = RFunction {
         out_map: vec![],
-        inputs: input_vars,
-        input_types,
-        statement: statement(&s.statement, ginfo, &mut linfo.clone())?,
+        statement: RFunctionType::Statement(
+            input_vars,
+            statement(&s.statement, ginfo, &mut linfo.clone())?,
+            input_types,
+        ),
     };
     o.out_map = {
         let mut map = vec![];
-        let mut indices: Vec<_> = o.input_types.iter().map(|_| 0).collect();
+        let mut indices: Vec<_> = if let RFunctionType::Statement(_, _, input_types) = &o.statement
+        {
+            input_types.iter().map(|_| 0).collect()
+        } else {
+            unreachable!()
+        };
         // like counting: advance first index, when we reach the end, reset to zero and advance the next index, ...
         loop {
-            let mut current_types = Vec::with_capacity(o.input_types.len());
-            let mut adv = true;
-            let mut was_last = o.input_types.is_empty();
-            for i in 0..o.input_types.len() {
-                current_types.push(match o.input_types[i].types.get(indices[i]) {
-                    Some(v) => v.clone().to(),
-                    None => VType::empty(),
-                });
-                if adv {
-                    if indices[i] + 1 < o.input_types[i].types.len() {
-                        indices[i] += 1;
-                        adv = false;
-                    } else {
-                        indices[i] = 0;
-                        // we just reset the last index back to 0 - if we don't break
-                        // from the loop, we will just start all over again.
-                        if i + 1 == o.input_types.len() {
-                            was_last = true;
+            if let RFunctionType::Statement(_, _, input_types) = &o.statement {
+                let mut current_types = Vec::with_capacity(input_types.len());
+                let mut adv = true;
+                let mut was_last = input_types.is_empty();
+                for i in 0..input_types.len() {
+                    current_types.push(match input_types[i].types.get(indices[i]) {
+                        Some(v) => v.clone().to(),
+                        None => VType::empty(),
+                    });
+                    if adv {
+                        if indices[i] + 1 < input_types[i].types.len() {
+                            indices[i] += 1;
+                            adv = false;
+                        } else {
+                            indices[i] = 0;
+                            // we just reset the last index back to 0 - if we don't break
+                            // from the loop, we will just start all over again.
+                            if i + 1 == input_types.len() {
+                                was_last = true;
+                            }
                         }
                     }
                 }
-            }
-            let out = o.out_by_statement(&current_types, &ginfo);
-            map.push((current_types, out));
-            if was_last {
-                break map;
+                let out = o
+                    .out_by_statement(&current_types, &ginfo)
+                    .expect("this should always be a Statement function type");
+                map.push((current_types, out));
+                if was_last {
+                    break map;
+                }
+            } else {
+                unreachable!()
             }
         }
     };
@@ -438,12 +451,13 @@ fn statement_adv(
                 func: &RFunction,
                 ginfo: &GlobalScriptInfo,
             ) -> bool {
-                func.inputs.len() == arg_types.len()
-                    && func
-                        .inputs
-                        .iter()
-                        .zip(arg_types.iter())
-                        .all(|(fn_in, arg)| arg.fits_in(&fn_in.lock().unwrap().1, ginfo).is_empty())
+                func.out_by_map(arg_types, ginfo).is_some()
+                // func.inputs.len() == arg_types.len()
+                //     && func
+                //         .inputs
+                //         .iter()
+                //         .zip(arg_types.iter())
+                //         .all(|(fn_in, arg)| arg.fits_in(&fn_in.lock().unwrap().1, ginfo).is_empty())
             }
             if let Some(funcs) = linfo.fns.get(v) {
                 'find_func: {

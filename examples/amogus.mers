@@ -16,7 +16,7 @@ fn rnd() {
 }
 
 words := rnd()
-for word text.regex("\\S+").assume_no_enum()
+for word regex("\\S+").assume_no_enum().run(text)
     if words > 0 {
         print(word + " ")
         &words = words - 1

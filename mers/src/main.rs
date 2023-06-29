@@ -29,7 +29,7 @@ fn normal_main() {
     let mut args_to_skip = 2;
     let mut file = match args.len() {
         0 => {
-            println!("Please provide some arguments, such as the path to a file or \"-e <code>\".");
+            println!("no arguments, use -h for help");
             std::process::exit(100);
         }
         _ => {
@@ -50,8 +50,38 @@ fn normal_main() {
                             continue;
                         }
                         match ch {
+                            'h' => {
+                                eprintln!("~~~~ mers help ~~~~");
+                                eprintln!();
+                                eprintln!("  ~~ cli ~~");
+                                eprintln!("Mers has the following cli options:");
+                                eprintln!("-h shows this Help message");
+                                eprintln!("-e - mers will treat the run argument as code to be Executed rather than a file path");
+                                eprintln!("    mers -e 'println(\"Hello, World!\")'");
+                                eprintln!(
+                                    "-c - mers will Check the code for errors, but won't run it"
+                                );
+                                eprintln!("-f - mers will Format the code and print it. useful if you suspect the parser might be misinterpreting your code");
+                                eprintln!(
+                                    "+c - use Colors in the output to better visualize things"
+                                );
+                                eprintln!("+C - don't use colors (opposite of +c, redundant since this is the default)");
+                                eprintln!("-v - mers will be more Verbose");
+                                eprintln!("+???+ - customize what mers is verbose about and how - bad syntax, barely useful, don't use it until it gets improved (TODO!)");
+                                eprintln!("-i - launches an Interactive session to play around with (opens your editor and runs code on each file save)");
+                                eprintln!("+t - spawns a new terminal for the editor (if you use a terminal editors, add +t)");
+                                eprintln!("    mers -i+t");
+                                eprintln!("-t - launches the Tutor, which will attempt to Teach you the basics of the language");
+                                eprintln!();
+                                eprintln!("  ~~ getting started ~~");
+                                eprintln!("mers doesn't need a specific structure for directories, just create a UTF-8 text file, write code, and run it:");
+                                eprintln!("    echo 'println(\"Hello, World!\")' > hello.mers");
+                                eprintln!("    mers hello.mers");
+                                return;
+                            }
                             'e' => execute = true,
                             'v' => verbose = true,
+                            'c' => run = false,
                             'f' => {
                                 run = false;
                                 info.log.after_parse.stderr = true;
@@ -178,7 +208,7 @@ fn normal_main() {
                             file.into(),
                         )
                     } else {
-                        println!("please provide either a file or -e and a script to run!");
+                        println!("nothing to do - missing arguments?");
                         std::process::exit(101);
                     }
                 }

@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    fmt::Debug,
+    sync::{Arc, Mutex},
+};
 
 use super::{
     builtins::BuiltinFunction,
@@ -54,12 +57,20 @@ impl RBlock {
     }
 }
 
-#[derive(Clone, Debug)]
 pub struct RFunction {
-    pub inputs: Vec<Arc<Mutex<(VData, VType)>>>,
-    pub input_types: Vec<VType>,
-    pub statement: RStatement,
+    pub statement: RFunctionType,
     pub out_map: Vec<(Vec<VType>, VType)>,
+}
+impl Debug for RFunction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.out_map)
+    }
+}
+pub enum RFunctionType {
+    /// ignores all args and returns some default value
+    Dummy,
+    Statement(Vec<Arc<Mutex<(VData, VType)>>>, RStatement, Vec<VType>),
+    Func(Box<dyn Fn(&GSInfo, Vec<VData>) -> VData + Send + Sync>),
 }
 impl PartialEq for RFunction {
     fn eq(&self, _other: &Self) -> bool {
@@ -70,8 +81,17 @@ impl Eq for RFunction {
     fn assert_receiver_is_total_eq(&self) {}
 }
 impl RFunction {
-    pub fn run(&self, info: &GSInfo) -> VData {
-        self.statement.run(info)
+    pub fn run(&self, info: &GSInfo, args: Vec<VData>) -> VData {
+        match &self.statement {
+            RFunctionType::Dummy => VDataEnum::Bool(false).to(),
+            RFunctionType::Statement(inputs, s, _) => {
+                for (i, input) in inputs.iter().enumerate() {
+                    input.lock().unwrap().0.assign(args[i].clone_mut());
+                }
+                s.run(info)
+            }
+            RFunctionType::Func(f) => f(info, args),
+        }
     }
     pub fn out_by_map(&self, input_types: &Vec<VType>, info: &GlobalScriptInfo) -> Option<VType> {
         // NOTE: This can ONLY use self.out_map, because it's used by the VSingleType.fits_in method.
@@ -104,23 +124,31 @@ impl RFunction {
             t
         })
     }
-    pub fn out_by_statement(&self, input_types: &Vec<VType>, info: &GlobalScriptInfo) -> VType {
-        let mut actual = Vec::with_capacity(self.inputs.len());
-        // simulate these variable types
-        for (fn_input, c_type) in self.inputs.iter().zip(input_types.iter()) {
-            actual.push(std::mem::replace(
-                &mut fn_input.lock().unwrap().1,
-                c_type.clone(),
-            ));
+    pub fn out_by_statement(
+        &self,
+        input_types: &Vec<VType>,
+        info: &GlobalScriptInfo,
+    ) -> Option<VType> {
+        if let RFunctionType::Statement(inputs, statement, _) = &self.statement {
+            let mut actual = Vec::with_capacity(inputs.len());
+            // simulate these variable types
+            for (fn_input, c_type) in inputs.iter().zip(input_types.iter()) {
+                actual.push(std::mem::replace(
+                    &mut fn_input.lock().unwrap().1,
+                    c_type.clone(),
+                ));
+            }
+            // not get the return type if these were the actual types
+            let out = statement.out(info);
+            // reset
+            for (fn_input, actual) in inputs.iter().zip(actual) {
+                fn_input.lock().unwrap().1 = actual;
+            }
+            // return
+            Some(out)
+        } else {
+            None
         }
-        // not get the return type if these were the actual types
-        let out = self.statement.out(info);
-        // reset
-        for (fn_input, actual) in self.inputs.iter().zip(actual) {
-            fn_input.lock().unwrap().1 = actual;
-        }
-        // return
-        out
     }
 }
 
@@ -201,10 +229,7 @@ impl RStatementEnum {
                 }
             }
             Self::FunctionCall(func, args) => {
-                for (i, input) in func.inputs.iter().enumerate() {
-                    input.lock().unwrap().0.assign(args[i].run(info));
-                }
-                func.run(info)
+                func.run(info, args.iter().map(|s| s.run(info)).collect())
             }
             Self::BuiltinFunctionCall(v, args) => v.run(args, info),
             Self::LibFunctionCall(libid, fnid, args, _) => {
@@ -270,7 +295,7 @@ impl RStatementEnum {
                             }
                         }
                         VDataEnum::Function(f) => loop {
-                            if let Some(v) = f.run(info).matches() {
+                            if let Some(v) = f.run(info, vec![]).matches() {
                                 if let Some(v) = in_loop(v).matches() {
                                     oval = v;
                                     break;
@@ -430,9 +455,6 @@ impl RScript {
         Ok(Self { main, info })
     }
     pub fn run(&self, args: Vec<VData>) -> VData {
-        for (input, arg) in self.main.inputs.iter().zip(args.into_iter()) {
-            input.lock().unwrap().0 = arg;
-        }
-        self.main.run(&self.info)
+        self.main.run(&self.info, args)
     }
 }
