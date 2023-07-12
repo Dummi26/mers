@@ -25,7 +25,9 @@ mers has...
 
 ## How mers?
 
-Mers is written in rust. If you have `cargo`, use the build script in `build_scripts/` to produce the executable.
+There are prebuilt binaries in `build_scripts/`.
+
+Mers is written in Rust. If you have `cargo`, you can also use the build script in `build_scripts/` to build it yourself.
 
 Now, create a new text file (or choose one from the examples) and run it: `mers <file>`.
 
