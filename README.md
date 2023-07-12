@@ -29,6 +29,15 @@ Mers is written in rust. If you have `cargo`, use the build script in `build_scr
 
 Now, create a new text file (or choose one from the examples) and run it: `mers <file>`.
 
+## Known Issues (only major ones)
+
+### Multithreading
+
+If a function is called from two threads, all local variables of that function are shared.
+This doesn't affect builtin functions, and since functions usually don't take long to execute,
+the change of anyone encountering this is low, but it's something to be aware of.
+It's a simple fix in theory, but a lot of work to implement, which is why the bug isn't fixed yet.
+
 ## Docs
 
 [intro](docs/intro.md)
