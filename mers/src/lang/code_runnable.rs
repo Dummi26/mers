@@ -96,21 +96,20 @@ impl RFunction {
     pub fn out_by_map(&self, input_types: &Vec<VType>, info: &GlobalScriptInfo) -> Option<VType> {
         // NOTE: This can ONLY use self.out_map, because it's used by the VSingleType.fits_in method.
         let mut empty = true;
-        let out = self
-            .out_map
-            .iter()
-            .fold(VType::empty(), |mut t, (fn_in, fn_out)| {
-                if fn_in.len() == (input_types.len())
-                    && fn_in
-                        .iter()
-                        .zip(input_types.iter())
-                        .all(|(fn_in, arg)| arg.fits_in(fn_in, info).is_empty())
-                {
-                    empty = false;
-                    t.add_typesr(fn_out, info);
-                }
-                t
-            });
+        let out =
+            self.out_map
+                .iter()
+                .fold(VType::empty(), |mut t, (fn_in, fn_out)| {
+                    if fn_in.len() == (input_types.len())
+                        && fn_in.iter().zip(input_types.iter()).all(|(fn_in, arg)| {
+                            arg.types.iter().any(|t| t.fits_in_type(fn_in, info))
+                        })
+                    {
+                        empty = false;
+                        t.add_typesr(fn_out, info);
+                    }
+                    t
+                });
         if empty {
             None
         } else {
