@@ -1,3 +1,0 @@
-fn plus(a int, b int) -> int { a + b }
-
-10.plus(20) == 30

@@ -1,5 +1,9 @@
 /mers/target
 /mers/Cargo.lock
+/mers_lib/target
+/mers_lib/Cargo.lock
+/mers_old/target
+/mers_old/Cargo.lock
 /mers_libs/*/target
 /mers_libs/*/Cargo.lock
 /build_scripts/nu_plugin_mers

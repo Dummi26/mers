@@ -1,26 +1,10 @@
 [package]
 name = "mers"
-version = "0.2.3"
+version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[lib]
-name = "mers_libs"
-path = "src/lib.rs"
-
 [dependencies]
-edit = "0.1.4"
-notify = "5.1.0"
-regex = "1.7.2"
-static_assertions = "1.1.0"
-nu-plugin = { version = "0.79.0", optional = true }
-nu-protocol = { version = "0.79.0", features = ["plugin"], optional = true }
-colorize = "0.1.0"
-
-[features]
-# default = ["nushell_plugin"]
-nushell_plugin = ["dep:nu-plugin", "dep:nu-protocol"]
-
-[profile.nushellplugin]
-inherits = "release"
+mers_lib = { path = "../mers_lib" }
+clap = { version = "4.3.19", features = ["derive"] }
