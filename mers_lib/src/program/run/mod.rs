@@ -5,15 +5,25 @@ use crate::{
     info,
 };
 
+#[cfg(feature = "run")]
 pub mod assign_to;
+#[cfg(feature = "run")]
 pub mod block;
+#[cfg(feature = "run")]
 pub mod chain;
+#[cfg(feature = "run")]
 pub mod function;
+#[cfg(feature = "run")]
 pub mod r#if;
+#[cfg(feature = "run")]
 pub mod r#loop;
+#[cfg(feature = "run")]
 pub mod switch;
+#[cfg(feature = "run")]
 pub mod tuple;
+#[cfg(feature = "run")]
 pub mod value;
+#[cfg(feature = "run")]
 pub mod variable;
 
 pub trait MersStatement: std::fmt::Debug {

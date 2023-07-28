@@ -2,16 +2,27 @@ use std::{collections::HashMap, fmt::Debug};
 
 use crate::info;
 
+#[cfg(feature = "parse")]
 pub mod assign_to;
+#[cfg(feature = "parse")]
 pub mod block;
+#[cfg(feature = "parse")]
 pub mod chain;
+#[cfg(feature = "parse")]
 pub mod function;
+#[cfg(feature = "parse")]
 pub mod r#if;
+#[cfg(feature = "parse")]
 pub mod init_to;
+#[cfg(feature = "parse")]
 pub mod r#loop;
+#[cfg(feature = "parse")]
 pub mod switch;
+#[cfg(feature = "parse")]
 pub mod tuple;
+#[cfg(feature = "parse")]
 pub mod value;
+#[cfg(feature = "parse")]
 pub mod variable;
 
 pub trait MersStatement: Debug {

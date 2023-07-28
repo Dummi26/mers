@@ -9,7 +9,19 @@ list := (
 	8,
 	9,
 );
+
+total := 0
+(list item -> &total = (total, item).sum).iter
+"total: ".print
+total.println
+"sum: ".print
+list.sum.println
 iter := (list item -> { item.println 12 }).map
 "---".println
 list := iter.as_list
 list.println
+list.sum.println
+list.enumerate.as_list.println
+
+"mers cli: ".print
+mers_cli.println

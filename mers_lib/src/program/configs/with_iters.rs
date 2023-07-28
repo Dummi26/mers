@@ -10,6 +10,10 @@ use super::Config;
 impl Config {
     /// Adds functions to deal with iterables
     /// `iter: fn` executes a function once for each element of the iterable
+    /// `map: fn` maps each value in the iterable to a new one by applying a transformation function
+    /// `filter: fn` filters the iterable by removing all elements where the filter function doesn't return true
+    /// `filter_map: fn` combines filter and map via matching
+    /// `enumerate: fn` transforms an iterator over T into one over (Int, T), where Int is the index of the element
     pub fn with_iters(self) -> Self {
         self.add_var(
             "iter".to_string(),
@@ -113,6 +117,14 @@ impl Config {
                 }),
             }),
         )
+        .add_var(
+            "enumerate".to_string(),
+            Data::new(data::function::Function {
+                info: program::run::Info::neverused(),
+                out: Arc::new(|_a| todo!()),
+                run: Arc::new(|a, _i| Data::new(Iter(Iters::Enumerate, a.clone()))),
+            }),
+        )
     }
 }
 
@@ -121,6 +133,7 @@ pub enum Iters {
     Map(data::function::Function),
     Filter(data::function::Function),
     FilterMap(data::function::Function),
+    Enumerate,
 }
 #[derive(Clone, Debug)]
 pub struct Iter(Iters, Data);
@@ -152,6 +165,12 @@ impl MersData for Iter {
                         .filter_map(move |v| f.run(v).get().matches()),
                 )
             }
+            Iters::Enumerate => Box::new(self.1.get().iterable()?.enumerate().map(|(i, v)| {
+                Data::new(data::tuple::Tuple(vec![
+                    Data::new(data::int::Int(i as _)),
+                    v,
+                ]))
+            })),
             _ => todo!(),
         })
     }

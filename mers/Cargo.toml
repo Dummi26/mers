@@ -6,5 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-mers_lib = { path = "../mers_lib" }
+mers_lib = { path = "../mers_lib", features = ["parse"] }
 clap = { version = "4.3.19", features = ["derive"] }

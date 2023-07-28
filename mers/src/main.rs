@@ -2,8 +2,11 @@ use clap::{Parser, Subcommand, ValueEnum};
 use mers_lib::prelude_compile::*;
 use std::{fmt::Display, fs, path::PathBuf};
 
+mod cfg_globals;
+
 #[derive(Parser)]
 struct Args {
+    /// controls availability of features when compiling/running
     #[arg(long, value_enum, default_value_t = Configs::Std)]
     config: Configs,
     #[command(subcommand)]
@@ -11,18 +14,22 @@ struct Args {
 }
 #[derive(Subcommand)]
 enum Command {
+    /// runs the file
     Run { file: PathBuf },
+    /// runs cli argument
     Exec { source: String },
 }
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 enum Configs {
     None,
+    Base,
     Std,
 }
 impl Display for Configs {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::None => write!(f, "none"),
+            Self::Base => write!(f, "base"),
             Self::Std => write!(f, "std"),
         }
     }
@@ -30,10 +37,11 @@ impl Display for Configs {
 
 fn main() {
     let args = Args::parse();
-    let config = match args.config {
+    let config = cfg_globals::add_general(match args.config {
         Configs::None => Config::new(),
+        Configs::Base => Config::new().bundle_base(),
         Configs::Std => Config::new().bundle_std(),
-    };
+    });
     let (mut info1, mut info2) = config.infos();
     match args.command {
         Command::Run { file } => {
