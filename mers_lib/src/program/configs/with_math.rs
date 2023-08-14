@@ -1,8 +1,11 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::{
-    data::{self, Data},
-    program,
+    data::{self, Data, Type},
+    program::{
+        self,
+        run::{CheckError, CheckInfo},
+    },
 };
 
 use super::Config;
@@ -13,8 +16,38 @@ impl Config {
         self.add_var(
             "sum".to_string(),
             Data::new(data::function::Function {
-                info: program::run::Info::neverused(),
-                out: Arc::new(|_a| todo!()),
+                info: Arc::new(program::run::Info::neverused()),
+                info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                out: Arc::new(|a, i| {
+                    let mut ints = false;
+                    let mut floats = false;
+                    for a in &a.types {
+                        if let Some(i) = a.iterable() {
+                            if i.types
+                                .iter()
+                                .all(|t| t.as_any().downcast_ref::<data::int::IntT>().is_some())
+                            {
+                                ints = true;
+                            } else if i.types.iter().all(|t| {
+                                t.as_any().downcast_ref::<data::int::IntT>().is_some()
+                                    || t.as_any().downcast_ref::<data::float::FloatT>().is_some()
+                            }) {
+                                floats = true;
+                            } else {
+                                return Err(CheckError(format!("cannot get sum of iterator over type {i} because it contains types that aren't int/float")))
+                            }
+                        } else {
+                            return Err(CheckError(format!(
+                                "cannot get sum of non-iterable type {a}"
+                            )));
+                        }
+                    }
+                    Ok(match (ints, floats) {
+                        (_, true) => Type::new(data::float::FloatT),
+                        (true, false) => Type::new(data::int::IntT),
+                        (false, false) => Type::empty(),
+                    })
+                }),
                 run: Arc::new(|a, _i| {
                     if let Some(i) = a.get().iterable() {
                         let mut sumi = 0;

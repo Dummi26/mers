@@ -6,8 +6,18 @@ use super::{MersData, MersType, Type};
 pub struct Float(pub f64);
 
 impl MersData for Float {
+    fn is_eq(&self, other: &dyn MersData) -> bool {
+        if let Some(other) = other.as_any().downcast_ref::<Self>() {
+            other.0 == self.0
+        } else {
+            false
+        }
+    }
     fn clone(&self) -> Box<dyn MersData> {
         Box::new(Clone::clone(self))
+    }
+    fn as_type(&self) -> super::Type {
+        Type::new(FloatT)
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -43,5 +53,10 @@ impl MersType for FloatT {
 impl Display for Float {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+impl Display for FloatT {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Float")
     }
 }

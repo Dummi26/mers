@@ -11,8 +11,8 @@ impl MersStatement for Value {
     }
     fn compile_custom(
         &self,
-        info: &mut crate::info::Info<super::Local>,
-        comp: CompInfo,
+        _info: &mut crate::info::Info<super::Local>,
+        _comp: CompInfo,
     ) -> Result<Box<dyn program::run::MersStatement>, String> {
         Ok(Box::new(program::run::value::Value {
             val: self.0.clone(),

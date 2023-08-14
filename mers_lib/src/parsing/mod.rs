@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use crate::{
-    info::Info,
-    program::{self, parsed::CompInfo},
-};
+use crate::program;
 
 pub mod errors;
 pub mod statements;
@@ -96,7 +93,7 @@ impl Source {
     /// Useful for debugging the parser.
     pub fn section_begin(&mut self, section: String) -> Arc<String> {
         #[cfg(debug_assertions)]
-        println!("Section begin: {}", &section);
+        println!("[mers:parse] Section begin: {}", &section);
         let arc = Arc::new(section);
         self.sections.push(SectionMarker {
             section: Arc::clone(&arc),
@@ -141,7 +138,7 @@ impl SectionMarker {
             if Arc::strong_count(&self.section) == 1 {
                 self.end = Some(end);
                 #[cfg(debug_assertions)]
-                println!("Section end  : {}", &self.section);
+                println!("[mers:parse] Section end  : {}", &self.section);
             }
         }
     }

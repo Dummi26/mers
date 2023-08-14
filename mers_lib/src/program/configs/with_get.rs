@@ -1,8 +1,8 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::{
-    data::{self, Data},
-    program,
+    data::{self, Data, MersType},
+    program::{self, run::CheckInfo},
 };
 
 use super::Config;
@@ -13,8 +13,17 @@ impl Config {
         self.add_var(
             "get".to_string(),
             Data::new(data::function::Function {
-                info: program::run::Info::neverused(),
-                out: Arc::new(|_a| todo!()),
+                info: Arc::new(program::run::Info::neverused()),
+                info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                out: Arc::new(|a, i| {
+                    if let Some(v) = a.get() {
+                        Ok(v)
+                    } else {
+                        Err(program::run::CheckError(format!(
+                            "called get on non-gettable type {a}"
+                        )))
+                    }
+                }),
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     if let (Some(v), Some(i)) = (a.get(0), a.get(1)) {

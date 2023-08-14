@@ -1,8 +1,12 @@
-use std::{fmt::Display, process::Command, sync::Arc};
+use std::{
+    fmt::Display,
+    process::Command,
+    sync::{Arc, Mutex},
+};
 
 use crate::{
-    data::{self, Data, MersData, MersType},
-    program,
+    data::{self, Data, MersData, MersType, Type},
+    program::{self, run::CheckInfo},
 };
 
 use super::Config;
@@ -16,8 +20,9 @@ impl Config {
         self.add_var(
             "run_command".to_string(),
             Data::new(data::function::Function {
-                info: program::run::Info::neverused(),
-                out: Arc::new(|_a| todo!()),
+                info: Arc::new(program::run::Info::neverused()),
+                info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
+                out: Arc::new(|a, i| todo!()),
                 run: Arc::new(|a, _i| {
                     if let Some(cmd) = a.get().as_any().downcast_ref::<data::tuple::Tuple>() {
                         if let (Some(cmd), Some(args)) = (cmd.get(0), cmd.get(1)) {
@@ -67,8 +72,18 @@ pub struct RunCommandError(String);
 #[derive(Debug)]
 pub struct RunCommandErrorT;
 impl MersData for RunCommandError {
+    fn is_eq(&self, other: &dyn MersData) -> bool {
+        if let Some(other) = other.as_any().downcast_ref::<Self>() {
+            other.0 == self.0
+        } else {
+            false
+        }
+    }
     fn clone(&self) -> Box<dyn MersData> {
         Box::new(Clone::clone(self))
+    }
+    fn as_type(&self) -> data::Type {
+        Type::new(RunCommandErrorT)
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -100,5 +115,10 @@ impl MersType for RunCommandErrorT {
 impl Display for RunCommandError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "RunCommandError: {}", self.0)
+    }
+}
+impl Display for RunCommandErrorT {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "RunCommandError")
     }
 }

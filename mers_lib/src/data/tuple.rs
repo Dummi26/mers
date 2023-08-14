@@ -1,4 +1,4 @@
-use std::{any::Any, fmt::Display};
+use std::{any::Any, fmt::Display, sync::Arc};
 
 use super::{Data, MersData, MersType, Type};
 
@@ -15,15 +15,11 @@ impl Tuple {
 }
 
 impl MersData for Tuple {
-    fn matches(&self) -> Option<Data> {
-        if let Some(d) = self.0.first() {
-            if self.0.len() == 1 {
-                Some(d.clone())
-            } else {
-                None
-            }
+    fn is_eq(&self, other: &dyn MersData) -> bool {
+        if let Some(other) = other.as_any().downcast_ref::<Self>() {
+            other.0 == self.0
         } else {
-            None
+            false
         }
     }
     fn iterable(&self) -> Option<Box<dyn Iterator<Item = Data>>> {
@@ -31,6 +27,9 @@ impl MersData for Tuple {
     }
     fn clone(&self) -> Box<dyn MersData> {
         Box::new(Clone::clone(self))
+    }
+    fn as_type(&self) -> Type {
+        Type::new(TupleT(self.0.iter().map(|v| v.get().as_type()).collect()))
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -46,19 +45,12 @@ impl MersData for Tuple {
 #[derive(Debug)]
 pub struct TupleT(pub Vec<Type>);
 impl MersType for TupleT {
-    fn matches(&self) -> Option<(Type, bool)> {
-        if let Some(d) = self.0.first() {
-            if self.0.len() == 1 {
-                Some((d.clone(), true))
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
     fn iterable(&self) -> Option<Type> {
-        Some(todo!("joine types"))
+        let mut o = Type::empty();
+        for t in self.0.iter() {
+            o.add(Arc::new(t.clone()));
+        }
+        Some(o)
     }
     fn is_same_type_as(&self, other: &dyn MersType) -> bool {
         other.as_any().downcast_ref::<Self>().is_some()
@@ -85,6 +77,19 @@ impl Display for Tuple {
                 write!(f, ", ")?;
             }
             write!(f, "{}", c.get())?;
+        }
+        write!(f, ")")?;
+        Ok(())
+    }
+}
+impl Display for TupleT {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "(")?;
+        for (i, c) in self.0.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{}", c)?;
         }
         write!(f, ")")?;
         Ok(())

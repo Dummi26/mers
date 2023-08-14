@@ -1,9 +1,8 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::{
-    data::{self, Data},
-    info::Local,
-    program,
+    data,
+    program::{self, run::CheckInfo},
 };
 
 use super::{CompInfo, MersStatement};
@@ -17,7 +16,7 @@ pub struct Function {
 impl MersStatement for Function {
     fn has_scope(&self) -> bool {
         // TODO: what???
-        false
+        true
     }
     fn compile_custom(
         &self,
@@ -25,15 +24,21 @@ impl MersStatement for Function {
         mut comp: CompInfo,
     ) -> Result<Box<dyn program::run::MersStatement>, String> {
         comp.is_init = true;
-        let arg = self.arg.compile(info, comp)?;
+        let arg_target = Arc::new(self.arg.compile(info, comp)?);
         comp.is_init = false;
-        let run = self.run.compile(info, comp)?;
+        let run = Arc::new(self.run.compile(info, comp)?);
+        let arg2 = Arc::clone(&arg_target);
+        let run2 = Arc::clone(&run);
         Ok(Box::new(program::run::function::Function {
             func_no_info: data::function::Function {
-                info: program::run::Info::neverused(),
-                out: Arc::new(|_i| todo!()),
-                run: Arc::new(move |i, info| {
-                    data::defs::assign(i, &arg.run(info));
+                info: Arc::new(program::run::Info::neverused()),
+                info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                out: Arc::new(move |a, i| {
+                    arg2.check(i, Some(a))?;
+                    Ok(run2.check(i, None)?)
+                }),
+                run: Arc::new(move |arg, info| {
+                    data::defs::assign(arg, &arg_target.run(info));
                     run.run(info)
                 }),
             },

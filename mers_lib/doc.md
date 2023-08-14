@@ -1,5 +1,10 @@
 # mers documentation
 
+## ISSUES
+
+when storing a reference, then reinitializing a variable of the same name, the reference may get the new value although
+it would be expected for it to be a reference to the value before it was reinitialized.
+
 ## parsing
 
 syntax:

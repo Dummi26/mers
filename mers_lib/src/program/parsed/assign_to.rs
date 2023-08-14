@@ -1,4 +1,4 @@
-use crate::{info::Local, program};
+use crate::program;
 
 use super::{CompInfo, MersStatement};
 
@@ -15,9 +15,10 @@ impl MersStatement for AssignTo {
     fn compile_custom(
         &self,
         info: &mut crate::info::Info<super::Local>,
-        mut comp: CompInfo,
+        comp: CompInfo,
     ) -> Result<Box<dyn program::run::MersStatement>, String> {
         Ok(Box::new(program::run::assign_to::AssignTo {
+            is_init: false,
             target: self.target.compile(info, comp)?,
             source: self.source.compile(info, comp)?,
         }))

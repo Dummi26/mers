@@ -27,6 +27,7 @@ impl MersStatement for Variable {
             )
         }
         Ok(Box::new(program::run::variable::Variable {
+            is_init: comp.is_init,
             is_ref: comp.is_init || self.is_ref,
             var: if let Some(v) = info.get_var(&self.var) {
                 *v

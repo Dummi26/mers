@@ -1,12 +1,14 @@
-use super::Data;
+use crate::program::run::CheckError;
+
+use super::{Data, MersType, Type};
 
 pub fn assign(from: Data, target: &Data) {
-    let mut target = target.get_mut();
+    let target = target.get();
     if let Some(r) = target
-        .mut_any()
-        .downcast_mut::<crate::data::reference::Reference>()
+        .as_any()
+        .downcast_ref::<crate::data::reference::Reference>()
     {
-        *r.0.get_mut() = from.get().clone();
+        *r.0.lock().unwrap().get_mut() = from.get().clone();
     } else {
         todo!("assignment to non-reference")
     }

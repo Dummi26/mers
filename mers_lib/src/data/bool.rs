@@ -1,13 +1,23 @@
 use std::{any::Any, fmt::Display};
 
-use super::{MersData, MersType};
+use super::{MersData, MersType, Type};
 
 #[derive(Debug, Clone)]
 pub struct Bool(pub bool);
 
 impl MersData for Bool {
+    fn is_eq(&self, other: &dyn MersData) -> bool {
+        if let Some(other) = other.as_any().downcast_ref::<Self>() {
+            other.0 == self.0
+        } else {
+            false
+        }
+    }
     fn clone(&self) -> Box<dyn MersData> {
         Box::new(Clone::clone(self))
+    }
+    fn as_type(&self) -> super::Type {
+        Type::new(BoolT)
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -43,5 +53,10 @@ impl MersType for BoolT {
 impl Display for Bool {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+impl Display for BoolT {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Bool")
     }
 }

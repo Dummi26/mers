@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use super::Source;
 use crate::{
-    data::{self, Data},
+    data::Data,
     program::{self, parsed::MersStatement},
 };
 
@@ -140,12 +140,6 @@ pub fn parse_no_chain(
                         None
                     }
                 },
-            })
-        }
-        "loop" => {
-            src.section_begin("loop".to_string());
-            Box::new(program::parsed::r#loop::Loop {
-                inner: parse(src)?.expect("err: EOF instead of inner statement after loop"),
             })
         }
         "switch" => {

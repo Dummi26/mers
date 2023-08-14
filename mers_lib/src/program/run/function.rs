@@ -1,6 +1,8 @@
-use crate::data::{self, Data, MersData};
+use std::sync::Arc;
 
-use super::MersStatement;
+use crate::data::{self, Data, MersData, Type};
+
+use super::{CheckError, MersStatement};
 
 #[derive(Debug)]
 pub struct Function {
@@ -8,10 +10,23 @@ pub struct Function {
 }
 
 impl MersStatement for Function {
-    fn has_scope(&self) -> bool {
-        false
+    fn check_custom(
+        &self,
+        info: &mut super::CheckInfo,
+        init_to: Option<&Type>,
+    ) -> Result<data::Type, super::CheckError> {
+        if init_to.is_some() {
+            return Err(CheckError(
+                "can't init to statement type Function".to_string(),
+            ));
+        }
+        self.func_no_info.with_info_check(info.clone());
+        Ok(self.func_no_info.as_type())
     }
     fn run_custom(&self, info: &mut super::Info) -> Data {
-        Data::new(self.func_no_info.with_info(info.clone()))
+        Data::new(self.func_no_info.with_info_run(Arc::new(info.clone())))
+    }
+    fn has_scope(&self) -> bool {
+        true
     }
 }

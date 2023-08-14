@@ -20,7 +20,7 @@ impl MersStatement for If {
     ) -> Result<Box<dyn program::run::MersStatement>, String> {
         Ok(Box::new(program::run::r#if::If {
             condition: self.condition.compile(info, comp)?,
-            on_true: self.condition.compile(info, comp)?,
+            on_true: self.on_true.compile(info, comp)?,
             on_false: if let Some(v) = &self.on_false {
                 Some(v.compile(info, comp)?)
             } else {

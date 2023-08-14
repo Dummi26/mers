@@ -1,4 +1,4 @@
-use crate::{info::Local, program};
+use crate::program;
 
 use super::{CompInfo, MersStatement};
 
@@ -22,6 +22,7 @@ impl MersStatement for InitTo {
         comp.is_init = false;
         let source = self.source.compile(info, comp)?;
         Ok(Box::new(program::run::assign_to::AssignTo {
+            is_init: true,
             target,
             source,
         }))
