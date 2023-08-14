@@ -70,8 +70,8 @@ We could try to use the function improperly by passing a string instead of an in
 ```
 But mers will catch this and show an error, because the call to `sum` inside of `sum_doubled` would fail.
 
-(note: type-checks aren't implemented for all functions yet, you may need to use `--check no` to get around this and deal with runtime panics for now)
+(note: type-checks aren't implemented for all functions yet - some are just `todo!()`s, so mers will crash while checking your program. you may need to use `--check no` to get around this and deal with runtime panics for now)
 
 ## docs
 
-docs will be available some time. for now, check mers_lib/src/program/configs/*
+docs will be available in some time. for now, check mers_lib/src/program/configs/*
