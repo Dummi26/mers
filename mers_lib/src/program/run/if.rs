@@ -1,11 +1,15 @@
 use std::sync::Arc;
 
-use crate::data::{self, Data, MersType, Type};
+use crate::{
+    data::{self, Data, MersType, Type},
+    parsing::SourcePos,
+};
 
 use super::{CheckError, MersStatement};
 
 #[derive(Debug)]
 pub struct If {
+    pub pos_in_src: SourcePos,
     pub condition: Box<dyn MersStatement>,
     pub on_true: Box<dyn MersStatement>,
     pub on_false: Option<Box<dyn MersStatement>>,
@@ -54,5 +58,8 @@ impl MersStatement for If {
     }
     fn has_scope(&self) -> bool {
         true
+    }
+    fn pos_in_src(&self) -> &SourcePos {
+        &self.pos_in_src
     }
 }

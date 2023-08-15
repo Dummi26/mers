@@ -6,6 +6,7 @@ use std::{
 use crate::{
     data::{self, Data, Type},
     info,
+    parsing::SourcePos,
 };
 
 #[cfg(feature = "run")]
@@ -34,6 +35,7 @@ pub trait MersStatement: Debug + Send + Sync {
     fn run_custom(&self, info: &mut Info) -> Data;
     /// if true, local variables etc. will be contained inside their own scope.
     fn has_scope(&self) -> bool;
+    fn pos_in_src(&self) -> &SourcePos;
     fn check(&self, info: &mut CheckInfo, assign: Option<&Type>) -> Result<Type, CheckError> {
         if self.has_scope() {
             info.create_scope();

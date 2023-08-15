@@ -1,9 +1,10 @@
-use crate::data::Type;
+use crate::{data::Type, parsing::SourcePos};
 
 use super::{CheckError, MersStatement};
 
 #[derive(Debug)]
 pub struct Block {
+    pub pos_in_src: SourcePos,
     pub statements: Vec<Box<dyn MersStatement>>,
 }
 impl MersStatement for Block {
@@ -30,5 +31,8 @@ impl MersStatement for Block {
     }
     fn has_scope(&self) -> bool {
         true
+    }
+    fn pos_in_src(&self) -> &SourcePos {
+        &self.pos_in_src
     }
 }

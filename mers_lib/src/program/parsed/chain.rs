@@ -1,9 +1,11 @@
+use crate::parsing::SourcePos;
 use crate::{info, program};
 
 use super::{CompInfo, MersStatement};
 
 #[derive(Debug)]
 pub struct Chain {
+    pub pos_in_src: SourcePos,
     pub first: Box<dyn MersStatement>,
     pub chained: Box<dyn MersStatement>,
 }
@@ -17,6 +19,7 @@ impl MersStatement for Chain {
         comp: CompInfo,
     ) -> Result<Box<dyn program::run::MersStatement>, String> {
         Ok(Box::new(program::run::chain::Chain {
+            pos_in_src: self.pos_in_src,
             first: self.first.compile(info, comp)?,
             chained: self.chained.compile(info, comp)?,
         }))

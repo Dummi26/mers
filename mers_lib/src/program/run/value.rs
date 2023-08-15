@@ -1,9 +1,13 @@
-use crate::data::{Data, Type};
+use crate::{
+    data::{Data, Type},
+    parsing::SourcePos,
+};
 
 use super::{CheckError, MersStatement};
 
 #[derive(Debug)]
 pub struct Value {
+    pub pos_in_src: SourcePos,
     pub val: Data,
 }
 
@@ -23,5 +27,8 @@ impl MersStatement for Value {
     }
     fn run_custom(&self, _info: &mut super::Info) -> Data {
         self.val.clone()
+    }
+    fn pos_in_src(&self) -> &SourcePos {
+        &self.pos_in_src
     }
 }

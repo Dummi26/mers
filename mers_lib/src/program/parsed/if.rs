@@ -1,9 +1,10 @@
-use crate::program;
+use crate::{parsing::SourcePos, program};
 
 use super::{CompInfo, MersStatement};
 
 #[derive(Debug)]
 pub struct If {
+    pub pos_in_src: SourcePos,
     pub condition: Box<dyn MersStatement>,
     pub on_true: Box<dyn MersStatement>,
     pub on_false: Option<Box<dyn MersStatement>>,
@@ -19,6 +20,7 @@ impl MersStatement for If {
         comp: CompInfo,
     ) -> Result<Box<dyn program::run::MersStatement>, String> {
         Ok(Box::new(program::run::r#if::If {
+            pos_in_src: self.pos_in_src,
             condition: self.condition.compile(info, comp)?,
             on_true: self.on_true.compile(info, comp)?,
             on_false: if let Some(v) = &self.on_false {

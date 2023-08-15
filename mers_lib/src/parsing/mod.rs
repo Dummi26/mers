@@ -1,24 +1,85 @@
 use std::sync::Arc;
 
-use crate::program;
+use crate::program::{self, parsed::block::Block};
 
 pub mod errors;
 pub mod statements;
 pub mod types;
 
 pub fn parse(src: &mut Source) -> Result<Box<dyn program::parsed::MersStatement>, ()> {
-    Ok(Box::new(statements::parse_block(src)?))
+    let pos_in_src = src.get_pos();
+    Ok(Box::new(Block {
+        pos_in_src,
+        statements: statements::parse_multiple(src, "")?,
+    }))
 }
 
 pub struct Source {
+    src_raw_len: usize,
     src: String,
+    /// (start, content) of each comment, including start/end (//, \n, /* and */)
+    comments: Vec<(usize, String)>,
     i: usize,
     sections: Vec<SectionMarker>,
 }
 impl Source {
-    pub fn new(src: String) -> Self {
+    pub fn new(source: String) -> Self {
+        let mut src = String::with_capacity(source.len());
+        let mut comment = (0, String::new());
+        let mut comments = Vec::new();
+        let mut chars = source.char_indices().peekable();
+        let mut in_comment = None;
+        loop {
+            if let Some((i, ch)) = chars.next() {
+                match in_comment {
+                    Some(false) => {
+                        comment.1.push(ch);
+                        if ch == '\n' {
+                            in_comment = None;
+                            comments.push((
+                                comment.0,
+                                std::mem::replace(&mut comment.1, String::new()),
+                            ));
+                        }
+                    }
+                    Some(true) => {
+                        comment.1.push(ch);
+                        if ch == '*' && matches!(chars.peek(), Some((_, '/'))) {
+                            chars.next();
+                            comment.1.push('/');
+                            in_comment = None;
+                            comments.push((
+                                comment.0,
+                                std::mem::replace(&mut comment.1, String::new()),
+                            ));
+                        }
+                    }
+                    None => match ch {
+                        '/' if matches!(chars.peek(), Some((_, '/'))) => {
+                            chars.next();
+                            in_comment = Some(false);
+                            comment.0 = i;
+                            comment.1.push('/');
+                            comment.1.push('/');
+                        }
+                        '/' if matches!(chars.peek(), Some((_, '*'))) => {
+                            chars.next();
+                            in_comment = Some(true);
+                            comment.0 = i;
+                            comment.1.push('/');
+                            comment.1.push('*');
+                        }
+                        _ => src.push(ch),
+                    },
+                }
+            } else {
+                break;
+            }
+        }
         Self {
+            src_raw_len: source.len(),
             src,
+            comments,
             i: 0,
             sections: vec![],
         }
@@ -105,6 +166,37 @@ impl Source {
     pub fn sections(&self) -> &Vec<SectionMarker> {
         &self.sections
     }
+
+    pub fn format(&self, insertions: &Vec<(usize, bool, String)>) -> String {
+        let mut o = String::with_capacity(self.src_raw_len);
+        let mut insertions = insertions.iter().peekable();
+        let mut comments = self.comments.iter().peekable();
+        for (i, ch) in self.src.char_indices() {
+            let insert = if let Some((index, pre, _)) = insertions.peek() {
+                if *index <= i {
+                    Some(*pre)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            if let Some((index, comment)) = comments.peek() {
+                if *index == i {
+                    comments.next();
+                    o.push_str(comment);
+                }
+            }
+            if let Some(true) = insert {
+                o.push_str(&insertions.next().unwrap().2);
+            }
+            o.push(ch);
+            if let Some(false) = insert {
+                o.push_str(&insertions.next().unwrap().2);
+            }
+        }
+        o
+    }
 }
 
 impl Drop for Source {
@@ -144,7 +236,7 @@ impl SectionMarker {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct SourcePos(usize);
 impl SourcePos {
     fn diff(&self, rhs: &Self) -> usize {

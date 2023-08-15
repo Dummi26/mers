@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use super::Source;
 use crate::{
     data::Data,
@@ -16,32 +14,43 @@ pub fn parse(src: &mut Source) -> Result<Option<Box<dyn program::parsed::MersSta
     src.skip_whitespace();
     match src.peek_word() {
         ":=" => {
+            let pos_in_src = src.get_pos();
             src.next_word();
             first = Box::new(program::parsed::init_to::InitTo {
+                pos_in_src,
                 target: first,
                 source: parse(src)?.expect("todo"),
             });
         }
         "=" => {
+            let pos_in_src = src.get_pos();
             src.next_word();
             first = Box::new(program::parsed::assign_to::AssignTo {
+                pos_in_src,
                 target: first,
                 source: parse(src)?.expect("todo"),
             });
         }
         "->" => {
+            let pos_in_src = src.get_pos();
             src.next_word();
             first = Box::new(program::parsed::function::Function {
+                pos_in_src,
                 arg: first,
                 run: parse(src)?.expect("err: bad eof, fn needs some statement"),
             });
         }
         _ => loop {
+            let pos_in_src = src.get_pos();
             src.skip_whitespace();
             if let Some('.') = src.peek_char() {
                 src.next_char();
                 let chained = parse_no_chain(src)?.expect("err: EOF instead of chain");
-                first = Box::new(program::parsed::chain::Chain { first, chained });
+                first = Box::new(program::parsed::chain::Chain {
+                    pos_in_src,
+                    first,
+                    chained,
+                });
             } else {
                 break;
             }
@@ -52,23 +61,12 @@ pub fn parse(src: &mut Source) -> Result<Option<Box<dyn program::parsed::MersSta
     }
     Ok(Some(first))
 }
-/// Assumes the { has already been parsed
-pub fn parse_block(src: &mut Source) -> Result<program::parsed::block::Block, ()> {
-    Ok(program::parsed::block::Block {
-        statements: parse_multiple(src, '}')?,
-    })
-}
-pub fn parse_tuple(src: &mut Source) -> Result<program::parsed::tuple::Tuple, ()> {
-    Ok(program::parsed::tuple::Tuple {
-        elems: parse_multiple(src, ')')?,
-    })
-}
-pub fn parse_multiple(src: &mut Source, end: char) -> Result<Vec<Box<dyn MersStatement>>, ()> {
+pub fn parse_multiple(src: &mut Source, end: &str) -> Result<Vec<Box<dyn MersStatement>>, ()> {
     src.section_begin("block".to_string());
     let mut statements = vec![];
     loop {
         src.skip_whitespace();
-        if matches!(src.peek_char(), Some(e) if e == end) {
+        if src.peek_char().is_some_and(|ch| end.contains(ch)) {
             src.next_char();
             break;
         } else if let Some(s) = parse(src)? {
@@ -87,15 +85,24 @@ pub fn parse_no_chain(
     src.skip_whitespace();
     match src.peek_char() {
         Some('{') => {
+            let pos_in_src = src.get_pos();
             src.next_char();
-            return Ok(Some(Box::new(parse_block(src)?)));
+            return Ok(Some(Box::new(program::parsed::block::Block {
+                pos_in_src,
+                statements: parse_multiple(src, "}")?,
+            })));
         }
         Some('(') => {
+            let pos_in_src = src.get_pos();
             src.next_char();
-            return Ok(Some(Box::new(parse_tuple(src)?)));
+            return Ok(Some(Box::new(program::parsed::tuple::Tuple {
+                pos_in_src,
+                elems: parse_multiple(src, ")")?,
+            })));
         }
         Some('"') => {
             src.section_begin("string literal".to_string());
+            let pos_in_src = src.get_pos();
             src.next_char();
             let mut s = String::new();
             loop {
@@ -118,16 +125,19 @@ pub fn parse_no_chain(
                     todo!("err: eof in string")
                 }
             }
-            return Ok(Some(Box::new(program::parsed::value::Value(Data::new(
-                crate::data::string::String(s),
-            )))));
+            return Ok(Some(Box::new(program::parsed::value::Value {
+                pos_in_src,
+                data: Data::new(crate::data::string::String(s)),
+            })));
         }
         _ => {}
     }
+    let pos_in_src = src.get_pos();
     Ok(Some(match src.next_word() {
         "if" => {
             src.section_begin("if".to_string());
             Box::new(program::parsed::r#if::If {
+                pos_in_src,
                 condition: parse(src)?.expect("err: EOF instead of condition"),
                 on_true: parse(src)?.expect("err: EOF instead of on_true"),
                 on_false: {
@@ -142,16 +152,14 @@ pub fn parse_no_chain(
                 },
             })
         }
-        "switch" => {
-            src.section_begin("loop".to_string());
-            todo!()
-        }
-        "true" => Box::new(program::parsed::value::Value(Data::new(
-            crate::data::bool::Bool(true),
-        ))),
-        "false" => Box::new(program::parsed::value::Value(Data::new(
-            crate::data::bool::Bool(false),
-        ))),
+        "true" => Box::new(program::parsed::value::Value {
+            pos_in_src,
+            data: Data::new(crate::data::bool::Bool(true)),
+        }),
+        "false" => Box::new(program::parsed::value::Value {
+            pos_in_src,
+            data: Data::new(crate::data::bool::Bool(false)),
+        }),
         "" => return Ok(None),
         o => {
             let o = o.to_string();
@@ -161,28 +169,33 @@ pub fn parse_no_chain(
                     let here = src.get_pos();
                     src.next_char();
                     if let Ok(num) = format!("{o}.{}", src.next_word()).parse() {
-                        Box::new(program::parsed::value::Value(Data::new(
-                            crate::data::float::Float(num),
-                        )))
+                        Box::new(program::parsed::value::Value {
+                            pos_in_src,
+                            data: Data::new(crate::data::float::Float(num)),
+                        })
                     } else {
                         src.set_pos(here);
-                        Box::new(program::parsed::value::Value(Data::new(
-                            crate::data::int::Int(n),
-                        )))
+                        Box::new(program::parsed::value::Value {
+                            pos_in_src,
+                            data: Data::new(crate::data::int::Int(n)),
+                        })
                     }
                 } else {
-                    Box::new(program::parsed::value::Value(Data::new(
-                        crate::data::int::Int(n),
-                    )))
+                    Box::new(program::parsed::value::Value {
+                        pos_in_src,
+                        data: Data::new(crate::data::int::Int(n)),
+                    })
                 }
             } else {
                 if let Some('&') = o.chars().next() {
                     Box::new(program::parsed::variable::Variable {
+                        pos_in_src,
                         is_ref: true,
                         var: o[1..].to_string(),
                     })
                 } else {
                     Box::new(program::parsed::variable::Variable {
+                        pos_in_src,
                         is_ref: false,
                         var: o.to_string(),
                     })

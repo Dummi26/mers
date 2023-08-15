@@ -1,9 +1,10 @@
-use crate::{info, program};
+use crate::{info, parsing::SourcePos, program};
 
 use super::{CompInfo, MersStatement};
 
 #[derive(Debug)]
 pub struct Block {
+    pub pos_in_src: SourcePos,
     pub statements: Vec<Box<dyn MersStatement>>,
 }
 impl MersStatement for Block {
@@ -16,6 +17,7 @@ impl MersStatement for Block {
         comp: CompInfo,
     ) -> Result<Box<dyn program::run::MersStatement>, String> {
         Ok(Box::new(program::run::block::Block {
+            pos_in_src: self.pos_in_src,
             statements: self
                 .statements
                 .iter()

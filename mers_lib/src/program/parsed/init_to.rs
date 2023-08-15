@@ -1,9 +1,11 @@
+use crate::parsing::SourcePos;
 use crate::program;
 
 use super::{CompInfo, MersStatement};
 
 #[derive(Debug)]
 pub struct InitTo {
+    pub pos_in_src: SourcePos,
     pub target: Box<dyn MersStatement>,
     pub source: Box<dyn MersStatement>,
 }
@@ -22,6 +24,7 @@ impl MersStatement for InitTo {
         comp.is_init = false;
         let source = self.source.compile(info, comp)?;
         Ok(Box::new(program::run::assign_to::AssignTo {
+            pos_in_src: self.pos_in_src,
             is_init: true,
             target,
             source,

@@ -1,9 +1,10 @@
-use crate::{info::Local, program};
+use crate::{info::Local, parsing::SourcePos, program};
 
 use super::{CompInfo, MersStatement};
 
 #[derive(Debug)]
 pub struct Variable {
+    pub pos_in_src: SourcePos,
     pub is_ref: bool,
     pub var: String,
 }
@@ -27,6 +28,7 @@ impl MersStatement for Variable {
             )
         }
         Ok(Box::new(program::run::variable::Variable {
+            pos_in_src: self.pos_in_src,
             is_init: comp.is_init,
             is_ref: comp.is_init || self.is_ref,
             var: if let Some(v) = info.get_var(&self.var) {

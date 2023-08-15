@@ -1,9 +1,10 @@
-use crate::{info, program};
+use crate::{info, parsing::SourcePos, program};
 
 use super::{CompInfo, MersStatement};
 
 #[derive(Debug)]
 pub struct Tuple {
+    pub pos_in_src: SourcePos,
     pub elems: Vec<Box<dyn MersStatement>>,
 }
 impl MersStatement for Tuple {
@@ -16,6 +17,7 @@ impl MersStatement for Tuple {
         comp: CompInfo,
     ) -> Result<Box<dyn program::run::MersStatement>, String> {
         Ok(Box::new(program::run::tuple::Tuple {
+            pos_in_src: self.pos_in_src,
             elems: self
                 .elems
                 .iter()

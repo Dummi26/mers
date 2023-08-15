@@ -1,3 +1,4 @@
+use crate::parsing::SourcePos;
 use std::sync::{Arc, Mutex};
 
 use crate::{
@@ -9,6 +10,7 @@ use super::{CompInfo, MersStatement};
 
 #[derive(Debug)]
 pub struct Function {
+    pub pos_in_src: SourcePos,
     pub arg: Box<dyn MersStatement>,
     pub run: Box<dyn MersStatement>,
 }
@@ -30,6 +32,7 @@ impl MersStatement for Function {
         let arg2 = Arc::clone(&arg_target);
         let run2 = Arc::clone(&run);
         Ok(Box::new(program::run::function::Function {
+            pos_in_src: self.pos_in_src,
             func_no_info: data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
@@ -38,7 +41,7 @@ impl MersStatement for Function {
                     Ok(run2.check(i, None)?)
                 }),
                 run: Arc::new(move |arg, info| {
-                    data::defs::assign(arg, &arg_target.run(info));
+                    data::defs::assign(&arg, &arg_target.run(info));
                     run.run(info)
                 }),
             },

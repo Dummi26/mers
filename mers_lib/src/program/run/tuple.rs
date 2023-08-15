@@ -1,11 +1,15 @@
 use std::sync::Arc;
 
-use crate::data::{self, tuple::TupleT, Data, Type};
+use crate::{
+    data::{self, tuple::TupleT, Data, Type},
+    parsing::SourcePos,
+};
 
 use super::{CheckError, MersStatement};
 
 #[derive(Debug)]
 pub struct Tuple {
+    pub pos_in_src: SourcePos,
     pub elems: Vec<Box<dyn MersStatement>>,
 }
 impl MersStatement for Tuple {
@@ -31,7 +35,7 @@ impl MersStatement for Tuple {
                     }
                 } else {
                     return Err(CheckError(
-                        "can't init to statement type Tuple with value type {t}, which is part of {init_to} - only tuples can be assigned to tuples".to_string(),
+                        format!("can't init to statement type Tuple with value type {t}, which is part of {init_to} - only tuples can be assigned to tuples"),
                     ));
                 }
             }
@@ -63,5 +67,8 @@ impl MersStatement for Tuple {
     }
     fn has_scope(&self) -> bool {
         false
+    }
+    fn pos_in_src(&self) -> &SourcePos {
+        &self.pos_in_src
     }
 }

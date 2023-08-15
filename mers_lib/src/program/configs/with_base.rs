@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    data::{self, Data, MersType, Type},
+    data::{self, Data, Type},
     program::run::{CheckInfo, Info},
 };
 
@@ -18,7 +18,6 @@ impl Config {
                 info: Arc::new(Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, i| {
-                        dbg!(a);
                     let mut o = Type::empty();
                     for t in &a.types {
                         if let Some(t) = t.as_any().downcast_ref::<data::function::FunctionT>() {

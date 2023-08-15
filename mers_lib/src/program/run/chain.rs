@@ -1,11 +1,15 @@
 use std::sync::Arc;
 
-use crate::data::{Data, Type};
+use crate::{
+    data::{Data, Type},
+    parsing::SourcePos,
+};
 
 use super::{CheckError, MersStatement};
 
 #[derive(Debug)]
 pub struct Chain {
+    pub pos_in_src: SourcePos,
     pub first: Box<dyn MersStatement>,
     pub chained: Box<dyn MersStatement>,
 }
@@ -53,5 +57,8 @@ impl MersStatement for Chain {
     }
     fn has_scope(&self) -> bool {
         false
+    }
+    fn pos_in_src(&self) -> &SourcePos {
+        &self.pos_in_src
     }
 }

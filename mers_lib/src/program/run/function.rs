@@ -1,11 +1,15 @@
 use std::sync::Arc;
 
-use crate::data::{self, Data, MersData, Type};
+use crate::{
+    data::{self, Data, MersData, Type},
+    parsing::SourcePos,
+};
 
 use super::{CheckError, MersStatement};
 
 #[derive(Debug)]
 pub struct Function {
+    pub pos_in_src: SourcePos,
     pub func_no_info: data::function::Function,
 }
 
@@ -28,5 +32,8 @@ impl MersStatement for Function {
     }
     fn has_scope(&self) -> bool {
         true
+    }
+    fn pos_in_src(&self) -> &SourcePos {
+        &self.pos_in_src
     }
 }
