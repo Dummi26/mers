@@ -24,7 +24,6 @@ Everything else is implemented as a function.
 ### Types and Safety
 
 Mers is built around a type-system where a value could be one of multiple types.
-Dynamic typing allows you to do:
 ```
 x := if condition { 12 } else { "something went wrong" }
 ```
