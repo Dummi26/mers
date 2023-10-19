@@ -19,7 +19,7 @@ Mers is simple. There are only few expressions:
 - Functions (`arg -> <do something>`)
 - Function calls `arg.function`
 
-Everything else is implemented as a function:
+Everything else is implemented as a function.
 
 ### Types and Safety
 
