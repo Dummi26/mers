@@ -247,7 +247,7 @@ impl Config {
                             }
                         }
                         if usef {
-                            Data::new(data::float::Float(prodi as f64 + prodf))
+                            Data::new(data::float::Float(prodi as f64 * prodf))
                         } else {
                             Data::new(data::int::Int(prodi))
                         }

@@ -62,6 +62,9 @@ impl Config {
                                         // found a function that won't fail for this arg_type!
                                         if !func_fallible {
                                             tuple_fallible = false;
+                                            if tuple_possible {
+                                                break;
+                                            }
                                         }
                                     }
                                     if tuple_fallible || !tuple_possible {

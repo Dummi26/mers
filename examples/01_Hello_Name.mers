@@ -1,0 +1,3 @@
+"What's you name?".println
+name := ().read_line.trim
+("Hello, ", name, "!").concat.println

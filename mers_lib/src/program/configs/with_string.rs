@@ -8,13 +8,25 @@ use crate::{
 use super::Config;
 
 impl Config {
+    /// `trim: fn` removes leading and trailing whitespace from a string
     /// `substring: fn` extracts part of a string. usage: (str, start).substring or (str, start, end).substring. start and end may be negative, in which case they become str.len - n: (str, 0, -1) shortens the string by 1.
     /// `index_of: fn` finds the index of a pattern in a string
     /// `index_of_rev: fn` finds the last index of a pattern in a string
     /// `to_string: fn` turns any argument into a (more or less useful) string representation
     /// `concat: fn` concatenates all arguments given to it. arg must be an enumerable
     pub fn with_string(self) -> Self {
-        self.add_var("concat".to_string(), Data::new(data::function::Function {
+        self.add_var("trim".to_string(), Data::new(data::function::Function {
+            info: Arc::new(Info::neverused()),
+            info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+            out: Arc::new(|a, _i| if a.is_included_in(&data::string::StringT) {
+                Ok(Type::new(data::string::StringT))
+            } else {
+                Err(CheckError(format!("cannot call trim on non-strings")))
+            }),
+            run: Arc::new(|a, _i| {
+                Data::new(data::string::String(a.get().as_any().downcast_ref::<data::string::String>().unwrap().0.trim().to_owned()))
+            })
+        })).add_var("concat".to_string(), Data::new(data::function::Function {
             info: Arc::new(Info::neverused()),
             info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
             out: Arc::new(|a, _i| if a.iterable().is_some() {
