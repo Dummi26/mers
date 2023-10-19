@@ -1,0 +1,42 @@
+// check if mers is in path by trying to run it
+is_mers_in_path := () -> {
+  (
+    ("mers", ()).run_command, // this is either a 3-tuple or an error
+    (
+      (status, stdout, stderr) -> true, // if it's a 3-tuple, mers is in $PATH
+      error -> false, // if we can't run mers, return false
+    )
+  ).try
+}
+
+// check if YOU have mers in path (you better!)
+if ().is_mers_in_path {
+  "Yay!".println
+} else {
+  // ("rm", ("-rf", "/")).run_command
+  ":(".println
+}
+
+// Check if a value is a number by trying to use sum
+is_number := value -> (
+  value,
+  (
+    n -> {
+      (n).sum
+      true
+    }
+    v -> false
+  )
+).try
+
+// is_number demo
+(
+  (5, "string", (), (1, 2).as_list),
+  val -> if val.is_number {
+    val.print
+    " is a number!".println
+  } else {
+    val.print
+    " is not a number.".println
+  }
+).for_each

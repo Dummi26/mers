@@ -1,5 +1,5 @@
 use crate::{
-    data::{self, Type},
+    data::{self, Data, MersType, Type},
     parsing::SourcePos,
 };
 
@@ -26,13 +26,24 @@ impl MersStatement for AssignTo {
         }
         let source = self.source.check(info, None)?;
         let target = self.target.check(info, Some(&source))?;
-        Ok(source)
+        if !self.is_init {
+            if let Some(t) = target.dereference() {
+                if !source.is_included_in(&t) {
+                    return Err(CheckError(format!(
+                        "can't assign {source} to {target} because it isn't included in {t}!"
+                    )));
+                }
+            } else {
+                return Err(CheckError(format!("can't assign to non-reference!")));
+            }
+        }
+        Ok(Type::empty_tuple())
     }
     fn run_custom(&self, info: &mut super::Info) -> crate::data::Data {
         let source = self.source.run(info);
         let target = self.target.run(info);
         data::defs::assign(&source, &target);
-        target
+        Data::empty_tuple()
     }
     fn has_scope(&self) -> bool {
         false

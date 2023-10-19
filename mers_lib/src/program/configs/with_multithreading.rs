@@ -12,7 +12,6 @@ use crate::{
 use super::Config;
 
 impl Config {
-    /// `get: fn` is used to retrieve elements from collections
     /// `thread: fn` turns `(func, arg)` into a `Thread`, which will run the function with the argument.
     /// `thread_get_result: fn` returns `()` while the thread is running and `(result)` otherwise.
     pub fn with_multithreading(self) -> Self {

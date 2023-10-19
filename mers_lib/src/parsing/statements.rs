@@ -113,6 +113,7 @@ pub fn parse_no_chain(
                             Some('r') => '\r',
                             Some('n') => '\n',
                             Some('t') => '\t',
+                            Some('"') => '"',
                             Some(o) => todo!("err: unknown backslash escape '\\{o}'"),
                             None => todo!("err: eof in backslash escape"),
                         });

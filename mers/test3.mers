@@ -1,8 +1,0 @@
-values := ().as_list
-counter := 0
-counter_ref := &counter
-{val -> {
-  counter_ref = (counter_ref.deref, 1).sum
-  counter_ref.deref.println
-  if (counter_ref.deref, 5).eq { (()) } else { () }
-}}.loop

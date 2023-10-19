@@ -28,7 +28,10 @@ impl Function {
         *self.info_check.lock().unwrap() = check;
     }
     pub fn check(&self, arg: &Type) -> Result<Type, CheckError> {
-        (self.out)(arg, &mut self.info_check.lock().unwrap().clone())
+        let lock = self.info_check.lock().unwrap();
+        let mut info = lock.clone();
+        drop(lock);
+        (self.out)(arg, &mut info)
     }
     pub fn run(&self, arg: Data) -> Data {
         (self.run)(arg, &mut self.info.as_ref().clone())
@@ -36,6 +39,12 @@ impl Function {
 }
 
 impl MersData for Function {
+    fn iterable(&self) -> Option<Box<dyn Iterator<Item = Data>>> {
+        let s = Clone::clone(self);
+        Some(Box::new(std::iter::from_fn(move || {
+            s.run(Data::empty_tuple()).one_tuple_content()
+        })))
+    }
     fn is_eq(&self, _other: &dyn MersData) -> bool {
         false
     }
@@ -46,7 +55,10 @@ impl MersData for Function {
         let out = Arc::clone(&self.out);
         let info = Arc::clone(&self.info_check);
         Type::new(FunctionT(Arc::new(move |a| {
-            out(a, &mut info.lock().unwrap().clone())
+            let lock = info.lock().unwrap();
+            let mut info = lock.clone();
+            drop(lock);
+            out(a, &mut info)
         })))
     }
     fn as_any(&self) -> &dyn Any {
@@ -62,6 +74,26 @@ impl MersData for Function {
 
 pub struct FunctionT(pub Arc<dyn Fn(&Type) -> Result<Type, CheckError> + Send + Sync>);
 impl MersType for FunctionT {
+    fn iterable(&self) -> Option<Type> {
+        // if this function can be called with an empty tuple and returns `()` or `(T)`, it can act as an iterator with type `T`.
+        if let Ok(t) = self.0(&Type::empty_tuple()) {
+            let mut out = Type::empty();
+            for t in &t.types {
+                if let Some(t) = t.as_any().downcast_ref::<super::tuple::TupleT>() {
+                    if t.0.len() > 1 {
+                        return None;
+                    } else if let Some(t) = t.0.first() {
+                        out.add(Arc::new(t.clone()))
+                    }
+                } else {
+                    return None;
+                }
+            }
+            Some(out)
+        } else {
+            None
+        }
+    }
     fn is_same_type_as(&self, _other: &dyn MersType) -> bool {
         false
     }

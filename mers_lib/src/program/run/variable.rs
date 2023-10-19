@@ -32,13 +32,14 @@ impl MersStatement for Variable {
                 .expect("variable's is_init was true, but check_custom's assign was None? How?")
                 .clone();
         }
-        Ok(if self.is_ref {
+        let val = if self.is_ref {
             Type::new(data::reference::ReferenceT(
                 info.scopes[self.var.0].vars[self.var.1].clone(),
             ))
         } else {
             info.scopes[self.var.0].vars[self.var.1].clone()
-        })
+        };
+        Ok(val)
     }
     fn run_custom(&self, info: &mut super::Info) -> Data {
         if self.is_init {

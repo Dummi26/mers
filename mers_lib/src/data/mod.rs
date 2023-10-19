@@ -258,7 +258,9 @@ impl Type {
                 self.add(Arc::clone(t));
             }
         } else {
-            self.types.push(new);
+            if !self.types.iter().any(|t| new.is_included_in(t.as_ref())) {
+                self.types.push(new);
+            }
         }
     }
     pub fn dereference(&self) -> Option<Self> {

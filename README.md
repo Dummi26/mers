@@ -7,49 +7,30 @@ It is designed to be safe (it doesn't crash at runtime) and as simple as possibl
 
 ### Simplicity
 
-Mers aims to be very simple, as in, having very few "special" things.
-But this means that many things you may be familiar with simply don't exist in mers,
-because they aren't actually needed.
-This includes:
+Mers is simple. There are only few expressions:
 
-**Exceptions**, because errors in mers are just values.
-A function to read a UTF-8 text file from disk could have a return type like `String/IOError/UTF8DecodeError`,
-which tells you exactly what errors can happen and also forces you to handle them (see later for mers' type-system).
+- Values (`1`, `"my string"`, ...)
+- Blocks (`{}`)
+- Tuples (`()`)
+- Assignments (`=`)
+- Variable initializations (`:=`)
+- Variables (`my_var`, `&my_var`)
+- If statements (`if <condition> <then> [else <else>]`)
+- Functions (`arg -> <do something>`)
+- Function calls `arg.function`
 
-**Loops**, because, as it turns out, a function which takes an iterable and a function can do this just fine:
-```
-my_list := (1, 2, 3, "four", "five", 6.5).as_list
-(my_list, val -> val.println).for_each
-```
-Javascript has `forEach`, Rust `for_each`, C# `Each`, and Java has `forEach`.
-At first, it seemed stupid to have a function that does the same thing a `for` or `foreach` loop can already do,
-but if a function can do the job, why do we even need a special language construct to do this for us?
-To keep it simple, mers doesn't have any loops - just functions you can use to loop.
-
-**Breaks** aren't necessary, since this can be achieved using iterators or by returning `(T)` in a `loop`.
-It is also similar to `goto`, because it makes control flow less obvious, so it had to go.
-
-The same control flow obfuscation issue exists for **returns**, so these also aren't a thing.
-A function simply returns the value created by its expression.
-
-**Functions** do exist, but they have one key difference: They take exactly one argument. Always.
-Why? Because we don't need anything else.
-A function with no arguments now takes an empty tuple `()`,
-a function with two arguments now takes a two-length tuple `(a, b)`,
-a function with either zero, one, or three arguments now takes a `()/(a)/(a, b, c)`,
-and a function with n arguments takes a list, or a list as part of a tuple, or an optional list via `()/<the list>`.
+Everything else is implemented as a function:
 
 ### Types and Safety
 
 Mers is built around a type-system where a value could be one of multiple types.
-This is basically what dynamic typing allows you to do:
+Dynamic typing allows you to do:
 ```
 x := if condition { 12 } else { "something went wrong" }
 ```
-This would be valid code.
-However, in mers, the compiler still tracks all the types in your program,
+In mers, the compiler tracks all the types in your program,
 and it will catch every possible crash before the program even runs:
-If we tried to use `x` as an int, the compiler would complain since it might be a string, so this does not compile:
+If we tried to use `x` as an int, the compiler would complain since it might be a string, so this **does not compile**:
 ```
 list := (1, 2, if true 3 else "not an int")
 list.sum.println
@@ -71,6 +52,32 @@ We could try to use the function improperly by passing a string instead of an in
 But mers will catch this and show an error, because the call to `sum` inside of `sum_doubled` would fail.
 
 (note: type-checks aren't implemented for all functions yet - some are just `todo!()`s, so mers will crash while checking your program. you may need to use `--check no` to get around this and deal with runtime panics for now)
+
+### Error Handling
+
+Errors in mers are normal values.
+For example, `("ls", ("/")).run_command` has the return type `({Int/()}, String, String)/RunCommandError`.
+This means it either returns the result of the command (exit code, stdout, stderr) or an error (a value of type `RunCommandError`).
+
+So, if we want to print the programs stdout, we could try
+
+```
+(s, stdout, stderr) := ("ls", ("/")).run_command
+stdout.println
+```
+
+But if we encountered a `RunCommandError`, mers couldn't assign the value to `(s, stdout, stderr)`, so this doesn't compile.
+Instead, we need to handle the error case, using the `try` function:
+
+```
+(
+  ("ls", ("/")).run_command,
+  (
+    (s, stdout, stderr) -> stdout.println,
+    error -> error.println,
+  )
+).try
+```
 
 ## docs
 

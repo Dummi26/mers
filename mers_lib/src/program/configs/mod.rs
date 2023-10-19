@@ -13,6 +13,7 @@ mod with_list;
 mod with_math;
 mod with_multithreading;
 mod with_stdio;
+mod with_string;
 
 /// Usage: create an empty Config using Config::new(), use the methods to customize it, then get the Infos using Config::infos()
 /// bundle_* for bundles (combines multiple groups or even bundles)
@@ -36,11 +37,13 @@ impl Config {
     /// `bundle_base()`
     /// `with_stdio()`
     /// `with_list()`
+    /// `with_string()`
     /// `with_command_running()`
     /// `with_multithreading()`
     pub fn bundle_std(self) -> Self {
         self.with_multithreading()
             .with_command_running()
+            .with_string()
             .with_list()
             .with_stdio()
             .bundle_base()

@@ -85,17 +85,19 @@ fn main() {
             run.run(&mut info_run);
         }
         Check::Yes | Check::Only => {
-            let rt = match run.check(&mut info_check, None) {
+            let return_type = match run.check(&mut info_check, None) {
                 Ok(v) => v,
                 Err(e) => {
                     eprintln!("check failed: {e}");
                     std::process::exit(36);
                 }
             };
+            #[cfg(debug_assertions)]
+            dbg!(&return_type);
             if args.check == Check::Yes {
                 run.run(&mut info_run);
             } else {
-                eprintln!("return type is {}", rt)
+                eprintln!("return type is {}", return_type)
             }
         }
     }

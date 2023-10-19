@@ -5,7 +5,10 @@ use std::{
 
 use crate::{
     data::{self, Data, MersData, MersType, Type},
-    program::{self, run::CheckInfo},
+    program::{
+        self,
+        run::{CheckError, CheckInfo},
+    },
 };
 
 use super::Config;
@@ -14,9 +17,118 @@ impl Config {
     /// Adds a simple list type
     /// `List` can store a variable number of items
     /// `as_list: fn` turns a tuple into a list
+    /// `push: fn` adds an element to a list
+    /// `pop: fn` removes the last element from a list. returns (element) or ().
+    /// TODO!
+    /// `get_mut: fn` like get, but returns a reference to the object
     pub fn with_list(self) -> Self {
         // TODO: Type with generics
         self.add_type("List".to_string(), Type::new(ListT(Type::empty_tuple())))
+            .add_var(
+                "pop".to_string(),
+                Data::new(data::function::Function {
+                    info: Arc::new(program::run::Info::neverused()),
+                    info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                    out: Arc::new(|a, _i| {
+                        if let Some(a) = a.dereference() {
+                            let mut out = Type::empty();
+                            for t in a.types.iter() {
+                                if let Some(t) = t.as_any().downcast_ref::<ListT>() {
+                                    out.add(Arc::new(t.0.clone()));
+                                } else {
+                                    return Err(CheckError(format!(
+                                        "pop: found a reference to {t}, which is not a list"
+                                    )));
+                                }
+                            }
+                            Ok(out)
+                        } else {
+                            return Err(CheckError(format!("pop: not a reference: {a}")));
+                        }
+                    }),
+                    run: Arc::new(|a, _i| {
+                        match a
+                            .get()
+                            .as_any()
+                            .downcast_ref::<data::reference::Reference>()
+                            .unwrap()
+                            .0
+                            .lock()
+                            .unwrap()
+                            .get_mut()
+                            .mut_any()
+                            .downcast_mut::<List>()
+                            .unwrap()
+                            .0
+                            .pop()
+                        {
+                            Some(data) => Data::one_tuple(data),
+                            None => Data::empty_tuple(),
+                        }
+                    }),
+                }),
+            )
+            .add_var(
+                "push".to_string(),
+                Data::new(data::function::Function {
+                    info: Arc::new(program::run::Info::neverused()),
+                    info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                    out: Arc::new(|a, _i| {
+                        for t in a.types.iter() {
+                            if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
+                                if t.0.len() != 2 {
+                                    return Err(CheckError(format!(
+                                        "push: tuple must have length 2"
+                                    )));
+                                }
+                                let a = &t.0[0];
+                                let new = &t.0[1];
+                                if let Some(a) = a.dereference() {
+                                    for t in a.types.iter() {
+                                        if let Some(t) = t.as_any().downcast_ref::<ListT>() {
+                                            if !new.is_included_in(&t.0) {
+                                                return Err(CheckError(format!(
+                                            "push: found a reference to {t}, which is a list which can't contain elements of type {new}"
+                                        )));
+                                            }
+                                        } else {
+                                            return Err(CheckError(format!(
+                                            "push: found a reference to {t}, which is not a list"
+                                        )));
+                                        }
+                                    }
+                                } else {
+                                    return Err(CheckError(format!(
+                                        "push: first element in tuple not a reference: {a}"
+                                    )));
+                                }
+                            } else {
+                                return Err(CheckError(format!("push: not a tuple: {t}")));
+                            }
+                        }
+                        Ok(Type::empty_tuple())
+                    }),
+                    run: Arc::new(|a, _i| {
+                        let tuple = a.get();
+                        let tuple = tuple.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
+                        tuple.0[0]
+                            .get()
+                            .as_any()
+                            .downcast_ref::<data::reference::Reference>()
+                            .unwrap()
+                            .0
+                            .lock()
+                            .unwrap()
+                            .get_mut()
+                            .mut_any()
+                            .downcast_mut::<List>()
+                            .unwrap()
+                            .0
+                            .push(tuple.0[1].clone());
+                            Data::empty_tuple()
+                    }),
+                }),
+            )
             .add_var(
                 "as_list".to_string(),
                 Data::new(data::function::Function {

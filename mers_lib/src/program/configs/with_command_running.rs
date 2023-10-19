@@ -6,7 +6,10 @@ use std::{
 
 use crate::{
     data::{self, Data, MersData, MersType, Type},
-    program::{self, run::CheckInfo},
+    program::{
+        self,
+        run::{CheckError, CheckInfo},
+    },
 };
 
 use super::Config;
@@ -16,13 +19,27 @@ impl Config {
     /// `run_command: fn` runs a command with arguments.
     /// Args: (cmd, args) where cmd is a string and args is an Iterable over strings
     /// `RunCommandError` holds the error if the command can't be executed
+    /// returns (int/(), string, string) on success (status code, stdout, stderr)
     pub fn with_command_running(self) -> Self {
         self.add_var(
             "run_command".to_string(),
             Data::new(data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
-                out: Arc::new(|a, i| todo!()),
+                out: Arc::new(|a, _i| {
+                    if a.types.iter().all(|t| t.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in(&data::string::StringT) && t.0[1].iterable().is_some_and(|t| t.is_included_in(&data::string::StringT)))) {
+                        Ok(Type::newm(vec![
+                            Arc::new(data::tuple::TupleT(vec![
+                                Type::newm(vec![Arc::new(data::int::IntT), Arc::new(data::tuple::TupleT(vec![]))]),
+                                Type::new(data::string::StringT),
+                                Type::new(data::string::StringT),
+                            ])),
+                            Arc::new(RunCommandErrorT)
+                        ]))
+                    } else {
+                        return Err(CheckError(format!("run_command called with invalid arguments (must be (String, Iter<String>))")));
+                    }
+                }),
                 run: Arc::new(|a, _i| {
                     if let Some(cmd) = a.get().as_any().downcast_ref::<data::tuple::Tuple>() {
                         if let (Some(cmd), Some(args)) = (cmd.get(0), cmd.get(1)) {

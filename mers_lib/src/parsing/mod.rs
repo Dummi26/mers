@@ -8,10 +8,11 @@ pub mod types;
 
 pub fn parse(src: &mut Source) -> Result<Box<dyn program::parsed::MersStatement>, ()> {
     let pos_in_src = src.get_pos();
-    Ok(Box::new(Block {
+    let block = Block {
         pos_in_src,
         statements: statements::parse_multiple(src, "")?,
-    }))
+    };
+    Ok(Box::new(block))
 }
 
 pub struct Source {
@@ -55,6 +56,10 @@ impl Source {
                         }
                     }
                     None => match ch {
+                        '\\' if matches!(chars.peek(), Some((_, '/'))) => {
+                            chars.next();
+                            src.push('/');
+                        }
                         '/' if matches!(chars.peek(), Some((_, '/'))) => {
                             chars.next();
                             in_comment = Some(false);

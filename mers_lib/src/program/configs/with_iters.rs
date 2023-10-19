@@ -18,7 +18,7 @@ impl Config {
     /// `iter: fn` executes a function once for each element of the iterable
     /// `map: fn` maps each value in the iterable to a new one by applying a transformation function
     /// `filter: fn` filters the iterable by removing all elements where the filter function doesn't return true
-    /// `filter_map: fn` combines filter and map
+    /// `filter_map: fn` combines filter and map. requires that the function returns ()/(t).
     /// `enumerate: fn` transforms an iterator over T into one over (Int, T), where Int is the index of the element
     pub fn with_iters(self) -> Self {
         self.add_var(
@@ -49,7 +49,8 @@ impl Config {
                                     }
                                 } else {
                                     return Err(CheckError(format!(
-                                        "for_each called on tuple not containing iterable and function"
+                                        "for_each called on tuple not containing iterable and function: {v} is {}",
+                                        if v.iterable().is_some() { "iterable" } else { "not iterable" },
                                     )));
                                 }
                             } else {

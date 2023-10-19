@@ -1,8 +1,8 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    data::{self, Data, Type},
-    program::run::{CheckInfo, Info},
+    data::{self, Data, MersType, Type},
+    program::run::{CheckError, CheckInfo, Info},
 };
 
 use super::Config;
@@ -11,9 +11,105 @@ impl Config {
     /// `deref: fn` clones the value from a reference
     /// `eq: fn` returns true if all the values are equal, otherwise false.
     /// `loop: fn` runs a function until it returns (T) instead of (), then returns T.
+    /// `try: fn` runs the first valid function with the argument. usage: (arg, (f1, f2, f3)).try
+    /// NOTE: try's return type may miss some types that can actually happen when using it on tuples, so... don't do ((a, b), (f1, any -> ())).try unless f1 also returns ()
     /// `len: fn` gets the length of strings or tuples
+    /// `panic: fn` exits the program with the given exit code
     pub fn with_base(self) -> Self {
-        self.add_var(
+        self.add_var("try".to_string(), Data::new(data::function::Function {
+                info: Arc::new(Info::neverused()),
+                info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+            out: Arc::new(|a, _i| {
+                let mut out = Type::empty();
+                for t in a.types.iter() {
+                    if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
+                        if t.0.len() != 2 {
+                            return Err(CheckError(format!("cannot use try with tuple argument where len != 2 (got len {})", t.0.len())));
+                        }
+                        let arg_type = &t.0[0];
+                        let functions = &t.0[1];
+                        for arg_type in arg_type.types.iter() {
+                            let arg_type = Type::newm(vec![arg_type.clone()]);
+                            // possibilities for the tuple (f1, f2, f3, ..., fn)
+                            for ft in functions.types.iter() {
+                                let mut tuple_fallible = true;
+                                let mut tuple_possible = false;
+                                if let Some(ft) = ft.as_any().downcast_ref::<data::tuple::TupleT>() {
+                                    // f1, f2, f3, ..., fn
+                                    let mut func_errors = vec![];
+                                    for ft in ft.0.iter() {
+                                        let mut func_fallible = false;
+                                        // possibilities for f_
+                                        for ft in ft.types.iter() {
+                                            if let Some(ft) = ft.as_any().downcast_ref::<data::function::FunctionT>() {
+                                                func_errors.push(match ft.0(&arg_type) {
+                                                    Err(e) => {
+                                                        func_fallible = true;
+                                                        Some(e)
+                                                    }
+                                                    Ok(o) => {
+                                                        tuple_possible = true;
+                                                        for t in o.types {
+                                                            out.add(t);
+                                                        }
+                                                        None
+                                                    },
+                                                });
+                                            } else {
+                                                return Err(CheckError(format!("try: arguments f1-fn must be functions")));
+                                            }
+                                        }
+                                        // found a function that won't fail for this arg_type!
+                                        if !func_fallible {
+                                            tuple_fallible = false;
+                                        }
+                                    }
+                                    if tuple_fallible || !tuple_possible {
+                                        return Err(CheckError(format!("try: if the argument is {arg_type}, there is no infallible function. add a fallback function to handle this case! Errors for all functions: {}", func_errors.iter().enumerate().map(|(i, v)| match v {
+                                            Some(e) => format!("\n{i}: {}", e.0),
+                                            None => "\n({i}: no error)".to_owned(),
+                                        }).collect::<String>())));
+                                    }
+                                } else {
+                                    return Err(CheckError(format!("try: argument must be (arg, (f1, f2, f3, ..., fn))")));
+                                }
+                            }
+                        }
+                    } else {
+                        return Err(CheckError(format!("cannot use try with non-tuple argument")));
+                    }
+                }
+                Ok(out)
+            }),
+            run: Arc::new(|a, _i|  {
+                let tuple = a.get();
+                let tuple = tuple.as_any().downcast_ref::<data::tuple::Tuple>().expect("try: not a tuple");
+                let arg = &tuple.0[0];
+                let funcs = tuple.0[1].get();
+                let funcs = funcs.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
+                for func in funcs.0.iter() {
+                    let func = func.get();
+                    let func = func.as_any().downcast_ref::<data::function::Function>().unwrap();
+                    if func.check(&arg.get().as_type()).is_ok() {
+                        return func.run(arg.clone());
+                    }
+                }
+                unreachable!("try: no function found")
+            })
+        }))
+            .add_var("panic".to_string(), Data::new(data::function::Function {
+                info: Arc::new(Info::neverused()),
+                info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+            out: Arc::new(|a, _i| if a.is_included_in(&data::int::IntT) {
+                Ok(Type::empty())
+            } else {
+                Err(CheckError(format!("cannot call exit with non-int argument")))
+            }),
+            run: Arc::new(|a, _i|  {
+                std::process::exit(a.get().as_any().downcast_ref::<data::int::Int>().map(|i| i.0 as _).unwrap_or(1));
+            })
+        }))
+            .add_var(
             "len".to_string(),
             Data::new(data::function::Function {
                 info: Arc::new(Info::neverused()),
