@@ -1,15 +1,14 @@
 use std::sync::Arc;
 
-use crate::{
-    data::{self, tuple::TupleT, Data, Type},
-    parsing::SourcePos,
-};
+use colored::Colorize;
 
-use super::{CheckError, MersStatement};
+use crate::data::{self, tuple::TupleT, Data, Type};
+
+use super::{MersStatement, SourceRange};
 
 #[derive(Debug)]
 pub struct Tuple {
-    pub pos_in_src: SourcePos,
+    pub pos_in_src: SourceRange,
     pub elems: Vec<Box<dyn MersStatement>>,
 }
 impl MersStatement for Tuple {
@@ -29,14 +28,11 @@ impl MersStatement for Tuple {
                             vec[i].add(Arc::new(e.clone()));
                         }
                     } else {
-                        return Err(CheckError(
-                            format!("can't init to statement type Tuple with value type {t}, which is part of {init_to} - only tuples with the same length ({}) can be assigned to tuples", self.elems.len()),
-                        ));
+                        return Err(
+                            format!("can't init statement type Tuple with value type {t}, which is part of {init_to} - only tuples with the same length ({}) can be assigned to tuples", self.elems.len()).into());
                     }
                 } else {
-                    return Err(CheckError(
-                        format!("can't init to statement type Tuple with value type {t}, which is part of {init_to} - only tuples can be assigned to tuples"),
-                    ));
+                    return Err(format!("can't init a {} with a value of type {}, which is part of {} - only tuples can be assigned to tuples", "tuple".bright_yellow(), t.to_string().bright_cyan(), init_to.to_string().bright_cyan()).into());
                 }
             }
             Some(vec)
@@ -68,7 +64,7 @@ impl MersStatement for Tuple {
     fn has_scope(&self) -> bool {
         false
     }
-    fn pos_in_src(&self) -> &SourcePos {
-        &self.pos_in_src
+    fn source_range(&self) -> SourceRange {
+        self.pos_in_src
     }
 }

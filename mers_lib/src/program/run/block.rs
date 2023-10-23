@@ -1,10 +1,10 @@
-use crate::{data::Type, parsing::SourcePos};
+use crate::data::Type;
 
-use super::{CheckError, MersStatement};
+use super::{MersStatement, SourceRange};
 
 #[derive(Debug)]
 pub struct Block {
-    pub pos_in_src: SourcePos,
+    pub pos_in_src: SourceRange,
     pub statements: Vec<Box<dyn MersStatement>>,
 }
 impl MersStatement for Block {
@@ -14,7 +14,7 @@ impl MersStatement for Block {
         init_to: Option<&Type>,
     ) -> Result<crate::data::Type, super::CheckError> {
         if init_to.is_some() {
-            return Err(CheckError("can't init to statement type Block".to_string()));
+            return Err("can't init to statement type Block".to_string().into());
         }
         let mut o = Type::empty_tuple();
         for s in &self.statements {
@@ -32,7 +32,7 @@ impl MersStatement for Block {
     fn has_scope(&self) -> bool {
         true
     }
-    fn pos_in_src(&self) -> &SourcePos {
-        &self.pos_in_src
+    fn source_range(&self) -> SourceRange {
+        self.pos_in_src
     }
 }

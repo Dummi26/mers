@@ -24,7 +24,7 @@ impl Config {
                 for t in a.types.iter() {
                     if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
                         if t.0.len() != 2 {
-                            return Err(CheckError(format!("cannot use try with tuple argument where len != 2 (got len {})", t.0.len())));
+                            return Err(format!("cannot use try with tuple argument where len != 2 (got len {})", t.0.len()).into());
                         }
                         let arg_type = &t.0[0];
                         let functions = &t.0[1];
@@ -56,7 +56,7 @@ impl Config {
                                                     },
                                                 });
                                             } else {
-                                                return Err(CheckError(format!("try: arguments f1-fn must be functions")));
+                                                return Err(format!("try: arguments f1-fn must be functions").into());
                                             }
                                         }
                                         // found a function that won't fail for this arg_type!
@@ -68,18 +68,26 @@ impl Config {
                                         }
                                     }
                                     if tuple_fallible || !tuple_possible {
-                                        return Err(CheckError(format!("try: if the argument is {arg_type}, there is no infallible function. add a fallback function to handle this case! Errors for all functions: {}", func_errors.iter().enumerate().map(|(i, v)| match v {
-                                            Some(e) => format!("\n{i}: {}", e.0),
-                                            None => "\n({i}: no error)".to_owned(),
-                                        }).collect::<String>())));
+                                        // if the argument is {arg_type}, there is no infallible function. add a fallback function to handle this case!
+                                        let mut e = CheckError::new()
+                                            .msg(format!("if the argument is {arg_type}, there is no infallible function."))
+                                            .msg(format!("Add a fallback function to handle this case!"));
+                                        for (i, err) in func_errors.into_iter().enumerate() {
+                                            if let Some(err) = err {
+                                                e = e
+                                                    .msg(format!("Error for function #{i}:"))
+                                                    .err(err);
+                                            }
+                                        }
+                                        return Err(e);
                                     }
                                 } else {
-                                    return Err(CheckError(format!("try: argument must be (arg, (f1, f2, f3, ..., fn))")));
+                                    return Err(format!("try: argument must be (arg, (f1, f2, f3, ..., fn))").into());
                                 }
                             }
                         }
                     } else {
-                        return Err(CheckError(format!("cannot use try with non-tuple argument")));
+                        return Err(format!("cannot use try with non-tuple argument").into());
                     }
                 }
                 Ok(out)
@@ -106,7 +114,7 @@ impl Config {
             out: Arc::new(|a, _i| if a.is_included_in(&data::int::IntT) {
                 Ok(Type::empty())
             } else {
-                Err(CheckError(format!("cannot call exit with non-int argument")))
+                Err(format!("cannot call exit with non-int argument").into())
             }),
             run: Arc::new(|a, _i|  {
                 std::process::exit(a.get().as_any().downcast_ref::<data::int::Int>().map(|i| i.0 as _).unwrap_or(1));
@@ -120,7 +128,7 @@ impl Config {
                 out: Arc::new(|a, _i| {
                     for t in &a.types {
                         if t.as_any().downcast_ref::<data::string::StringT>().is_none() && t.as_any().downcast_ref::<data::tuple::TupleT>().is_none() {
-                            return Err(crate::program::run::CheckError(format!("cannot get length of {t} (must be a tuple or a string)")));
+                            return Err(format!("cannot get length of {t} (must be a tuple or a string)").into());
                         }
                     }
                     Ok(Type::new(data::int::IntT))
@@ -147,16 +155,16 @@ impl Config {
                             for t in (t.0)(&Type::empty_tuple())?.types {
                                 if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
                                     if t.0.len() > 1 {
-                                        return Err(crate::program::run::CheckError(format!("called loop with funcion that might return a tuple of length > 1")));
+                                        return Err(format!("called loop with funcion that might return a tuple of length > 1").into());
                                     } else if let Some(v) = t.0.first() {
                                         o.add(Arc::new(v.clone()))
                                     }
                                 } else {
-                                    return Err(crate::program::run::CheckError(format!("called loop with funcion that might return something other than a tuple")));
+                                    return Err(format!("called loop with funcion that might return something other than a tuple").into());
                                 }
                             }
                         } else {
-                            return Err(crate::program::run::CheckError(format!("called loop on a non-function")));
+                            return Err(format!("called loop on a non-function").into());
                         }
                     }
                     Ok(o)
@@ -182,7 +190,7 @@ impl Config {
                 out: Arc::new(|a, _i| {
                     for t in &a.types {
                             if t.iterable().is_none() {
-                                return Err(crate::program::run::CheckError(format!("called eq on non-iterable")))
+                                return Err(format!("called eq on non-iterable").into())
                             }
                     }
                         Ok(Type::new(data::bool::BoolT))
@@ -212,7 +220,8 @@ impl Config {
             Data::new(data::function::Function {
                 info: Arc::new(Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, _i| if let Some(v) = a.dereference() { Ok(v) } else { Err(crate::program::run::CheckError(format!("cannot dereference type {a}")))}),
+                out: Arc::new(|a, _i| if let Some(v) = a.dereference() { Ok(v) } else { Err(format!("cannot dereference type {a}").into())
+                }),
                 run: Arc::new(|a, _i| {
                     if let Some(r) = a
                         .get()

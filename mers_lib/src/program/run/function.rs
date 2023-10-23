@@ -1,15 +1,12 @@
 use std::sync::Arc;
 
-use crate::{
-    data::{self, Data, MersData, Type},
-    parsing::SourcePos,
-};
+use crate::data::{self, Data, MersData, Type};
 
-use super::{CheckError, MersStatement};
+use super::{MersStatement, SourceRange};
 
 #[derive(Debug)]
 pub struct Function {
-    pub pos_in_src: SourcePos,
+    pub pos_in_src: SourceRange,
     pub func_no_info: data::function::Function,
 }
 
@@ -20,9 +17,7 @@ impl MersStatement for Function {
         init_to: Option<&Type>,
     ) -> Result<data::Type, super::CheckError> {
         if init_to.is_some() {
-            return Err(CheckError(
-                "can't init to statement type Function".to_string(),
-            ));
+            return Err("can't init to statement type Function".to_string().into());
         }
         self.func_no_info.with_info_check(info.clone());
         Ok(self.func_no_info.as_type())
@@ -33,7 +28,7 @@ impl MersStatement for Function {
     fn has_scope(&self) -> bool {
         true
     }
-    fn pos_in_src(&self) -> &SourcePos {
-        &self.pos_in_src
+    fn source_range(&self) -> SourceRange {
+        self.pos_in_src
     }
 }

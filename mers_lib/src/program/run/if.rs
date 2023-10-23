@@ -1,15 +1,14 @@
 use std::sync::Arc;
 
-use crate::{
-    data::{self, Data, MersType, Type},
-    parsing::SourcePos,
-};
+use colored::Colorize;
 
-use super::{CheckError, MersStatement};
+use crate::data::{self, Data, MersType, Type};
+
+use super::{CheckError, MersStatement, SourceRange};
 
 #[derive(Debug)]
 pub struct If {
-    pub pos_in_src: SourcePos,
+    pub pos_in_src: SourceRange,
     pub condition: Box<dyn MersStatement>,
     pub on_true: Box<dyn MersStatement>,
     pub on_false: Option<Box<dyn MersStatement>>,
@@ -22,16 +21,23 @@ impl MersStatement for If {
         init_to: Option<&Type>,
     ) -> Result<data::Type, super::CheckError> {
         if init_to.is_some() {
-            return Err(CheckError("can't init to statement type If".to_string()));
+            return Err("can't init to statement type If".to_string().into());
         }
-        if !self
-            .condition
-            .check(info, None)?
-            .is_included_in(&data::bool::BoolT)
-        {
-            return Err(CheckError(format!(
-                "condition in an if-statement must return bool"
-            )));
+        let cond_return_type = self.condition.check(info, None)?;
+        if !cond_return_type.is_included_in(&data::bool::BoolT) {
+            return Err(CheckError::new()
+                .src(vec![
+                    (self.pos_in_src, None),
+                    (
+                        self.condition.source_range(),
+                        Some(colored::Color::BrightRed),
+                    ),
+                ])
+                .msg(format!(
+                    "The {} in an if-statement must return bool, not {}",
+                    "condition".red(),
+                    cond_return_type.to_string().bright_red(),
+                )));
         }
         let mut t = self.on_true.check(info, None)?;
         if let Some(f) = &self.on_false {
@@ -59,7 +65,7 @@ impl MersStatement for If {
     fn has_scope(&self) -> bool {
         true
     }
-    fn pos_in_src(&self) -> &SourcePos {
-        &self.pos_in_src
+    fn source_range(&self) -> SourceRange {
+        self.pos_in_src
     }
 }

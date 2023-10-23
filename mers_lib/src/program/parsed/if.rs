@@ -1,10 +1,10 @@
-use crate::{parsing::SourcePos, program};
+use crate::program::{self, run::SourceRange};
 
 use super::{CompInfo, MersStatement};
 
 #[derive(Debug)]
 pub struct If {
-    pub pos_in_src: SourcePos,
+    pub pos_in_src: SourceRange,
     pub condition: Box<dyn MersStatement>,
     pub on_true: Box<dyn MersStatement>,
     pub on_false: Option<Box<dyn MersStatement>>,

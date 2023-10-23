@@ -1,15 +1,14 @@
 use std::sync::Arc;
 
-use crate::{
-    data::{Data, Type},
-    parsing::SourcePos,
-};
+use colored::Colorize;
 
-use super::{CheckError, MersStatement};
+use crate::data::{Data, Type};
+
+use super::{CheckError, MersStatement, SourceRange};
 
 #[derive(Debug)]
 pub struct Chain {
-    pub pos_in_src: SourcePos,
+    pub pos_in_src: SourceRange,
     pub first: Box<dyn MersStatement>,
     pub chained: Box<dyn MersStatement>,
 }
@@ -20,7 +19,7 @@ impl MersStatement for Chain {
         init_to: Option<&Type>,
     ) -> Result<Type, CheckError> {
         if init_to.is_some() {
-            return Err(CheckError("can't init to statement type Chain".to_string()));
+            return Err("can't init to statement type Chain".to_string().into());
         }
         let arg = self.first.check(info, None)?;
         let func = self.chained.check(info, None)?;
@@ -32,15 +31,34 @@ impl MersStatement for Chain {
             {
                 match (func.0)(&arg) {
                     Ok(t) => o.add(Arc::new(t)),
-                    Err(e) =>
-                    return Err(CheckError(format!(
-                        "cannot run this function with this argument (type: {arg}), because it would cause the following error:\n{e}"
-                    ))),
+                    Err(e) => {
+                        return Err(CheckError::new()
+                            .src(vec![
+                                (self.pos_in_src, None),
+                                (self.first.source_range(), Some(colored::Color::BrightCyan)),
+                                (
+                                    self.chained.source_range(),
+                                    Some(colored::Color::BrightMagenta),
+                                ),
+                            ])
+                            .msg(format!(
+                                "Can't call {} with an argument of type {}:",
+                                "this function".bright_magenta(),
+                                arg.to_string().bright_cyan()
+                            ))
+                            .err(e))
+                    }
                 }
             } else {
-                return Err(CheckError(format!(
-                    "cannot chain with a non-function ({func})"
-                )));
+                return Err(CheckError::new()
+                    .src(vec![
+                        (self.pos_in_src, None),
+                        (self.chained.source_range(), Some(colored::Color::BrightRed)),
+                    ])
+                    .msg(format!(
+                        "cannot chain with a non-function ({})",
+                        func.to_string().bright_red()
+                    )));
             }
         }
         Ok(o)
@@ -58,7 +76,7 @@ impl MersStatement for Chain {
     fn has_scope(&self) -> bool {
         false
     }
-    fn pos_in_src(&self) -> &SourcePos {
-        &self.pos_in_src
+    fn source_range(&self) -> SourceRange {
+        self.pos_in_src
     }
 }

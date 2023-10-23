@@ -1,11 +1,11 @@
-use crate::parsing::SourcePos;
 use crate::program;
+use crate::program::run::SourceRange;
 
 use super::{CompInfo, MersStatement};
 
 #[derive(Debug)]
 pub struct InitTo {
-    pub pos_in_src: SourcePos,
+    pub pos_in_src: SourceRange,
     pub target: Box<dyn MersStatement>,
     pub source: Box<dyn MersStatement>,
 }

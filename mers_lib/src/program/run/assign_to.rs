@@ -1,13 +1,12 @@
-use crate::{
-    data::{self, Data, MersType, Type},
-    parsing::SourcePos,
-};
+use colored::Colorize;
 
-use super::{CheckError, CheckInfo, MersStatement};
+use crate::data::{self, Data, MersType, Type};
+
+use super::{CheckError, CheckInfo, MersStatement, SourceRange};
 
 #[derive(Debug)]
 pub struct AssignTo {
-    pub pos_in_src: SourcePos,
+    pub pos_in_src: SourceRange,
     pub is_init: bool,
     pub target: Box<dyn MersStatement>,
     pub source: Box<dyn MersStatement>,
@@ -20,21 +19,51 @@ impl MersStatement for AssignTo {
         init_to: Option<&Type>,
     ) -> Result<Type, CheckError> {
         if init_to.is_some() {
-            return Err(CheckError(
-                "can't init to statement type AssignTo".to_string(),
-            ));
+            return Err("can't init to statement type AssignTo".to_string().into());
         }
         let source = self.source.check(info, None)?;
-        let target = self.target.check(info, Some(&source))?;
+        let target = match self.target.check(info, Some(&source)) {
+            Ok(v) => v,
+            Err(e) => {
+                return Err(CheckError::new()
+                    .src(vec![
+                        (self.pos_in_src, None),
+                        (
+                            self.target.source_range(),
+                            Some(colored::Color::BrightYellow),
+                        ),
+                        (self.source.source_range(), Some(colored::Color::BrightCyan)),
+                    ])
+                    .msg(format!("Cannot initialize:"))
+                    .err(e))
+            }
+        };
         if !self.is_init {
             if let Some(t) = target.dereference() {
                 if !source.is_included_in(&t) {
-                    return Err(CheckError(format!(
-                        "can't assign {source} to {target} because it isn't included in {t}!"
-                    )));
+                    return Err(CheckError::new()
+                        .src(vec![
+                            (self.pos_in_src, None),
+                            (
+                                self.target.source_range(),
+                                Some(colored::Color::BrightYellow),
+                            ),
+                            (self.source.source_range(), Some(colored::Color::BrightCyan)),
+                        ])
+                        .msg(format!(
+                            "can't assign {} to {} because it isn't included in {}",
+                            source.to_string().bright_cyan(),
+                            target.to_string().bright_yellow(),
+                            t
+                        )));
                 }
             } else {
-                return Err(CheckError(format!("can't assign to non-reference!")));
+                return Err(CheckError::new()
+                    .src(vec![
+                        (self.pos_in_src, None),
+                        (self.target.source_range(), Some(colored::Color::Red)),
+                    ])
+                    .msg(format!("can't assign to non-reference!")));
             }
         }
         Ok(Type::empty_tuple())
@@ -48,7 +77,7 @@ impl MersStatement for AssignTo {
     fn has_scope(&self) -> bool {
         false
     }
-    fn pos_in_src(&self) -> &SourcePos {
-        &self.pos_in_src
+    fn source_range(&self) -> SourceRange {
+        self.pos_in_src
     }
 }

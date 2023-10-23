@@ -19,9 +19,7 @@ impl Config {
                     if let Some(v) = a.get() {
                         Ok(v)
                     } else {
-                        Err(program::run::CheckError(format!(
-                            "called get on non-gettable type {a}"
-                        )))
+                        Err(format!("called get on non-gettable type {a}").into())
                     }
                 }),
                 run: Arc::new(|a, _i| {

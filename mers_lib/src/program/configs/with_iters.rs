@@ -5,10 +5,7 @@ use std::{
 
 use crate::{
     data::{self, Data, MersData, MersType, Type},
-    program::{
-        self,
-        run::{CheckError, CheckInfo},
-    },
+    program::{self, run::CheckInfo},
 };
 
 use super::Config;
@@ -42,24 +39,22 @@ impl Config {
                                     for f in f {
                                         let ret = f.0(&iter)?;
                                         if !ret.is_zero_tuple() {
-                                            return Err(CheckError(format!(
-                                                "for_each function must return (), not {ret}"
-                                            )));
+                                            return Err(format!("for_each function must return (), not {ret}").into());
                                         }
                                     }
                                 } else {
-                                    return Err(CheckError(format!(
+                                    return Err(format!(
                                         "for_each called on tuple not containing iterable and function: {v} is {}",
                                         if v.iterable().is_some() { "iterable" } else { "not iterable" },
-                                    )));
+                                    ).into());
                                 }
                             } else {
-                                return Err(CheckError(format!(
+                                return Err(format!(
                                     "for_each called on tuple with len < 2"
-                                )));
+                                ).into());
                             }
                         } else {
-                            return Err(CheckError(format!("for_each called on non-tuple")));
+                            return Err(format!("for_each called on non-tuple").into());
                         }
                     }
                     Ok(Type::empty_tuple())

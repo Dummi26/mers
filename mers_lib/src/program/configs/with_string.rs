@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::{
     data::{self, Data, MersType, Type},
-    program::run::{CheckError, CheckInfo, Info},
+    program::run::{CheckInfo, Info},
 };
 
 use super::Config;
@@ -21,7 +21,7 @@ impl Config {
             out: Arc::new(|a, _i| if a.is_included_in(&data::string::StringT) {
                 Ok(Type::new(data::string::StringT))
             } else {
-                Err(CheckError(format!("cannot call trim on non-strings")))
+                Err(format!("cannot call trim on non-strings").into())
             }),
             run: Arc::new(|a, _i| {
                 Data::new(data::string::String(a.get().as_any().downcast_ref::<data::string::String>().unwrap().0.trim().to_owned()))
@@ -32,7 +32,7 @@ impl Config {
             out: Arc::new(|a, _i| if a.iterable().is_some() {
                 Ok(Type::new(data::string::StringT))
             } else {
-                Err(CheckError(format!("concat called on non-iterable type {a}")))
+                Err(format!("concat called on non-iterable type {a}").into())
             }),
             run: Arc::new(|a, _i| Data::new(data::string::String(a.get().iterable().unwrap().map(|v| v.get().to_string()).collect()))),
         })).add_var("to_string".to_string(), Data::new(data::function::Function {
@@ -49,7 +49,7 @@ impl Config {
                     Arc::new(data::int::IntT),
                 ]))
             } else {
-                Err(CheckError(format!("wrong args for index_of: must be (string, string)")))
+                Err(format!("wrong args for index_of: must be (string, string)").into())
             }),
             run: Arc::new(|a, _i| index_of(a, false)),
         })).add_var("index_of_rev".to_string(), Data::new(data::function::Function {
@@ -61,7 +61,7 @@ impl Config {
                     Arc::new(data::int::IntT),
                 ]))
             } else {
-                Err(CheckError(format!("wrong args for index_of: must be (string, string)")))
+                Err(format!("wrong args for index_of: must be (string, string)").into())
             }),
             run: Arc::new(|a, _i| index_of(a, true)),
         })).add_var("substring".to_string(), Data::new(data::function::Function {
@@ -71,19 +71,19 @@ impl Config {
                 for t in a.types.iter() {
                     if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
                         if t.0.len() != 2 && t.0.len() != 3 {
-                            return Err(CheckError(format!("cannot call substring with tuple argument of len != 3")));
+                            return Err(format!("cannot call substring with tuple argument of len != 3").into());
                         }
                         if !t.0[0].is_included_in(&data::string::StringT) {
-                            return Err(CheckError(format!("cannot call substring with tuple argument that isn't (*string*, int, int)")));
+                            return Err(format!("cannot call substring with tuple argument that isn't (*string*, int, int)").into());
                         }
                         if !t.0[1].is_included_in(&data::int::IntT) {
-                            return Err(CheckError(format!("cannot call substring with tuple argument that isn't (string, *int*, int)")));
+                            return Err(format!("cannot call substring with tuple argument that isn't (string, *int*, int)").into());
                         }
                         if t.0.len() > 2 && !t.0[2].is_included_in(&data::int::IntT) {
-                            return Err(CheckError(format!("cannot call substring with tuple argument that isn't (string, int, *int*)")));
+                            return Err(format!("cannot call substring with tuple argument that isn't (string, int, *int*)").into());
                         }
                     } else {
-                        return Err(CheckError(format!("cannot call substring with non-tuple argument.")));
+                        return Err(format!("cannot call substring with non-tuple argument.").into());
                     }
                 }
                 Ok(if a.types.is_empty() {

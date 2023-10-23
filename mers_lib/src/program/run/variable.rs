@@ -1,15 +1,12 @@
 use std::sync::{Arc, Mutex};
 
-use crate::{
-    data::{self, Data, Type},
-    parsing::SourcePos,
-};
+use crate::data::{self, Data, Type};
 
-use super::MersStatement;
+use super::{MersStatement, SourceRange};
 
 #[derive(Debug)]
 pub struct Variable {
-    pub pos_in_src: SourcePos,
+    pub pos_in_src: SourceRange,
     pub is_init: bool,
     pub is_ref: bool,
     pub var: (usize, usize),
@@ -60,7 +57,7 @@ impl MersStatement for Variable {
                 .clone()
         }
     }
-    fn pos_in_src(&self) -> &SourcePos {
-        &self.pos_in_src
+    fn source_range(&self) -> SourceRange {
+        self.pos_in_src
     }
 }

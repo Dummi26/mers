@@ -8,15 +8,17 @@ pub mod types;
 
 pub fn parse(src: &mut Source) -> Result<Box<dyn program::parsed::MersStatement>, ()> {
     let pos_in_src = src.get_pos();
+    let statements = statements::parse_multiple(src, "")?;
     let block = Block {
-        pos_in_src,
-        statements: statements::parse_multiple(src, "")?,
+        pos_in_src: (pos_in_src, src.get_pos()).into(),
+        statements,
     };
     Ok(Box::new(block))
 }
 
 pub struct Source {
     src_raw_len: usize,
+    src_og: String,
     src: String,
     /// (start, content) of each comment, including start/end (//, \n, /* and */)
     comments: Vec<(usize, String)>,
@@ -83,11 +85,19 @@ impl Source {
         }
         Self {
             src_raw_len: source.len(),
+            src_og: source,
             src,
             comments,
             i: 0,
             sections: vec![],
         }
+    }
+
+    pub fn src(&self) -> &String {
+        &self.src
+    }
+    pub fn comments(&self) -> &Vec<(usize, String)> {
+        &self.comments
     }
 
     pub fn skip_whitespace(&mut self) {
@@ -172,6 +182,17 @@ impl Source {
         &self.sections
     }
 
+    pub fn get_line_start(&self, pos: usize) -> usize {
+        self.src[0..pos].rfind("\n").map(|i| i + 1).unwrap_or(0)
+    }
+    pub fn get_line_end(&self, pos: usize) -> usize {
+        // TODO: If the newline is preceded by `\r`s, remove those too since they are part of the newline `\r\n` sequence
+        self.src[pos..]
+            .find("\n")
+            .map(|i| i + pos)
+            .unwrap_or(self.src.len())
+    }
+
     pub fn format(&self, insertions: &Vec<(usize, bool, String)>) -> String {
         let mut o = String::with_capacity(self.src_raw_len);
         let mut insertions = insertions.iter().peekable();
@@ -244,6 +265,9 @@ impl SectionMarker {
 #[derive(Clone, Copy, Debug)]
 pub struct SourcePos(usize);
 impl SourcePos {
+    pub fn pos(&self) -> usize {
+        self.0
+    }
     fn diff(&self, rhs: &Self) -> usize {
         rhs.0 - self.0
     }

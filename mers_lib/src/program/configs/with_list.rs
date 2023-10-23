@@ -5,10 +5,7 @@ use std::{
 
 use crate::{
     data::{self, Data, MersData, MersType, Type},
-    program::{
-        self,
-        run::{CheckError, CheckInfo},
-    },
+    program::{self, run::CheckInfo},
 };
 
 use super::Config;
@@ -36,14 +33,14 @@ impl Config {
                                 if let Some(t) = t.as_any().downcast_ref::<ListT>() {
                                     out.add(Arc::new(t.0.clone()));
                                 } else {
-                                    return Err(CheckError(format!(
+                                    return Err(format!(
                                         "pop: found a reference to {t}, which is not a list"
-                                    )));
+                                    ).into());
                                 }
                             }
                             Ok(out)
                         } else {
-                            return Err(CheckError(format!("pop: not a reference: {a}")));
+                            return Err(format!("pop: not a reference: {a}").into());
                         }
                     }),
                     run: Arc::new(|a, _i| {
@@ -77,9 +74,9 @@ impl Config {
                         for t in a.types.iter() {
                             if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
                                 if t.0.len() != 2 {
-                                    return Err(CheckError(format!(
+                                    return Err(format!(
                                         "push: tuple must have length 2"
-                                    )));
+                                    ).into());
                                 }
                                 let a = &t.0[0];
                                 let new = &t.0[1];
@@ -87,23 +84,24 @@ impl Config {
                                     for t in a.types.iter() {
                                         if let Some(t) = t.as_any().downcast_ref::<ListT>() {
                                             if !new.is_included_in(&t.0) {
-                                                return Err(CheckError(format!(
+                                                return Err(format!(
                                             "push: found a reference to {t}, which is a list which can't contain elements of type {new}"
-                                        )));
+                                        ).into());
                                             }
                                         } else {
-                                            return Err(CheckError(format!(
-                                            "push: found a reference to {t}, which is not a list"
-                                        )));
+                                            return Err(format!(
+                                                    "push: found a reference to {t}, which is not a list"
+                                            ).into());
                                         }
                                     }
                                 } else {
-                                    return Err(CheckError(format!(
+                                    return Err(format!(
                                         "push: first element in tuple not a reference: {a}"
-                                    )));
+                                    ).into());
                                 }
                             } else {
-                                return Err(CheckError(format!("push: not a tuple: {t}")));
+                                return Err(format!("push: not a tuple: {t}")
+                                .into());
                             }
                         }
                         Ok(Type::empty_tuple())
@@ -138,9 +136,9 @@ impl Config {
                         if let Some(v) = a.iterable() {
                             Ok(Type::new(ListT(v)))
                         } else {
-                            Err(program::run::CheckError(format!(
+                            Err(format!(
                                 "cannot iterate over type {a}"
-                            )))
+                            ).into())
                         }
                     }),
                     run: Arc::new(|a, _i| {

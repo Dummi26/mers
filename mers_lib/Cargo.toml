@@ -8,3 +8,7 @@ edition = "2021"
 default = ["parse"]
 parse = ["run"]
 run = []
+
+[dependencies]
+colored = "2.0.4"
+line-span = "0.1.5"

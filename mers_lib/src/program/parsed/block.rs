@@ -1,10 +1,13 @@
-use crate::{info, parsing::SourcePos, program};
+use crate::{
+    info,
+    program::{self, run::SourceRange},
+};
 
 use super::{CompInfo, MersStatement};
 
 #[derive(Debug)]
 pub struct Block {
-    pub pos_in_src: SourcePos,
+    pub pos_in_src: SourceRange,
     pub statements: Vec<Box<dyn MersStatement>>,
 }
 impl MersStatement for Block {

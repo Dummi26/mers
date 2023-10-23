@@ -88,7 +88,7 @@ fn main() {
             let return_type = match run.check(&mut info_check, None) {
                 Ok(v) => v,
                 Err(e) => {
-                    eprintln!("check failed: {e}");
+                    eprint!("{}", e.display(&source));
                     std::process::exit(36);
                 }
             };

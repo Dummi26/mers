@@ -6,10 +6,7 @@ use std::{
 
 use crate::{
     data::{self, Data, MersData, MersType, Type},
-    program::{
-        self,
-        run::{CheckError, CheckInfo},
-    },
+    program::{self, run::CheckInfo},
 };
 
 use super::Config;
@@ -37,7 +34,7 @@ impl Config {
                             Arc::new(RunCommandErrorT)
                         ]))
                     } else {
-                        return Err(CheckError(format!("run_command called with invalid arguments (must be (String, Iter<String>))")));
+                        return Err(format!("run_command called with invalid arguments (must be (String, Iter<String>))").into());
                     }
                 }),
                 run: Arc::new(|a, _i| {

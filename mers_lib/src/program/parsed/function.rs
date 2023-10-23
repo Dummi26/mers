@@ -1,4 +1,4 @@
-use crate::parsing::SourcePos;
+use crate::program::run::SourceRange;
 use std::sync::{Arc, Mutex};
 
 use crate::{
@@ -10,7 +10,7 @@ use super::{CompInfo, MersStatement};
 
 #[derive(Debug)]
 pub struct Function {
-    pub pos_in_src: SourcePos,
+    pub pos_in_src: SourceRange,
     pub arg: Box<dyn MersStatement>,
     pub run: Box<dyn MersStatement>,
 }

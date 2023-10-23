@@ -1,11 +1,11 @@
-use crate::parsing::SourcePos;
+use crate::program::run::SourceRange;
 use crate::{data::Data, program};
 
 use super::{CompInfo, MersStatement};
 
 #[derive(Debug)]
 pub struct Value {
-    pub pos_in_src: SourcePos,
+    pub pos_in_src: SourceRange,
     pub data: Data,
 }
 

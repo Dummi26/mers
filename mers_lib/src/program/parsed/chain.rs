@@ -1,11 +1,11 @@
-use crate::parsing::SourcePos;
+use crate::program::run::SourceRange;
 use crate::{info, program};
 
 use super::{CompInfo, MersStatement};
 
 #[derive(Debug)]
 pub struct Chain {
-    pub pos_in_src: SourcePos,
+    pub pos_in_src: SourceRange,
     pub first: Box<dyn MersStatement>,
     pub chained: Box<dyn MersStatement>,
 }

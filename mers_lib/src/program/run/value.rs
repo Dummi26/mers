@@ -1,13 +1,10 @@
-use crate::{
-    data::{Data, Type},
-    parsing::SourcePos,
-};
+use crate::data::{Data, Type};
 
-use super::{CheckError, MersStatement};
+use super::{MersStatement, SourceRange};
 
 #[derive(Debug)]
 pub struct Value {
-    pub pos_in_src: SourcePos,
+    pub pos_in_src: SourceRange,
     pub val: Data,
 }
 
@@ -21,14 +18,14 @@ impl MersStatement for Value {
         init_to: Option<&Type>,
     ) -> Result<crate::data::Type, super::CheckError> {
         if init_to.is_some() {
-            return Err(CheckError("can't init to statement type Value".to_string()));
+            return Err("can't init to statement type Value".to_string().into());
         }
         Ok(self.val.get().as_type())
     }
     fn run_custom(&self, _info: &mut super::Info) -> Data {
         self.val.clone()
     }
-    fn pos_in_src(&self) -> &SourcePos {
-        &self.pos_in_src
+    fn source_range(&self) -> SourceRange {
+        self.pos_in_src
     }
 }

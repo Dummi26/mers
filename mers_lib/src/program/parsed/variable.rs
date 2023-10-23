@@ -1,10 +1,13 @@
-use crate::{info::Local, parsing::SourcePos, program};
+use crate::{
+    info::Local,
+    program::{self, run::SourceRange},
+};
 
 use super::{CompInfo, MersStatement};
 
 #[derive(Debug)]
 pub struct Variable {
-    pub pos_in_src: SourcePos,
+    pub pos_in_src: SourceRange,
     pub is_ref: bool,
     pub var: String,
 }
