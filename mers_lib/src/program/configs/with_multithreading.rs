@@ -127,6 +127,11 @@ impl MersType for ThreadT {
             false
         }
     }
+    fn subtypes(&self, acc: &mut Type) {
+        for t in self.0.subtypes_type().types {
+            acc.add(Arc::new(Self(Type::newm(vec![t]))));
+        }
+    }
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }

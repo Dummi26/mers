@@ -72,6 +72,7 @@ impl MersData for Function {
     }
 }
 
+#[derive(Clone)]
 pub struct FunctionT(pub Arc<dyn Fn(&Type) -> Result<Type, CheckError> + Send + Sync>);
 impl MersType for FunctionT {
     fn iterable(&self) -> Option<Type> {
@@ -99,6 +100,9 @@ impl MersType for FunctionT {
     }
     fn is_included_in_single(&self, _target: &dyn MersType) -> bool {
         false
+    }
+    fn subtypes(&self, acc: &mut Type) {
+        acc.add(Arc::new(self.clone()));
     }
     fn as_any(&self) -> &dyn Any {
         self

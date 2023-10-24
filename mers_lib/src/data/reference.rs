@@ -34,7 +34,7 @@ impl MersData for Reference {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ReferenceT(pub Type);
 impl MersType for ReferenceT {
     fn is_same_type_as(&self, other: &dyn MersType) -> bool {
@@ -47,6 +47,11 @@ impl MersType for ReferenceT {
     fn is_included_in_single(&self, target: &dyn MersType) -> bool {
         // &int isn't included in &(int/float), otherwise we could assign a float to it
         self.is_same_type_as(target)
+    }
+    fn subtypes(&self, acc: &mut Type) {
+        // we don't call subtypes because (int/string) must stay that so we can assign either
+        // NOTE: this might not be right...?
+        acc.add(Arc::new(self.clone()));
     }
     fn as_any(&self) -> &dyn Any {
         self

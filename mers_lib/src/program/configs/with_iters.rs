@@ -247,6 +247,10 @@ impl MersType for IterT {
             false
         }
     }
+    fn subtypes(&self, acc: &mut Type) {
+        // NOTE: This might not be good enough
+        acc.add(Arc::new(self.clone()));
+    }
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }

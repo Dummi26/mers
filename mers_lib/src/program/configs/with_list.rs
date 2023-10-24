@@ -201,6 +201,11 @@ impl MersType for ListT {
     fn is_included_in_single(&self, target: &dyn MersType) -> bool {
         self.is_same_type_as(target)
     }
+    fn subtypes(&self, acc: &mut Type) {
+        for t in self.0.subtypes_type().types {
+            acc.add(Arc::new(Self(Type::newm(vec![t]))));
+        }
+    }
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }

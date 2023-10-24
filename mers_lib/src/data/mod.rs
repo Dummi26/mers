@@ -59,6 +59,20 @@ pub trait MersType: Any + Debug + Display + Send + Sync {
             self.is_included_in_single(target)
         }
     }
+    /// Returns all types that can result from the use of this type.
+    /// Usually, this is just `acc.add(Arc::new(self.clone()))`
+    /// but if there exists one or more inner types, this becomes interesting:
+    /// Using `(int/string)` will end up being either `(int)` or `(string)`,
+    /// so this function should add `(int)` and `(string)`.
+    /// Since `(int/string)` can't exist at runtime, we don't need to list `self`.
+    /// note also: `subtypes` has to be called recursively, i.e. you would have to call `.substring` on `int` and `string`.
+    fn subtypes(&self, acc: &mut Type);
+    /// like `subtypes`, but returns the accumulator
+    fn subtypes_type(&self) -> Type {
+        let mut acc = Type::empty();
+        self.subtypes(&mut acc);
+        acc
+    }
     fn as_any(&self) -> &dyn Any;
     fn mut_any(&mut self) -> &mut dyn Any;
     fn to_any(self) -> Box<dyn Any>;
@@ -292,6 +306,11 @@ impl MersType for Type {
     }
     fn is_included_in_single(&self, target: &dyn MersType) -> bool {
         self.types.iter().all(|t| t.is_included_in_single(target))
+    }
+    fn subtypes(&self, acc: &mut Type) {
+        for t in &self.types {
+            t.subtypes(acc);
+        }
     }
     fn as_any(&self) -> &dyn Any {
         self

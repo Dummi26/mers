@@ -28,7 +28,7 @@ impl Config {
                         }
                         let arg_type = &t.0[0];
                         let functions = &t.0[1];
-                        for arg_type in arg_type.types.iter() {
+                        for arg_type in arg_type.subtypes_type().types.iter() {
                             let arg_type = Type::newm(vec![arg_type.clone()]);
                             // possibilities for the tuple (f1, f2, f3, ..., fn)
                             for ft in functions.types.iter() {

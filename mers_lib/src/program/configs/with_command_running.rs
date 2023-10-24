@@ -83,7 +83,7 @@ impl Config {
 
 #[derive(Clone, Debug)]
 pub struct RunCommandError(String);
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RunCommandErrorT;
 impl MersData for RunCommandError {
     fn is_eq(&self, other: &dyn MersData) -> bool {
@@ -115,6 +115,9 @@ impl MersType for RunCommandErrorT {
     }
     fn is_included_in_single(&self, target: &dyn MersType) -> bool {
         self.is_same_type_as(target)
+    }
+    fn subtypes(&self, acc: &mut Type) {
+        acc.add(Arc::new(self.clone()));
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self

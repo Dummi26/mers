@@ -1,4 +1,4 @@
-use std::{any::Any, fmt::Display};
+use std::{any::Any, fmt::Display, sync::Arc};
 
 use super::{MersData, MersType, Type};
 
@@ -30,7 +30,7 @@ impl MersData for Int {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IntT;
 impl MersType for IntT {
     fn is_same_type_as(&self, other: &dyn MersType) -> bool {
@@ -38,6 +38,9 @@ impl MersType for IntT {
     }
     fn is_included_in_single(&self, target: &dyn MersType) -> bool {
         self.is_same_type_as(target)
+    }
+    fn subtypes(&self, acc: &mut Type) {
+        acc.add(Arc::new(self.clone()));
     }
     fn as_any(&self) -> &dyn Any {
         self

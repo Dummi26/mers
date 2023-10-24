@@ -53,10 +53,31 @@ impl MersType for TupleT {
         Some(o)
     }
     fn is_same_type_as(&self, other: &dyn MersType) -> bool {
-        other.as_any().downcast_ref::<Self>().is_some()
+        if let Some(other) = other.as_any().downcast_ref::<Self>() {
+            self.0.len() == other.0.len()
+                && self
+                    .0
+                    .iter()
+                    .zip(other.0.iter())
+                    .all(|(s, o)| s.is_same_type_as(o))
+        } else {
+            false
+        }
     }
     fn is_included_in_single(&self, target: &dyn MersType) -> bool {
-        self.is_same_type_as(target)
+        if let Some(target) = target.as_any().downcast_ref::<Self>() {
+            self.0.len() == target.0.len()
+                && self
+                    .0
+                    .iter()
+                    .zip(target.0.iter())
+                    .all(|(s, t)| s.is_included_in(t))
+        } else {
+            false
+        }
+    }
+    fn subtypes(&self, acc: &mut Type) {
+        self.gen_subtypes_recursively(acc, &mut Vec::with_capacity(self.0.len()));
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -93,5 +114,25 @@ impl Display for TupleT {
         }
         write!(f, ")")?;
         Ok(())
+    }
+}
+
+impl TupleT {
+    pub fn gen_subtypes_recursively(&self, acc: &mut Type, types: &mut Vec<Arc<dyn MersType>>) {
+        if types.len() >= self.0.len() {
+            let nt = Self(
+                types
+                    .iter()
+                    .map(|v| Type::newm(vec![Arc::clone(v)]))
+                    .collect(),
+            );
+            acc.add(Arc::new(nt));
+        } else {
+            for t in self.0[types.len()].subtypes_type().types {
+                types.push(t);
+                self.gen_subtypes_recursively(acc, types);
+                types.pop();
+            }
+        }
     }
 }
