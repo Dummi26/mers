@@ -75,7 +75,7 @@ impl Config {
                                         for (i, err) in func_errors.into_iter().enumerate() {
                                             if let Some(err) = err {
                                                 e = e
-                                                    .msg(format!("Error for function #{i}:"))
+                                                    .msg(format!("Error for function #{}:", i + 1))
                                                     .err(err);
                                             }
                                         }

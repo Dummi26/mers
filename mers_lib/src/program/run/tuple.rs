@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::VecDeque, sync::Arc};
 
 use colored::Colorize;
 
@@ -20,7 +20,7 @@ impl MersStatement for Tuple {
         let mut it = if let Some(init_to) = init_to {
             let mut vec = (0..self.elems.len())
                 .map(|_| Type::empty())
-                .collect::<Vec<_>>();
+                .collect::<VecDeque<_>>();
             for t in init_to.types.iter() {
                 if let Some(t) = t.as_any().downcast_ref::<TupleT>() {
                     if t.0.len() == self.elems.len() {
@@ -46,7 +46,7 @@ impl MersStatement for Tuple {
                     v.check(
                         info,
                         if let Some(it) = &mut it {
-                            Some(it.pop().unwrap())
+                            Some(it.pop_front().unwrap())
                         } else {
                             None
                         }
