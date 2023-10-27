@@ -2,6 +2,8 @@ use std::{collections::HashMap, fmt::Debug};
 
 use crate::info;
 
+use super::run::SourceRange;
+
 #[cfg(feature = "parse")]
 pub mod assign_to;
 #[cfg(feature = "parse")]
@@ -42,6 +44,7 @@ pub trait MersStatement: Debug + Send + Sync {
         }
         o
     }
+    fn source_range(&self) -> SourceRange;
 }
 
 #[derive(Clone, Copy)]

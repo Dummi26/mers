@@ -51,11 +51,10 @@ pub fn parse(src: &mut Source) -> Result<Option<Box<dyn program::parsed::MersSta
                 let chained = parse_no_chain(src)?.expect("err: EOF instead of chain");
                 // allow a.f(b, c) syntax (but not f(a, b, c))
                 if let Some('(') = src.peek_char() {
-                    let pos_in_src = src.get_pos();
                     src.next_char();
                     let elems = parse_multiple(src, ")")?;
                     first = Box::new(program::parsed::tuple::Tuple {
-                        pos_in_src: (pos_in_src, src.get_pos()).into(),
+                        pos_in_src: (first.source_range().start(), src.get_pos()).into(),
                         elems: [first].into_iter().chain(elems).collect(),
                     });
                 }

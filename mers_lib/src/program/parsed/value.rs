@@ -23,4 +23,7 @@ impl MersStatement for Value {
             val: self.data.clone(),
         }))
     }
+    fn source_range(&self) -> SourceRange {
+        self.pos_in_src
+    }
 }

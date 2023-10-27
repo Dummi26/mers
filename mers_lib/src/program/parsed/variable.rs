@@ -41,4 +41,7 @@ impl MersStatement for Variable {
             },
         }))
     }
+    fn source_range(&self) -> SourceRange {
+        self.pos_in_src
+    }
 }

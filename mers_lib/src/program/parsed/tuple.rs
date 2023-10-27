@@ -28,4 +28,7 @@ impl MersStatement for Tuple {
                 .collect::<Result<Vec<_>, _>>()?,
         }))
     }
+    fn source_range(&self) -> SourceRange {
+        self.pos_in_src
+    }
 }

@@ -25,4 +25,7 @@ impl MersStatement for AssignTo {
             source: self.source.compile(info, comp)?,
         }))
     }
+    fn source_range(&self) -> SourceRange {
+        self.pos_in_src
+    }
 }

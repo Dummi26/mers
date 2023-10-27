@@ -74,6 +74,14 @@ impl From<(SourcePos, SourcePos)> for SourceRange {
         }
     }
 }
+impl SourceRange {
+    pub fn start(&self) -> SourcePos {
+        self.start
+    }
+    pub fn end(&self) -> SourcePos {
+        self.end
+    }
+}
 #[derive(Clone, Debug)]
 pub struct CheckError(Vec<CheckErrorComponent>);
 #[derive(Clone, Debug)]
