@@ -26,7 +26,7 @@ impl MersStatement for Variable {
                 self.var.clone(),
                 (
                     info.scopes.len() - 1,
-                    info.scopes.last().unwrap().vars.len(),
+                    info.scopes.last().unwrap().vars_count,
                 ),
             )
         }
@@ -35,6 +35,7 @@ impl MersStatement for Variable {
             is_init: comp.is_init,
             is_ref: comp.is_init || self.is_ref,
             var: if let Some(v) = info.get_var(&self.var) {
+                eprintln!("Var '{}': {:?}", self.var, v);
                 *v
             } else {
                 return Err(format!("No variable named '{}' found!", self.var));

@@ -59,11 +59,13 @@ pub type Info = info::Info<Local>;
 #[derive(Default, Clone, Debug)]
 pub struct Local {
     vars: HashMap<String, (usize, usize)>,
+    vars_count: usize,
 }
 impl info::Local for Local {
     type VariableIdentifier = String;
     type VariableData = (usize, usize);
     fn init_var(&mut self, id: Self::VariableIdentifier, value: Self::VariableData) {
+        self.vars_count += 1;
         self.vars.insert(id, value);
     }
     fn get_var(&self, id: &Self::VariableIdentifier) -> Option<&Self::VariableData> {
