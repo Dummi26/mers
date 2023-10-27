@@ -131,7 +131,7 @@ impl Source {
         Some(ch)
     }
     fn word_splitter(ch: char) -> bool {
-        ch.is_whitespace() || ".,;)}".contains(ch)
+        ch.is_whitespace() || ".,;[](){}".contains(ch)
     }
     pub fn peek_word(&self) -> &str {
         self.src[self.i..]
