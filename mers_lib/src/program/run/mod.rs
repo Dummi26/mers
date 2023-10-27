@@ -181,20 +181,22 @@ impl CheckError {
                                         let highlight_end = pos.end.pos() - start;
                                         if highlight_start < line_end && highlight_end > line_start
                                         {
+                                            // where the highlight starts in this line
                                             let hl_start =
                                                 highlight_start.saturating_sub(line_start);
+                                            // highlight would be further left than cursor, so we need a new line
                                             if hl_start < right {
                                                 right = 0;
                                                 writeln!(f)?;
                                             }
+                                            // length of the highlight
                                             let hl_len = highlight_end
                                                 .saturating_sub(line_start)
                                                 .saturating_sub(hl_start);
                                             let hl_space = hl_start - right;
                                             let print_indent = right == 0;
+                                            let hl_len = hl_len.min(line.len() - right);
                                             right += hl_space + hl_len;
-                                            let hl_len =
-                                                hl_len.min(highlight_end - highlight_start);
                                             if print_indent && right != 0 {
                                                 write!(f, "{} ", indent!())?;
                                             }
@@ -202,7 +204,7 @@ impl CheckError {
                                                 f,
                                                 "{}{}",
                                                 " ".repeat(hl_space),
-                                                "^".repeat(hl_len).color(*color)
+                                                "~".repeat(hl_len).color(*color)
                                             )?;
                                         }
                                     }
