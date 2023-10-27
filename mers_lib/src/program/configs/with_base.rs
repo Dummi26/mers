@@ -127,20 +127,23 @@ impl Config {
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     for t in &a.types {
-                        if t.as_any().downcast_ref::<data::string::StringT>().is_none() && t.as_any().downcast_ref::<data::tuple::TupleT>().is_none() {
-                            return Err(format!("cannot get length of {t} (must be a tuple or a string)").into());
+                        if t.as_any().downcast_ref::<data::string::StringT>().is_none() && t.as_any().downcast_ref::<data::tuple::TupleT>().is_none() && t.iterable().is_none() {
+                            return Err(format!("cannot get length of {t} (must be a tuple, string or iterable)").into());
                         }
                     }
                     Ok(Type::new(data::int::IntT))
                 }),
                 run: Arc::new(|a, _i| {
-                    if let Some(t) = a.get().as_any().downcast_ref::<data::tuple::Tuple>() {
-                        Data::new(data::int::Int(t.0.len() as _))
+                    Data::new(data::int::Int(if let Some(t) = a.get().as_any().downcast_ref::<data::tuple::Tuple>() {
+                        t.0.len() as _
                     } else if let Some(s) = a.get().as_any().downcast_ref::<data::string::String>() {
-                        Data::new(data::int::Int(s.0.len() as _))
+                        s.0.len() as _
+                    } else if let Some(i) = a.get().iterable() {
+                            // -1 if more elements than isize can represent
+                            i.take(isize::MAX as usize + 1).count() as isize
                     } else {
                         unreachable!("called len on {a:?}, which isn't a tuple or a string")
-                    }
+                    }))
                 }),
             }),
         ).add_var(
