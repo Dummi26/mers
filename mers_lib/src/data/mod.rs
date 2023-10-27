@@ -323,7 +323,8 @@ impl Type {
 
 impl MersType for Type {
     fn is_same_type_as(&self, other: &dyn MersType) -> bool {
-        todo!()
+        // TODO! improve
+        self.is_included_in(other) && other.is_included_in(self)
     }
     fn is_included_in_single(&self, target: &dyn MersType) -> bool {
         self.types.iter().all(|t| t.is_included_in_single(target))
