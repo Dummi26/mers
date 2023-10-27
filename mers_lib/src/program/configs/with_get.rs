@@ -16,14 +16,35 @@ impl Config {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
-                    if let Some(v) = a.get() {
-                        Ok(Type::newm(vec![
-                            Arc::new(data::tuple::TupleT(vec![v])),
-                            Arc::new(data::tuple::TupleT(vec![])),
-                        ]))
-                    } else {
-                        Err(format!("called get on non-gettable type {a}").into())
+                    let mut out = Type::empty();
+                    for a in a.types.iter() {
+                        if let Some(t) = a.as_any().downcast_ref::<data::tuple::TupleT>() {
+                            if t.0.len() != 2 {
+                                return Err(format!("called get on tuple with len != 2").into());
+                            }
+                            if !t.0[1].is_included_in(&data::int::IntT) {
+                                return Err(format!(
+                                    "called get with non-int index of type {}",
+                                    t.0[1]
+                                )
+                                .into());
+                            }
+                            if let Some(v) = t.0[0].get() {
+                                out.add(Arc::new(v));
+                            } else {
+                                return Err(format!(
+                                    "called get on non-gettable type {t}, part of {a}"
+                                )
+                                .into());
+                            }
+                        } else {
+                            return Err(format!("called get on non-tuple type {a}").into());
+                        }
                     }
+                    Ok(Type::newm(vec![
+                        Arc::new(data::tuple::TupleT(vec![out])),
+                        Arc::new(data::tuple::TupleT(vec![])),
+                    ]))
                 }),
                 run: Arc::new(|a, _i| {
                     let a = a.get();
