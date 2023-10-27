@@ -38,7 +38,10 @@ impl Config {
                                     ).into());
                                 }
                             }
-                            Ok(out)
+                            Ok(Type::newm(vec![
+                                Arc::new(Type::new(data::tuple::TupleT(vec![out]))),
+                                Arc::new(Type::empty_tuple())
+                            ]))
                         } else {
                             return Err(format!("pop: not a reference: {a}").into());
                         }
