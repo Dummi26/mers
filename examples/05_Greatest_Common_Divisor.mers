@@ -1,0 +1,30 @@
+gcd := vals -> {
+  () -> {
+    (a, b) := vals
+    if (a, b).eq
+      (a)
+    else if ((a, b).diff.signum, 1).eq
+      &vals = (a, (a, b).diff)
+    else
+      &vals = ((b, a).diff, b)
+  }
+}.loop
+
+get_num := () -> {
+  line := ().read_line.trim
+  (
+    line.parse_float,
+    (
+      () -> {
+        ("error: '", line, "' not a number!").concat.println
+        1.panic
+      }
+      n -> n,
+    )
+  ).try
+}
+
+("gcd of 899 and 2900 is ", (899, 2900).gcd).concat.println // 29
+"Now type two numbers!".println
+(a, b) := (().get_num, ().get_num)
+("gcd of ", a, " and ", b, " is ", (a, b).gcd).concat.println
