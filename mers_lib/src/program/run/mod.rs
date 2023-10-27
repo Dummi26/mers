@@ -74,9 +74,9 @@ impl From<(SourcePos, SourcePos)> for SourceRange {
         }
     }
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CheckError(Vec<CheckErrorComponent>);
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum CheckErrorComponent {
     Message(String),
     Error(CheckError),

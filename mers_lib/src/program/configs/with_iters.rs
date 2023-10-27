@@ -4,8 +4,11 @@ use std::{
 };
 
 use crate::{
-    data::{self, Data, MersData, MersType, Type},
-    program::{self, run::CheckInfo},
+    data::{self, function::FunctionT, Data, MersData, MersType, Type},
+    program::{
+        self,
+        run::{CheckError, CheckInfo},
+    },
 };
 
 use super::Config;
@@ -23,7 +26,7 @@ impl Config {
             Data::new(data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, i| {
+                out: Arc::new(|a, _i| {
                     for a in &a.types {
                         if let Some(tuple) = a.as_any().downcast_ref::<data::tuple::TupleT>() {
                             if let (Some(v), Some(f)) = (tuple.0.get(0), tuple.0.get(1)) {
@@ -89,7 +92,9 @@ impl Config {
             Data::new(data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, i| todo!()),
+                out: Arc::new(|a, _i| {
+                        iter_out(a, "map", |f| ItersT::Map(f.clone()))
+                    }),
                 run: Arc::new(|a, _i| {
                     if let Some(tuple) = a.get().as_any().downcast_ref::<data::tuple::Tuple>() {
                         if let (Some(v), Some(f)) = (tuple.get(0), tuple.get(1)) {
@@ -114,7 +119,9 @@ impl Config {
             Data::new(data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, i| todo!()),
+                out: Arc::new(|a, _i| {
+                        iter_out(a, "filter", |f| ItersT::Filter(f.clone()))
+                    }),
                 run: Arc::new(|a, _i| {
                     if let Some(tuple) = a.get().as_any().downcast_ref::<data::tuple::Tuple>() {
                         if let (Some(v), Some(f)) = (tuple.get(0), tuple.get(1)) {
@@ -139,7 +146,9 @@ impl Config {
             Data::new(data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, i| todo!()),
+                out: Arc::new(|a, _i| {
+                        iter_out(a, "filter_map", |f| ItersT::FilterMap(f.clone()))
+                    }),
                 run: Arc::new(|a, _i| {
                     if let Some(tuple) = a.get().as_any().downcast_ref::<data::tuple::Tuple>() {
                         if let (Some(v), Some(f)) = (tuple.get(0), tuple.get(1)) {
@@ -164,11 +173,44 @@ impl Config {
             Data::new(data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, i| todo!()),
+                out: Arc::new(|a, _i| {
+                    let data = if let Some(a) = a.iterable() {
+                        a
+                    } else {
+                        return Err(format!("cannot call enumerate on non-iterable type {a}.").into());
+                    };
+                    Ok(Type::new(IterT::new(ItersT::Enumerate, data)?))
+                }),
                 run: Arc::new(|a, _i| Data::new(Iter(Iters::Enumerate, a.clone()))),
             }),
         )
     }
+}
+
+fn iter_out(a: &Type, name: &str, func: impl Fn(&FunctionT) -> ItersT) -> Result<Type, CheckError> {
+    let mut out = Type::empty();
+    for t in a.types.iter() {
+        if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
+            if t.0.len() != 2 {
+                return Err(format!("cannot call {name} on tuple where len != 2").into());
+            }
+            if let Some(v) = t.0[0].iterable() {
+                for f in t.0[1].types.iter() {
+                    if let Some(f) = f.as_any().downcast_ref::<data::function::FunctionT>() {
+                        out.add(Arc::new(IterT::new(func(f), v.clone())?));
+                    } else {
+                        return Err(format!("cannot call {name} on tuple that isn't (_, function): got {} instead of function as part of {a}", t.0[1]).into());
+                    }
+                }
+            } else {
+                return Err(format!(
+                    "cannot call {name} on non-iterable type {t}, which is part of {a}."
+                )
+                .into());
+            }
+        }
+    }
+    Ok(out)
 }
 
 #[derive(Clone, Debug)]
@@ -179,9 +221,16 @@ pub enum Iters {
     Enumerate,
 }
 #[derive(Clone, Debug)]
+pub enum ItersT {
+    Map(data::function::FunctionT),
+    Filter(data::function::FunctionT),
+    FilterMap(data::function::FunctionT),
+    Enumerate,
+}
+#[derive(Clone, Debug)]
 pub struct Iter(Iters, Data);
 #[derive(Clone, Debug)]
-pub struct IterT(Iters);
+pub struct IterT(ItersT, Type, Type);
 impl MersData for Iter {
     fn is_eq(&self, _other: &dyn MersData) -> bool {
         false
@@ -223,7 +272,7 @@ impl MersData for Iter {
         Box::new(Clone::clone(self))
     }
     fn as_type(&self) -> data::Type {
-        Type::new(IterT(self.0.clone()))
+        Type::new(IterT::new(self.0.as_type(), self.1.get().as_type()).unwrap())
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -233,6 +282,37 @@ impl MersData for Iter {
     }
     fn to_any(self) -> Box<dyn std::any::Any> {
         Box::new(self)
+    }
+}
+impl IterT {
+    pub fn new(iter: ItersT, data: Type) -> Result<Self, CheckError> {
+        let t = match &iter {
+            ItersT::Map(f) => (f.0)(&data)?,
+            ItersT::Filter(f) => {
+                if (f.0)(&data)?.is_included_in(&data::bool::BoolT) {
+                    data.clone()
+                } else {
+                    return Err(format!(
+                        "Iter:Filter, but function doesn't return bool for argument {data}."
+                    )
+                    .into());
+                }
+            }
+            ItersT::FilterMap(f) => {
+                if let Some(v) = (f.0)(&data)?.one_tuple_possible_content() {
+                    v
+                } else {
+                    return Err(
+                        format!("Iter:FilterMap, but function doesn't return ()/(t).").into(),
+                    );
+                }
+            }
+            ItersT::Enumerate => Type::new(data::tuple::TupleT(vec![
+                Type::new(data::int::IntT),
+                data.clone(),
+            ])),
+        };
+        Ok(Self(iter, data, t))
     }
 }
 impl MersType for IterT {
@@ -246,6 +326,9 @@ impl MersType for IterT {
         } else {
             false
         }
+    }
+    fn iterable(&self) -> Option<Type> {
+        Some(self.2.clone())
     }
     fn subtypes(&self, acc: &mut Type) {
         // NOTE: This might not be good enough
@@ -268,6 +351,16 @@ impl Display for Iter {
 }
 impl Display for IterT {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "<Iter>")
+        write!(f, "<Iter: {}>", self.2)
+    }
+}
+impl Iters {
+    fn as_type(&self) -> ItersT {
+        match self {
+            Self::Map(f) => ItersT::Map(f.get_as_type()),
+            Self::Filter(f) => ItersT::Filter(f.get_as_type()),
+            Self::FilterMap(f) => ItersT::FilterMap(f.get_as_type()),
+            Self::Enumerate => ItersT::Enumerate,
+        }
     }
 }

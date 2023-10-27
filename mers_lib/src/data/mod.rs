@@ -265,6 +265,27 @@ impl Type {
         }
         Some(o)
     }
+    /// Returns `Some(d)` if self is `()/(d)`
+    pub fn one_tuple_possible_content(&self) -> Option<Type> {
+        let mut o = Self::empty();
+        let mut nothing = true;
+        for t in &self.types {
+            if let Some(t) = t
+                .as_any()
+                .downcast_ref::<crate::data::tuple::TupleT>()
+                .filter(|v| v.0.len() == 1)
+                .and_then(|v| v.0.get(0))
+            {
+                nothing = false;
+                o.add(Arc::new(t.clone()));
+            }
+        }
+        if nothing {
+            None
+        } else {
+            Some(o)
+        }
+    }
     pub fn add(&mut self, new: Arc<dyn MersType>) {
         let n = new.as_any();
         if let Some(s) = n.downcast_ref::<Self>() {

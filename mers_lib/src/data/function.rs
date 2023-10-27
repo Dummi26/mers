@@ -36,6 +36,16 @@ impl Function {
     pub fn run(&self, arg: Data) -> Data {
         (self.run)(arg, &mut self.info.as_ref().clone())
     }
+    pub fn get_as_type(&self) -> FunctionT {
+        let out = Arc::clone(&self.out);
+        let info = Arc::clone(&self.info_check);
+        FunctionT(Arc::new(move |a| {
+            let lock = info.lock().unwrap();
+            let mut info = lock.clone();
+            drop(lock);
+            out(a, &mut info)
+        }))
+    }
 }
 
 impl MersData for Function {
@@ -52,14 +62,7 @@ impl MersData for Function {
         Box::new(Clone::clone(self))
     }
     fn as_type(&self) -> Type {
-        let out = Arc::clone(&self.out);
-        let info = Arc::clone(&self.info_check);
-        Type::new(FunctionT(Arc::new(move |a| {
-            let lock = info.lock().unwrap();
-            let mut info = lock.clone();
-            drop(lock);
-            out(a, &mut info)
-        })))
+        Type::new(self.get_as_type())
     }
     fn as_any(&self) -> &dyn Any {
         self
