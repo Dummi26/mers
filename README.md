@@ -27,9 +27,11 @@ Mers is built around a type-system where a value could be one of multiple types.
 ```
 x := if condition { 12 } else { "something went wrong" }
 ```
+
 In mers, the compiler tracks all the types in your program,
 and it will catch every possible crash before the program even runs:
 If we tried to use `x` as an int, the compiler would complain since it might be a string, so this **does not compile**:
+
 ```
 list := (1, 2, if true 3 else "not an int")
 list.sum.println
@@ -37,6 +39,7 @@ list.sum.println
 
 Type-safety for functions is different from what you might expect.
 You don't need to tell mers what type your function's argument has - you just use it however you want as if mers was a dynamically typed language:
+
 ```
 sum_doubled := iter -> {
   one := iter.sum
@@ -44,13 +47,14 @@ sum_doubled := iter -> {
 }
 (1, 2, 3).sum_doubled.println
 ```
+
 We could try to use the function improperly by passing a string instead of an int:
+
 ```
 (1, 2, "3").sum_doubled.println
 ```
-But mers will catch this and show an error, because the call to `sum` inside of `sum_doubled` would fail.
 
-(note: type-checks aren't implemented for all functions yet - some are just `todo!()`s, so mers will crash while checking your program. you may need to use `--check no` to get around this and deal with runtime panics for now)
+But mers will catch this and show an error, because the call to `sum` inside of `sum_doubled` would fail.
 
 ### Error Handling
 
@@ -65,17 +69,14 @@ So, if we want to print the programs stdout, we could try
 stdout.println
 ```
 
-But if we encountered a `RunCommandError`, mers couldn't assign the value to `(s, stdout, stderr)`, so this doesn't compile.
+But if we encountered a `RunCommandError`, mers wouldn't be able to assign the value to `(s, stdout, stderr)`, so this doesn't compile.
 Instead, we need to handle the error case, using the `try` function:
 
 ```
-(
-  ("ls", ("/")).run_command,
-  (
-    (s, stdout, stderr) -> stdout.println,
-    error -> error.println,
-  )
-).try
+("ls", ("/")).run_command.try((
+  (s, stdout, stderr) -> stdout.println,
+  error -> error.println,
+))
 ```
 
 ## docs
