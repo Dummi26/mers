@@ -1,12 +1,12 @@
 gcd := vals -> {
   () -> {
     (a, b) := vals
-    if (a, b).eq
+    if a.eq(b)
       (a)
-    else if ((a, b).diff.signum, 1).eq
-      &vals = (a, (a, b).diff)
+    else if a.diff(b).signum.eq(1)
+      &vals = (a, a.diff(b))
     else
-      &vals = ((b, a).diff, b)
+      &vals = (b.diff(a), b)
   }
 }.loop
 

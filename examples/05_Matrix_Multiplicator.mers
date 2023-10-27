@@ -1,0 +1,168 @@
+// if string is a + delim + b, returns (a, b),
+// otherwise returns (). b can contain delim.
+split_once := (s, delim) -> {
+  (
+    (s, delim).index_of,
+    (
+      index -> (
+        (s, 0, index).substring,
+        (s, (index, delim.len).sum).substring
+      )
+      () -> ()
+    )
+  ).try
+}
+
+// repeats split_once until no delim is left and returns a list of strings
+split_ := (s, delim, require_nonempty) -> {
+  out := (s).as_list
+  &out.pop
+  {
+    () -> s.split_once(delim).try((
+      (s1, s2) -> {
+        &s = s2
+        if s1.len.signum.eq(1)
+          &out.push(s1)
+      }
+      () -> {
+        if s.len.signum.eq(1)
+          &out.push(s)
+        (())
+      }
+    ))
+  }.loop
+  out
+}
+
+split := (s, delim) -> s.split_(delim, true)
+
+parse_matrix_line := input -> {
+  vals := input.split(" ")
+  vals_len := vals.len
+  // reverse vals
+  vals_rev := {() -> &vals.pop}.as_list
+  nums := {() -> &vals_rev.pop.try((
+    () -> ()
+    (v) -> v.parse_float.try((
+      () -> ()
+      v -> (v)
+    ))
+  ))}.as_list
+  if nums.len.eq(vals_len)
+    if nums.len.signum.eq(1)
+      (nums)
+    else ()
+  else ()
+}
+
+read_matrix_line := width -> {
+  ().read_line.trim.parse_matrix_line.try((
+    (line) -> {
+      w := width.deref
+      if w.eq(0) {
+        width = line.len
+      } else {
+        {() -> if line.len.diff(w).signum.eq(1) {
+          &line.push(0.0)
+        } else (())}.loop
+      }
+      (line)
+    }
+    () -> ()
+  ))
+}
+
+read_matrix := () -> {
+  width := 0
+  { () -> &width.read_matrix_line }.as_list
+}
+
+matrix_get := (matrix, (line, col)) -> {
+  matrix.get(line).try((
+    () -> ()
+    (line) -> line.get(col)
+  ))
+}
+
+leftpad := (str, l) -> {
+  str := (str).concat
+  d := str.len.diff(l)
+  {() -> if d.signum.eq(1) {
+    &str = (" ", str).concat
+    &d = 1.diff(d)
+  } else {(())}}.loop
+  str
+}
+
+matrix_print := matrix -> {
+  height := matrix.len
+  width := 0
+  val_len := 0
+  matrix.for_each(line -> {
+    l := line.len
+    if l.diff(width).signum.eq(-1)
+      &width = l
+    line.for_each(val -> {
+      l := (val).concat.len
+      if l.diff(val_len).eq(-1)
+        &val_len = l
+    })
+  })
+  &val_len = val_len.sum(1)
+  (height, "x", width, "-matrix").concat.println
+  matrix.for_each(line -> {
+    "(".print
+    line.for_each(val -> val.leftpad(val_len).print)
+    " )".println
+  })
+}
+
+fget := v -> v.get.try((
+  () -> {
+    "called fget but get returned ():".println
+    v.println
+    5.panic
+  }
+  (v) -> v
+))
+
+matrix_height := a -> a.len
+
+matrix_width := a -> a.get(0).try((
+  () -> 0
+  (v) -> v.len
+))
+
+multiply_matrix := (a, b) -> {
+  if a.matrix_width.eq(b.matrix_height) {
+    a.map(line -> {
+      {() -> (())} // an infinite iterator repeatedly returning ()
+        .enumerate // an infinite iterator returning (i, ())
+        .take(b.matrix_width) // an iterator returning (i, ()), i < b.matrix_width
+        .map((x, ()) -> line
+          .enumerate
+          .map((y, val) -> val.product(b.fget(y).fget(x)))
+          .sum
+        ) // an iterator returning floats
+        .as_list // becomes a row in the output matrix
+    }).as_list
+  } else {
+    "cannot multiply A and B because A's width isn't B's height."
+  }
+}
+
+"Enter matrix A".println
+a := ().read_matrix
+"Enter matrix B".println
+b := ().read_matrix
+
+"A = ".print
+a.matrix_print
+"B = ".print
+b.matrix_print
+
+"A * B = ".print
+a.multiply_matrix(b).try((
+  m -> m.matrix_print
+  e -> e.println
+))
