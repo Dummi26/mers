@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    data::{self, Data, MersType},
+    data::{self, Data, MersType, Type},
     program::{self, run::CheckInfo},
 };
 
@@ -15,9 +15,12 @@ impl Config {
             Data::new(data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, i| {
+                out: Arc::new(|a, _i| {
                     if let Some(v) = a.get() {
-                        Ok(v)
+                        Ok(Type::newm(vec![
+                            Arc::new(data::tuple::TupleT(vec![v])),
+                            Arc::new(data::tuple::TupleT(vec![])),
+                        ]))
                     } else {
                         Err(format!("called get on non-gettable type {a}").into())
                     }
