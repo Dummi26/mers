@@ -133,6 +133,11 @@ impl Display for Function {
 }
 impl Display for FunctionT {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Function")
+        match (self.0)(&Type::empty_tuple()) {
+            Ok(t) => write!(f, "Function /* () -> {t} */"),
+            Err(_) => {
+                write!(f, "Function",)
+            }
+        }
     }
 }
