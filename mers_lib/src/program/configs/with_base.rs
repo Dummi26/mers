@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use crate::{
     data::{self, Data, MersType, Type},
@@ -14,6 +17,7 @@ impl Config {
     /// `try: fn` runs the first valid function with the argument. usage: (arg, (f1, f2, f3)).try
     /// NOTE: try's return type may miss some types that can actually happen when using it on tuples, so... don't do ((a, b), (f1, any -> ())).try unless f1 also returns ()
     /// `len: fn` gets the length of strings or tuples
+    /// `sleep: fn` sleeps for n seconds (pauses the current thread)
     /// `panic: fn` exits the program with the given exit code
     pub fn with_base(self) -> Self {
         self.add_var("try".to_string(), Data::new(data::function::Function {
@@ -108,6 +112,29 @@ impl Config {
                 unreachable!("try: no function found")
             })
         }))
+            .add_var("sleep".to_string(), Data::new(data::function::Function {
+                info: Arc::new(Info::neverused()),
+                info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                out: Arc::new(|a, _i| if a.is_included_in(&Type::newm(vec![
+                    Arc::new(data::int::IntT),
+                    Arc::new(data::float::FloatT),
+                ])) {
+                        Ok(Type::empty_tuple())
+                } else {
+                        Err(format!("cannot call sleep with non-int or non-float argument.").into())
+                    }),
+                run: Arc::new(|a, _i| {
+                    let a = a.get();
+                    std::thread::sleep(if let Some(data::int::Int(n)) = a.as_any().downcast_ref() {
+                        Duration::from_secs(*n as _)
+                    } else if let Some(data::float::Float(n)) = a.as_any().downcast_ref() {
+                        Duration::from_secs_f64(*n)
+                    } else {
+                        unreachable!("sleep called on non-int/non-float")
+                    });
+                    Data::empty_tuple()
+                })
+            }))
             .add_var("panic".to_string(), Data::new(data::function::Function {
                 info: Arc::new(Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
