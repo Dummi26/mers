@@ -14,7 +14,7 @@ fib := n -> {
       ()
     } else {
       // n is zero or negative (happens the n-th time this loop runs),
-      // so we break with the lates value
+      // so we break with the latest value
       (r)
     }
   }}.loop
