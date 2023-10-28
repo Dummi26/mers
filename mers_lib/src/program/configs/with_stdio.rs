@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    io::Write,
+    sync::{Arc, Mutex},
+};
 
 use crate::{
     data::{self, Data, Type},
@@ -48,6 +51,7 @@ impl Config {
                 out: Arc::new(|a, i| Ok(Type::empty_tuple())),
                 run: Arc::new(|a, _i| {
                     eprint!("{}", a.get());
+                    std::io::stderr().lock().flush();
                     Data::empty_tuple()
                 }),
             }),
@@ -72,6 +76,7 @@ impl Config {
                 out: Arc::new(|a, i| Ok(Type::empty_tuple())),
                 run: Arc::new(|a, _i| {
                     print!("{}", a.get());
+                    std::io::stdout().lock().flush();
                     Data::empty_tuple()
                 }),
             }),
