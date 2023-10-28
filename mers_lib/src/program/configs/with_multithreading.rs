@@ -6,14 +6,18 @@ use std::{
 
 use crate::{
     data::{self, Data, MersData, MersType, Type},
-    program::{self, run::CheckInfo},
+    program::{
+        self,
+        run::{CheckError, CheckInfo},
+    },
 };
 
 use super::Config;
 
 impl Config {
-    /// `thread: fn` turns `(func, arg)` into a `Thread`, which will run the function with the argument.
-    /// `thread_get_result: fn` returns `()` while the thread is running and `(result)` otherwise.
+    /// `thread: fn` turns `func /* () -> t */` into a `Thread`, which will run the function.
+    /// `thread_finished: fn` returns `false` while the thread is running and `true` otherwise.
+    /// `thread_await: fn` returns `t`, the value produced by the thread's function.
     pub fn with_multithreading(self) -> Self {
         self.add_type(
             "Thread".to_string(),
@@ -24,72 +28,85 @@ impl Config {
             Data::new(data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, i| todo!()),
-                run: Arc::new(|a, _i| {
-                    let a = a.get();
-                    if let (Some(f), Some(arg)) = (
-                        a.get(0).and_then(|v| {
-                            v.get()
-                                .as_any()
-                                .downcast_ref::<data::function::Function>()
-                                .cloned()
-                        }),
-                        a.get(1),
-                    ) {
-                        Data::new(Thread(Arc::new(Mutex::new(Ok(std::thread::spawn(
-                            move || f.run(arg),
-                        ))))))
-                    } else {
-                        unreachable!("thread called, but arg wasn't a (function, _)");
-                    }
-                }),
-            }),
-        )
-        .add_var(
-            "thread_get_result".to_string(),
-            Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
-                info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, i| todo!()),
-                run: Arc::new(|a, _i| {
-                    let a = a.get();
-                    if let Some(t) = a
-                        .get(0)
-                        .and_then(|v| v.get().as_any().downcast_ref::<Thread>().cloned())
-                    {
-                        let mut t = t.0.lock().unwrap();
-                        if t.as_ref().is_ok_and(|t| t.is_finished()) {
-                            unsafe {
-                                // extract the JoinHandle from the Result by replacing it with uninitialized memory.
-                                #[allow(invalid_value)]
-                                let thread = std::mem::replace(
-                                    &mut *t,
-                                    std::mem::MaybeUninit::uninit().assume_init(),
-                                )
-                                .unwrap();
-                                // forget about t and its uninitialized memory while replacing it with the new value
-                                std::mem::forget(std::mem::replace(
-                                    &mut *t,
-                                    Err(thread.join().unwrap()),
-                                ));
+                out: Arc::new(|a, _i| {
+                    let mut out = Type::empty();
+                    for t in a.types.iter() {
+                        if let Some(f) = t.as_any().downcast_ref::<data::function::FunctionT>() {
+                            match (f.0)(&Type::empty_tuple()) {
+                                Ok(t) => out.add(Arc::new(t)),
+                                Err(e) => return Err(CheckError::new().msg(format!("Can't call thread on a function which can't be called on an empty tuple: ")).err(e))
                             }
                         }
-                        match &*t {
-                            Ok(_) => Data::empty_tuple(),
-                            Err(v) => Data::one_tuple(v.clone()),
-                        }
+                    }
+                    Ok(Type::new(ThreadT(out)))
+                }),
+                run: Arc::new(|a, _i| {
+                    let a = a.get();
+                    if let Some(f) = a
+                        .as_any()
+                        .downcast_ref::<data::function::Function>()
+                        .cloned()
+                    {
+                        Data::new(Thread(Arc::new(Mutex::new(Ok(std::thread::spawn(
+                            move || f.run(Data::empty_tuple()),
+                        ))))))
                     } else {
-                        unreachable!("thread_get_result called, but arg wasn't a Thread");
+                        unreachable!("thread called, but arg wasn't a function");
                     }
                 }),
             }),
         )
+            .add_var("thread_finished".to_string(), Data::new(data::function::Function {
+                info: Arc::new(program::run::Info::neverused()),
+                info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                out: Arc::new(|a, _i| {
+                    for t in a.types.iter() {
+                        if !t.as_any().is::<ThreadT>() {
+                            return Err(CheckError::new().msg(format!("Cannot call thread_finished on a value of type {t}, which isn't a thread but part of the argument {a}.")));
+                        }
+                    }
+                    Ok(Type::new(data::bool::BoolT))
+                }),
+                run: Arc::new(|a, _i| {
+                    let a = a.get();
+                    let t = a.as_any().downcast_ref::<Thread>().unwrap().0.lock().unwrap();
+                    Data::new(data::bool::Bool(match &*t {
+                        Ok(t) => t.is_finished(),
+                        Err(_d) => true,
+                    }))
+                })
+            }))
+            .add_var("thread_await".to_string(), Data::new(data::function::Function {
+                info: Arc::new(program::run::Info::neverused()),
+                info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                out: Arc::new(|a, _i| {
+                    let mut out = Type::empty();
+                    for t in a.types.iter() {
+                        if let Some(t) = t.as_any().downcast_ref::<ThreadT>() {
+                            out.add(Arc::new(Clone::clone(t)));
+                        } else {
+                            return Err(CheckError::new().msg(format!("Cannot call thread_await on a value of type {t}, which isn't a thread but part of the argument {a}.")));
+                        }
+                    }
+                    Ok(out)
+                }),
+                run: Arc::new(|a, _i| {
+                    let a = a.get();
+                    let mut t = a.as_any().downcast_ref::<Thread>().unwrap().0.lock().unwrap();
+                    let d = match std::mem::replace(&mut *t, Err(Data::empty_tuple())) {
+                        Ok(t) => t.join().unwrap(),
+                        Err(d) => d,
+                    };
+                    *t = Err(d.clone());
+                    d
+                })
+            }))
     }
 }
 
 #[derive(Clone)]
 pub struct Thread(Arc<Mutex<Result<JoinHandle<Data>, Data>>>);
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ThreadT(Type);
 
 impl MersData for Thread {
