@@ -46,10 +46,10 @@ impl Config {
                                         .collect::<Option<Vec<_>>>(),
                                 ) {
                                     for f in f {
-                                        let ret = f.0(&iter)?;
-                                        if !ret.is_zero_tuple() {
-                                            return Err(format!("for_each function must return (), not {ret}").into());
-                                        }
+                                        let _ret = f.0(&iter)?;
+                                        // if !ret.is_zero_tuple() {
+                                        //     return Err(format!("for_each function must return (), not {ret}").into());
+                                        // }
                                     }
                                 } else {
                                     return Err(format!(

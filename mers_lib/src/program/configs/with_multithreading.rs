@@ -83,7 +83,7 @@ impl Config {
                     let mut out = Type::empty();
                     for t in a.types.iter() {
                         if let Some(t) = t.as_any().downcast_ref::<ThreadT>() {
-                            out.add(Arc::new(Clone::clone(t)));
+                            out.add(Arc::new(Clone::clone(&t.0)));
                         } else {
                             return Err(CheckError::new().msg(format!("Cannot call thread_await on a value of type {t}, which isn't a thread but part of the argument {a}.")));
                         }
