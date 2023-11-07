@@ -68,7 +68,7 @@ range := (min, max, inc) -> {
   val := min
   () -> {
     // -1 if val > max, 1 if max > val, 0 if max = val
-    should_inc := ((val, max).diff.signum, inc.signum).eq
+    should_inc := ((max, val).subtract.signum, inc.signum).eq
     if should_inc {
       v := val
       &val = (val, inc).sum

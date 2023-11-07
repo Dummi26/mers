@@ -62,7 +62,7 @@ read_matrix_line := width -> {
       if w.eq(0) {
         width = line.len
       } else {
-        {() -> if line.len.diff(w).signum.eq(1) {
+        {() -> if line.len.subtract(w).signum.eq(-1) {
           &line.push(0.0)
         } else (())}.loop
       }
@@ -86,10 +86,10 @@ matrix_get := (matrix, (line, col)) -> {
 
 leftpad := (str, l) -> {
   str := (str).concat
-  d := str.len.diff(l)
+  d := l.subtract(str.len)
   {() -> if d.signum.eq(1) {
     &str = (" ", str).concat
-    &d = 1.diff(d)
+    &d = d.subtract(1)
   } else {(())}}.loop
   str
 }
@@ -100,11 +100,11 @@ matrix_print := matrix -> {
   val_len := 0
   matrix.for_each(line -> {
     l := line.len
-    if l.diff(width).signum.eq(-1)
+    if width.subtract(l).signum.eq(-1)
       &width = l
     line.for_each(val -> {
       l := (val).concat.len
-      if l.diff(val_len).eq(-1)
+      if val_len.subtract(l).eq(-1)
         &val_len = l
     })
   })

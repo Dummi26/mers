@@ -3,10 +3,10 @@ gcd := vals -> {
     (a, b) := vals
     if a.eq(b)
       (a)
-    else if a.diff(b).signum.eq(1)
-      &vals = (a, a.diff(b))
+    else if b.subtract(a).signum.eq(1)
+      &vals = (a, b.subtract(a))
     else
-      &vals = (b.diff(a), b)
+      &vals = (a.subtract(b), b)
   }
 }.loop
 
