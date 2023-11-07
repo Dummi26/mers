@@ -329,6 +329,9 @@ impl MersType for Type {
     fn is_included_in_single(&self, target: &dyn MersType) -> bool {
         self.types.iter().all(|t| t.is_included_in_single(target))
     }
+    fn is_included_in(&self, target: &dyn MersType) -> bool {
+        self.types.iter().all(|t| t.is_included_in(target))
+    }
     fn subtypes(&self, acc: &mut Type) {
         for t in &self.types {
             t.subtypes(acc);
