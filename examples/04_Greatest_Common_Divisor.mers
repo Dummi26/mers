@@ -1,5 +1,5 @@
 gcd := vals -> {
-  () -> {
+  ().loop(() -> {
     (a, b) := vals
     if a.eq(b)
       (a)
@@ -7,8 +7,8 @@ gcd := vals -> {
       &vals = (a, b.subtract(a))
     else
       &vals = (a.subtract(b), b)
-  }
-}.loop
+  })
+}
 
 get_num := () -> {
   line := ().read_line.trim

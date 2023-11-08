@@ -5,7 +5,7 @@
 
 current := 0.0
 
-{() -> {
+().loop(() -> {
   ("[ ", current, " ]").concat.println
   input := ().read_line.trim
   num := (input, 1).substring.trim.parse_float.try((
@@ -24,4 +24,4 @@ current := 0.0
   } else if input.eq("exit") {
     (())
   }
-}}.loop
+})

@@ -17,7 +17,7 @@ split_once := (s, delim) -> {
 split_ := (s, delim, require_nonempty) -> {
   out := (s).as_list
   &out.pop
-  {
+  ().loop(
     () -> s.split_once(delim).try((
       (s1, s2) -> {
         &s = s2
@@ -30,7 +30,7 @@ split_ := (s, delim, require_nonempty) -> {
         (())
       }
     ))
-  }.loop
+  )
   out
 }
 
@@ -62,9 +62,11 @@ read_matrix_line := width -> {
       if w.eq(0) {
         width = line.len
       } else {
-        {() -> if line.len.subtract(w).signum.eq(-1) {
-          &line.push(0.0)
-        } else (())}.loop
+        ().loop(() ->
+          if line.len.subtract(w).signum.eq(-1) {
+            &line.push(0.0)
+          } else (())
+        )
       }
       (line)
     }
@@ -87,10 +89,12 @@ matrix_get := (matrix, (line, col)) -> {
 leftpad := (str, l) -> {
   str := (str).concat
   d := l.subtract(str.len)
-  {() -> if d.signum.eq(1) {
-    &str = (" ", str).concat
-    &d = d.subtract(1)
-  } else {(())}}.loop
+  ().loop(() ->
+    if d.signum.eq(1) {
+      &str = (" ", str).concat
+      &d = d.subtract(1)
+    } else (())
+  )
   str
 }
 

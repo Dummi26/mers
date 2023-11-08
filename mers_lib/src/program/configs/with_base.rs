@@ -13,7 +13,7 @@ use super::Config;
 impl Config {
     /// `deref: fn` clones the value from a reference
     /// `eq: fn` returns true if all the values are equal, otherwise false.
-    /// `loop: fn` runs a function until it returns (T) instead of (), then returns T.
+    /// `loop: fn` runs a function until it returns (T) instead of (), then returns T. Also works with ((), f) instead of f for ().loop(() -> { ... }) syntax, which may be more readable
     /// `try: fn` runs the first valid function with the argument. usage: (arg, (f1, f2, f3)).try
     /// NOTE: try's return type may miss some types that can actually happen when using it on tuples, so... don't do ((a, b), (f1, any -> ())).try unless f1 also returns ()
     /// `len: fn` gets the length of strings or tuples
@@ -180,7 +180,11 @@ impl Config {
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     let mut o = Type::empty();
-                    for t in &a.types {
+                    for t in a.types.iter().flat_map(|v| if let Some(t) = v.as_any().downcast_ref::<data::tuple::TupleT>() {
+                            if let Some(t) = t.0.get(1) {
+                                t.types.iter().collect::<Vec<_>>()
+                            } else { [v].into_iter().collect() }
+                        } else { [v].into_iter().collect() }) {
                         if let Some(t) = t.as_any().downcast_ref::<data::function::FunctionT>() {
                             for t in (t.0)(&Type::empty_tuple())?.types {
                                 if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
@@ -200,15 +204,21 @@ impl Config {
                     Ok(o)
                 }),
                 run: Arc::new(|a, _i| {
-                    if let Some(r) = a.get().as_any().downcast_ref::<data::function::Function>() {
+                    let a = a.get();
+                    let delay_drop;
+                    let function = if let Some(function) = a.as_any().downcast_ref::<data::function::Function>() {
+                            function
+                    } else if let Some(r) = a.as_any().downcast_ref::<data::tuple::Tuple>() {
+                        delay_drop = r.0[1].get();
+                        delay_drop.as_any().downcast_ref::<data::function::Function>().unwrap()
+                    } else {
+                        unreachable!("called loop on non-function")
+                    };
                         loop {
-                            if let Some(r) = r.run(Data::empty_tuple()).one_tuple_content() {
+                            if let Some(r) = function.run(Data::empty_tuple()).one_tuple_content() {
                                 break r;
                             }
                         }
-                    } else {
-                        unreachable!("called loop on non-function")
-                    }
                 }),
             }),
         )
