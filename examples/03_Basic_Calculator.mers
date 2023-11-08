@@ -1,6 +1,6 @@
 "- Calculator -".println
 "Type =<num> to set the value to that number.".println
-"Type +<num>, -<num> or *<num> to change the value.".println
+"Type +<num>, -<num>, *<num> or /<num> to change the value.".println
 "Type exit to exit.".println
 
 current := 0.0
@@ -19,9 +19,11 @@ current := 0.0
     &current = (current, (num, -1).product).sum
   } else if mode.eq("*") {
     &current = (current, num).product
+  } else if mode.eq("/") {
+    &current = (current, num).div
   } else if mode.eq("=") {
     &current = num
-  } else if input.eq("exit") {
+  } else if (input.eq("exit"), input.eq("")).any {
     (())
   }
 })

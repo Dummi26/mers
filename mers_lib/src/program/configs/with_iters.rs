@@ -26,8 +26,17 @@ impl Config {
     /// `map_while: fn` maps while the map-function returns (d), ends the iterator once () is returned.
     /// `take: fn` takes at most so many elements from the iterator.
     /// `enumerate: fn` transforms an iterator over T into one over (Int, T), where Int is the index of the element
+    /// `any: fn` returns true if any element of the iterator are true
+    /// `all: fn` returns true if all elements of the iterator are true
     pub fn with_iters(self) -> Self {
-        self.add_var(
+        self
+            .add_var("any".to_string(), Data::new(genfunc_iter_in_val_out("all".to_string(), data::bool::BoolT, Type::new(data::bool::BoolT), |a, _i| {
+                Data::new(data::bool::Bool(a.get().iterable().unwrap().any(|v| v.get().as_any().downcast_ref::<data::bool::Bool>().is_some_and(|v| v.0))))
+            })))
+            .add_var("all".to_string(), Data::new(genfunc_iter_in_val_out("all".to_string(), data::bool::BoolT, Type::new(data::bool::BoolT), |a, _i| {
+                Data::new(data::bool::Bool(a.get().iterable().unwrap().all(|v| v.get().as_any().downcast_ref::<data::bool::Bool>().is_some_and(|v| v.0))))
+            })))
+            .add_var(
             "for_each".to_string(),
             Data::new(data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
@@ -381,5 +390,29 @@ impl Iters {
             Self::Take(_) => ItersT::Take,
             Self::Enumerate => ItersT::Enumerate,
         }
+    }
+}
+
+fn genfunc_iter_in_val_out(
+    name: String,
+    iter_type: impl MersType + 'static,
+    out_type: Type,
+    run: impl Fn(Data, &mut crate::info::Info<program::run::Local>) -> Data + Send + Sync + 'static,
+) -> Function {
+    Function {
+        info: Arc::new(crate::info::Info::neverused()),
+        info_check: Arc::new(Mutex::new(crate::info::Info::neverused())),
+        out: Arc::new(move |a, _i| {
+            if let Some(iter_over) = a.iterable() {
+                if iter_over.is_included_in(&iter_type) {
+                    Ok(out_type.clone())
+                } else {
+                    Err(format!("Cannot call function {name} on iterator over type {a}, which isn't {iter_type}.").into())
+                }
+            } else {
+                Err(format!("Cannot call function {name} on non-iterable type {a}.").into())
+            }
+        }),
+        run: Arc::new(run),
     }
 }
