@@ -1,0 +1,97 @@
+f1 := 0
+f2 := 0
+f3 := 0
+f4 := 0
+f5 := 0
+f6 := 0
+f7 := 0
+f8 := 0
+f9 := 0
+player := false
+
+load_color := clr -> "echo".run_command(("-n", "-e", clr)).try((
+  (s, o, e) -> o
+  e -> ""
+))
+
+c_reset := "\\033[0m".load_color
+c_green := "\\033[92m".load_color
+c_blue := "\\033[94m".load_color
+c_gray := "\\033[90m".load_color
+c_magenta := "\\033[95m".load_color
+
+pbf := (n, o) -> if n.eq(0)
+  (c_gray, o, c_reset).concat
+else if n.signum.eq(1)
+  (c_blue, "x", c_reset).concat
+else
+  (c_green, "o", c_reset).concat
+
+print_board := board -> {
+  ((f1, f2, f3), (f4, f5, f6), (f7, f8, f9)).enumerate.for_each((i, (a, b, c)) -> {
+    (c_gray, "|---|---|---|", c_reset).concat.println
+    m := 2.subtract(i).product(3).sum(1)
+    n := m.sum(1)
+    o := m.sum(2)
+    (
+      c_gray, "| ", (a, m).pbf,
+      c_gray, " | ", (b, n).pbf,
+      c_gray, " | ", (c, o).pbf,
+      c_gray, " |"
+    ).concat.println
+  })
+  (c_gray, "|---|---|---|", c_reset).concat.println
+}
+
+check_board := () -> {
+  if (f1, f2, f3, f4, f5, f6, f7, f8, f9).map(f -> f.eq(0).eq(false)).all 0
+  else if (f1.eq(0).eq(false), (f1, f2, f3).eq).all f1
+  else if (f4.eq(0).eq(false), (f4, f5, f6).eq).all f4
+  else if (f7.eq(0).eq(false), (f7, f8, f9).eq).all f7
+  else if (f1.eq(0).eq(false), (f1, f4, f7).eq).all f1
+  else if (f2.eq(0).eq(false), (f2, f5, f8).eq).all f2
+  else if (f3.eq(0).eq(false), (f3, f6, f9).eq).all f3
+  else if (f1.eq(0).eq(false), (f1, f5, f9).eq).all f1
+  else if (f3.eq(0).eq(false), (f3, f5, f7).eq).all f3
+}
+
+().loop(() -> {
+  (if player c_blue else c_green, "Turn: ", if player "x" else "o", c_reset).concat.println
+  ().print_board
+  ().loop(() -> {
+    (if player c_blue else c_green, "> ", c_gray).concat.print
+    input := ().read_line.trim
+    input.parse_int.try((
+      field -> {
+        if (field.gt(0), field.ltoe(9)).all {
+          (l, m, r) := if field.gt(6) (&f1, &f2, &f3) else if field.gt(3) (&f4, &f5, &f6) else (&f7, &f8, &f9)
+          col := field.subtract(1).modulo(3)
+          f := if col.eq(0) l else if col.eq(1) m else r
+          if f.deref.eq(0) {
+            f = if player 1 else -1
+            (())
+          } else "field already occupied".println
+        } else {
+          "number must be 1 <= n <= 9".println
+        }
+      }
+      () -> "not a number!".println
+    ))
+  })
+  &player = player.eq(false)
+  ().check_board.try((
+    () -> (),
+    winner -> {
+      "".println
+      ().print_board
+      if winner.eq(1) {
+        (c_blue, "The winner is X!", c_reset).concat.println
+      } else if winner.eq(-1) {
+        (c_green, "The winner is O!", c_reset).concat.println
+      } else {
+        (c_magenta, "Tie", c_reset).concat.println
+      }
+      (())
+    }
+  ))
+})
