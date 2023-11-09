@@ -44,7 +44,7 @@ print_board := board -> {
 }
 
 check_board := () -> {
-  if (f1, f2, f3, f4, f5, f6, f7, f8, f9).map(f -> f.eq(0).eq(false)).all 0
+  if (f1, f2, f3, f4, f5, f6, f7, f8, f9).filter(f -> f.eq(0)).len.eq(0) 0
   else if (f1.eq(0).eq(false), (f1, f2, f3).eq).all f1
   else if (f4.eq(0).eq(false), (f4, f5, f6).eq).all f4
   else if (f7.eq(0).eq(false), (f7, f8, f9).eq).all f7
