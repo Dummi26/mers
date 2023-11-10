@@ -343,12 +343,15 @@ impl IterT {
 }
 impl MersType for IterT {
     fn is_same_type_as(&self, other: &dyn MersType) -> bool {
-        false
+        if let Some(other) = other.as_any().downcast_ref::<Self>() {
+            self.2.is_same_type_as(&other.2)
+        } else {
+            false
+        }
     }
     fn is_included_in_single(&self, target: &dyn MersType) -> bool {
         if let Some(target) = target.as_any().downcast_ref::<Self>() {
-            // TODO: ?
-            false
+            self.2.is_included_in(&target.2)
         } else {
             false
         }
