@@ -6,7 +6,7 @@ pub fn assign(from: &Data, target: &Data) {
         .as_any()
         .downcast_ref::<crate::data::reference::Reference>()
     {
-        *r.0.lock().unwrap() = from.clone();
+        *r.0.write().unwrap() = from.clone();
     } else if let (Some(from), Some(target)) = (
         from.get()
             .as_any()

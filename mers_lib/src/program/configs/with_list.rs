@@ -53,7 +53,7 @@ impl Config {
                             .downcast_ref::<data::reference::Reference>()
                             .unwrap()
                             .0
-                            .lock()
+                            .write()
                             .unwrap()
                             .get_mut()
                             .mut_any()
@@ -118,7 +118,7 @@ impl Config {
                             .downcast_ref::<data::reference::Reference>()
                             .unwrap()
                             .0
-                            .lock()
+                            .write()
                             .unwrap()
                             .get_mut()
                             .mut_any()

@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 use crate::data::{self, Data, Type};
 
@@ -40,7 +40,7 @@ impl MersStatement for Variable {
     }
     fn run_custom(&self, info: &mut super::Info) -> Data {
         if self.is_init {
-            let nothing = Arc::new(Mutex::new(Data::new(data::bool::Bool(false))));
+            let nothing = Arc::new(RwLock::new(Data::new(data::bool::Bool(false))));
             while info.scopes[self.var.0].vars.len() <= self.var.1 {
                 info.scopes[self.var.0].vars.push(Arc::clone(&nothing));
             }
@@ -52,7 +52,7 @@ impl MersStatement for Variable {
             )))
         } else {
             info.scopes[self.var.0].vars[self.var.1]
-                .lock()
+                .write()
                 .unwrap()
                 .clone()
         }

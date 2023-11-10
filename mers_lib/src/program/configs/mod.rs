@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 use crate::{
     data::{Data, Type},
@@ -69,7 +69,7 @@ impl Config {
     pub fn add_var(mut self, name: String, val: Data) -> Self {
         let t = val.get().as_type();
         self.info_parsed.scopes[0].init_var(name, (0, self.globals));
-        self.info_run.scopes[0].init_var(self.globals, Arc::new(Mutex::new(val)));
+        self.info_run.scopes[0].init_var(self.globals, Arc::new(RwLock::new(val)));
         self.info_check.scopes[0].init_var(self.globals, t);
         self.globals += 1;
         self

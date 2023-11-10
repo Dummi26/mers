@@ -1,6 +1,6 @@
 use std::{
     fmt::{Debug, Display},
-    sync::{Arc, Mutex},
+    sync::{Arc, RwLock},
 };
 
 use colored::Colorize;
@@ -240,7 +240,7 @@ pub type CheckInfo = info::Info<CheckLocal>;
 
 #[derive(Default, Clone, Debug)]
 pub struct Local {
-    vars: Vec<Arc<Mutex<Data>>>,
+    vars: Vec<Arc<RwLock<Data>>>,
 }
 #[derive(Default, Clone, Debug)]
 pub struct CheckLocal {
@@ -248,9 +248,9 @@ pub struct CheckLocal {
 }
 impl info::Local for Local {
     type VariableIdentifier = usize;
-    type VariableData = Arc<Mutex<Data>>;
+    type VariableData = Arc<RwLock<Data>>;
     fn init_var(&mut self, id: Self::VariableIdentifier, value: Self::VariableData) {
-        let nothing = Arc::new(Mutex::new(Data::new(data::bool::Bool(false))));
+        let nothing = Arc::new(RwLock::new(Data::new(data::bool::Bool(false))));
         while self.vars.len() <= id {
             self.vars.push(Arc::clone(&nothing));
         }

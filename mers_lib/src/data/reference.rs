@@ -1,18 +1,18 @@
 use std::{
     any::Any,
     fmt::Display,
-    sync::{Arc, Mutex},
+    sync::{Arc, RwLock},
 };
 
 use super::{Data, MersData, MersType, Type};
 
 #[derive(Debug, Clone)]
-pub struct Reference(pub Arc<Mutex<Data>>);
+pub struct Reference(pub Arc<RwLock<Data>>);
 
 impl MersData for Reference {
     fn is_eq(&self, other: &dyn MersData) -> bool {
         if let Some(other) = other.as_any().downcast_ref::<Self>() {
-            *other.0.lock().unwrap() == *self.0.lock().unwrap()
+            *other.0.write().unwrap() == *self.0.write().unwrap()
         } else {
             false
         }
@@ -21,7 +21,7 @@ impl MersData for Reference {
         Box::new(Clone::clone(self))
     }
     fn as_type(&self) -> Type {
-        Type::new(ReferenceT(self.0.lock().unwrap().get().as_type()))
+        Type::new(ReferenceT(self.0.write().unwrap().get().as_type()))
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -69,7 +69,7 @@ impl MersType for ReferenceT {
 
 impl Display for Reference {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "&{}", self.0.lock().unwrap().get())
+        write!(f, "&{}", self.0.write().unwrap().get())
     }
 }
 impl Display for ReferenceT {

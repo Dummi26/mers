@@ -19,6 +19,7 @@ impl Config {
     /// `len: fn` gets the length of strings or tuples
     /// `sleep: fn` sleeps for n seconds (pauses the current thread)
     /// `panic: fn` exits the program with the given exit code
+    /// `lock_update: fn` locks the value of a reference so you can exclusively modify it: &var.lock_update(v -> (v, 1).sum)
     pub fn with_base(self) -> Self {
         self.add_var("try".to_string(), Data::new(data::function::Function {
                 info: Arc::new(Info::neverused()),
@@ -112,6 +113,54 @@ impl Config {
                 unreachable!("try: no function found")
             })
         }))
+            .add_var("lock_update".to_string(), Data::new(data::function::Function {
+                info: Arc::new(Info::neverused()),
+                info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                out: Arc::new(|a, _i| {
+                    for t in a.types.iter() {
+                        if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
+                            if t.0.len() == 2 {
+                                let arg_ref = &t.0[0];
+                                if let Some(arg) = arg_ref.dereference() {
+                                    let func = &t.0[1];
+                                    for func_t in func.types.iter() {
+                                        if let Some(f) = func_t.as_any().downcast_ref::<data::function::FunctionT>() {
+                                            match (f.0)(&arg) {
+                                                Ok(out) => {
+                                                    if !out.is_included_in(&arg) {
+                                                        return Err(format!("Function returns a value of type {out}, which isn't included in the type of the reference, {arg}.").into());
+                                                    }
+                                                },
+                                                Err(e) => return Err(CheckError::new().msg(format!("Invalid argument type {arg} for function")).err(e)),
+                                            }
+                                        } else {
+                                            return Err(format!("Arguments must be (reference, function)").into());
+                                        }
+                                    }
+                                } else {
+                                    return Err(format!("Arguments must be (reference, function), but {arg_ref} isn't a reference").into());
+                                }
+                            } else {
+                                return Err(format!("Can't call lock_update on tuple type {t} with length != 2, which is part of the argument type {a}.").into());
+                            }
+                        } else {
+                            return Err(format!("Can't call lock_update on non-tuple type {t}, which is part of the argument type {a}.").into());
+                        }
+                    }
+                    Ok(Type::empty_tuple())
+                }),
+                run: Arc::new(|a, _i| {
+                    let a = a.get();
+                    let a = a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
+                    let arg_ref = a.0[0].get();
+                    let arg_ref = arg_ref.as_any().downcast_ref::<data::reference::Reference>().unwrap();
+                    let mut arg = arg_ref.0.write().unwrap();
+                    let func = a.0[1].get();
+                    let func = func.as_any().downcast_ref::<data::function::Function>().unwrap();
+                    *arg = func.run(arg.clone());
+                    Data::empty_tuple()
+                })
+            }))
             .add_var("sleep".to_string(), Data::new(data::function::Function {
                 info: Arc::new(Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
@@ -268,7 +317,7 @@ impl Config {
                         .as_any()
                         .downcast_ref::<data::reference::Reference>()
                     {
-                        r.0.lock().unwrap().clone()
+                        r.0.write().unwrap().clone()
                     } else {
                         unreachable!("called deref on non-reference")
                     }

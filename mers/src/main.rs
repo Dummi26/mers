@@ -92,8 +92,6 @@ fn main() {
                     std::process::exit(36);
                 }
             };
-            #[cfg(debug_assertions)]
-            dbg!(&return_type);
             if args.check == Check::Yes {
                 run.run(&mut info_run);
             } else {
