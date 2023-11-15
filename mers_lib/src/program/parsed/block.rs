@@ -1,6 +1,9 @@
 use crate::{
     info,
-    program::{self, run::SourceRange},
+    program::{
+        self,
+        run::{CheckError, SourceRange},
+    },
 };
 
 use super::{CompInfo, MersStatement};
@@ -18,7 +21,7 @@ impl MersStatement for Block {
         &self,
         info: &mut info::Info<super::Local>,
         comp: CompInfo,
-    ) -> Result<Box<dyn program::run::MersStatement>, String> {
+    ) -> Result<Box<dyn program::run::MersStatement>, CheckError> {
         Ok(Box::new(program::run::block::Block {
             pos_in_src: self.pos_in_src,
             statements: self

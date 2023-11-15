@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
-use crate::program::{self, parsed::block::Block};
+use crate::program::{self, parsed::block::Block, run::CheckError};
 
 pub mod errors;
 pub mod statements;
 pub mod types;
 
-pub fn parse(src: &mut Source) -> Result<Box<dyn program::parsed::MersStatement>, ()> {
+pub fn parse(src: &mut Source) -> Result<Box<dyn program::parsed::MersStatement>, CheckError> {
     let pos_in_src = src.get_pos();
     let statements = statements::parse_multiple(src, "")?;
     let block = Block {

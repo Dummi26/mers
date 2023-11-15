@@ -1,4 +1,4 @@
-use crate::program::run::SourceRange;
+use crate::program::run::{CheckError, SourceRange};
 use crate::{info, program};
 
 use super::{CompInfo, MersStatement};
@@ -17,7 +17,7 @@ impl MersStatement for Chain {
         &self,
         info: &mut info::Info<super::Local>,
         comp: CompInfo,
-    ) -> Result<Box<dyn program::run::MersStatement>, String> {
+    ) -> Result<Box<dyn program::run::MersStatement>, CheckError> {
         Ok(Box::new(program::run::chain::Chain {
             pos_in_src: self.pos_in_src,
             first: self.first.compile(info, comp)?,

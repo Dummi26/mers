@@ -268,6 +268,15 @@ impl info::Local for Local {
             None => None,
         }
     }
+    fn duplicate(&self) -> Self {
+        Self {
+            vars: self
+                .vars
+                .iter()
+                .map(|v| Arc::new(RwLock::new(v.read().unwrap().clone())))
+                .collect(),
+        }
+    }
 }
 impl info::Local for CheckLocal {
     type VariableIdentifier = usize;
@@ -289,5 +298,8 @@ impl info::Local for CheckLocal {
             Some(v) => Some(v),
             None => None,
         }
+    }
+    fn duplicate(&self) -> Self {
+        self.clone()
     }
 }

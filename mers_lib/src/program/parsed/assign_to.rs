@@ -1,4 +1,7 @@
-use crate::program::{self, run::SourceRange};
+use crate::program::{
+    self,
+    run::{CheckError, SourceRange},
+};
 
 use super::{CompInfo, MersStatement};
 
@@ -17,7 +20,7 @@ impl MersStatement for AssignTo {
         &self,
         info: &mut crate::info::Info<super::Local>,
         comp: CompInfo,
-    ) -> Result<Box<dyn program::run::MersStatement>, String> {
+    ) -> Result<Box<dyn program::run::MersStatement>, CheckError> {
         Ok(Box::new(program::run::assign_to::AssignTo {
             pos_in_src: self.pos_in_src,
             is_init: false,

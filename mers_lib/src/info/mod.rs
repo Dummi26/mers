@@ -23,6 +23,7 @@ pub trait Local: Default + Debug {
     fn get_var_mut(&mut self, id: &Self::VariableIdentifier) -> Option<&mut Self::VariableData>;
     // fn add_type(&mut self, id: Self::TypesIdentifier, new_type: Self::TypesType);
     // fn get_type(&self, id: Self::TypesIdentifier) -> Option<&Self::TypesType>;
+    fn duplicate(&self) -> Self;
 }
 
 impl<L: Local> Info<L> {
@@ -46,6 +47,11 @@ impl<L: Local> Local for Info<L> {
     }
     fn get_var_mut(&mut self, id: &Self::VariableIdentifier) -> Option<&mut Self::VariableData> {
         self.scopes.iter_mut().find_map(|l| l.get_var_mut(id))
+    }
+    fn duplicate(&self) -> Self {
+        Self {
+            scopes: self.scopes.iter().map(|v| v.duplicate()).collect(),
+        }
     }
 }
 

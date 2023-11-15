@@ -1,4 +1,4 @@
-use crate::program::run::SourceRange;
+use crate::program::run::{CheckError, SourceRange};
 use crate::{data::Data, program};
 
 use super::{CompInfo, MersStatement};
@@ -17,7 +17,7 @@ impl MersStatement for Value {
         &self,
         _info: &mut crate::info::Info<super::Local>,
         _comp: CompInfo,
-    ) -> Result<Box<dyn program::run::MersStatement>, String> {
+    ) -> Result<Box<dyn program::run::MersStatement>, CheckError> {
         Ok(Box::new(program::run::value::Value {
             pos_in_src: self.pos_in_src,
             val: self.data.clone(),

@@ -1,4 +1,7 @@
-use crate::program::{self, run::SourceRange};
+use crate::program::{
+    self,
+    run::{CheckError, SourceRange},
+};
 
 use super::{CompInfo, MersStatement};
 
@@ -18,7 +21,7 @@ impl MersStatement for If {
         &self,
         info: &mut crate::info::Info<super::Local>,
         comp: CompInfo,
-    ) -> Result<Box<dyn program::run::MersStatement>, String> {
+    ) -> Result<Box<dyn program::run::MersStatement>, CheckError> {
         Ok(Box::new(program::run::r#if::If {
             pos_in_src: self.pos_in_src,
             condition: self.condition.compile(info, comp)?,

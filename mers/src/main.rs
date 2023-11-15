@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand, ValueEnum};
 use mers_lib::prelude_compile::*;
-use std::{fmt::Display, fs, path::PathBuf};
+use std::{fmt::Display, fs, path::PathBuf, process::exit};
 
 mod cfg_globals;
 
@@ -67,17 +67,33 @@ fn main() {
     let (mut info_parsed, mut info_run, mut info_check) = config.infos();
     let mut source = match args.command {
         Command::Run { file } => {
-            let str = fs::read_to_string(file).unwrap();
+            let str = match fs::read_to_string(&file) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("Can't read file {file:?}: {e}");
+                    exit(10);
+                }
+            };
             Source::new(str)
         }
         Command::Exec { source } => Source::new(source),
     };
-    let parsed = parse(&mut source).unwrap();
+    let parsed = match parse(&mut source) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("{}", e.display(&source));
+            exit(20);
+        }
+    };
     #[cfg(debug_assertions)]
     dbg!(&parsed);
-    let run = parsed
-        .compile(&mut info_parsed, Default::default())
-        .unwrap();
+    let run = match parsed.compile(&mut info_parsed, Default::default()) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("{}", e.display(&source));
+            exit(24);
+        }
+    };
     #[cfg(debug_assertions)]
     dbg!(&run);
     match args.check {
@@ -89,7 +105,7 @@ fn main() {
                 Ok(v) => v,
                 Err(e) => {
                     eprint!("{}", e.display(&source));
-                    std::process::exit(36);
+                    exit(28);
                 }
             };
             if args.check == Check::Yes {

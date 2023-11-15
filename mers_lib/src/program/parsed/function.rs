@@ -1,4 +1,4 @@
-use crate::program::run::SourceRange;
+use crate::program::run::{CheckError, SourceRange};
 use std::sync::{Arc, Mutex};
 
 use crate::{
@@ -24,7 +24,7 @@ impl MersStatement for Function {
         &self,
         info: &mut crate::info::Info<super::Local>,
         mut comp: CompInfo,
-    ) -> Result<Box<dyn program::run::MersStatement>, String> {
+    ) -> Result<Box<dyn program::run::MersStatement>, CheckError> {
         comp.is_init = true;
         let arg_target = Arc::new(self.arg.compile(info, comp)?);
         comp.is_init = false;

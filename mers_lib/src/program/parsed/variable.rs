@@ -1,6 +1,9 @@
 use crate::{
     info::Local,
-    program::{self, run::SourceRange},
+    program::{
+        self,
+        run::{CheckError, SourceRange},
+    },
 };
 
 use super::{CompInfo, MersStatement};
@@ -20,7 +23,7 @@ impl MersStatement for Variable {
         &self,
         info: &mut crate::info::Info<super::Local>,
         comp: CompInfo,
-    ) -> Result<Box<dyn program::run::MersStatement>, String> {
+    ) -> Result<Box<dyn program::run::MersStatement>, CheckError> {
         if comp.is_init {
             info.init_var(
                 self.var.clone(),
@@ -37,7 +40,9 @@ impl MersStatement for Variable {
             var: if let Some(v) = info.get_var(&self.var) {
                 *v
             } else {
-                return Err(format!("No variable named '{}' found!", self.var));
+                return Err(CheckError::new()
+                    .src(vec![(self.pos_in_src, Some(colored::Color::Red))])
+                    .msg(format!("No variable named '{}' found!", self.var)));
             },
         }))
     }

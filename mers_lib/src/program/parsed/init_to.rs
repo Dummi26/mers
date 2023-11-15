@@ -1,5 +1,5 @@
-use crate::program;
 use crate::program::run::SourceRange;
+use crate::program::{self, run::CheckError};
 
 use super::{CompInfo, MersStatement};
 
@@ -18,7 +18,7 @@ impl MersStatement for InitTo {
         &self,
         info: &mut crate::info::Info<super::Local>,
         mut comp: CompInfo,
-    ) -> Result<Box<dyn crate::program::run::MersStatement>, String> {
+    ) -> Result<Box<dyn crate::program::run::MersStatement>, CheckError> {
         comp.is_init = true;
         let target = self.target.compile(info, comp)?;
         comp.is_init = false;

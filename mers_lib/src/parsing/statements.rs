@@ -1,10 +1,16 @@
-use super::Source;
+use std::fs;
+
+use colored::{Color, Colorize};
+
+use super::{Source, SourcePos};
 use crate::{
     data::Data,
-    program::{self, parsed::MersStatement},
+    program::{self, parsed::MersStatement, run::CheckError},
 };
 
-pub fn parse(src: &mut Source) -> Result<Option<Box<dyn program::parsed::MersStatement>>, ()> {
+pub fn parse(
+    src: &mut Source,
+) -> Result<Option<Box<dyn program::parsed::MersStatement>>, CheckError> {
     src.section_begin("statement".to_string());
     let mut first = if let Some(s) = parse_no_chain(src)? {
         s
@@ -16,7 +22,14 @@ pub fn parse(src: &mut Source) -> Result<Option<Box<dyn program::parsed::MersSta
         ":=" => {
             let pos_in_src = src.get_pos();
             src.next_word();
-            let source = parse(src)?.expect("todo");
+            let source = parse(src)?.ok_or_else(|| {
+                CheckError::new()
+                    .src(vec![(
+                        (pos_in_src, src.get_pos()).into(),
+                        Some(Color::BrightBlack),
+                    )])
+                    .msg(format!("EOF after :="))
+            })?;
             first = Box::new(program::parsed::init_to::InitTo {
                 pos_in_src: (pos_in_src, src.get_pos()).into(),
                 target: first,
@@ -26,7 +39,14 @@ pub fn parse(src: &mut Source) -> Result<Option<Box<dyn program::parsed::MersSta
         "=" => {
             let pos_in_src = src.get_pos();
             src.next_word();
-            let source = parse(src)?.expect("todo");
+            let source = parse(src)?.ok_or_else(|| {
+                CheckError::new()
+                    .src(vec![(
+                        (pos_in_src, src.get_pos()).into(),
+                        Some(Color::BrightBlack),
+                    )])
+                    .msg(format!("EOF after ="))
+            })?;
             first = Box::new(program::parsed::assign_to::AssignTo {
                 pos_in_src: (pos_in_src, src.get_pos()).into(),
                 target: first,
@@ -73,7 +93,10 @@ pub fn parse(src: &mut Source) -> Result<Option<Box<dyn program::parsed::MersSta
     }
     Ok(Some(first))
 }
-pub fn parse_multiple(src: &mut Source, end: &str) -> Result<Vec<Box<dyn MersStatement>>, ()> {
+pub fn parse_multiple(
+    src: &mut Source,
+    end: &str,
+) -> Result<Vec<Box<dyn MersStatement>>, CheckError> {
     src.section_begin("block".to_string());
     let mut statements = vec![];
     loop {
@@ -92,10 +115,68 @@ pub fn parse_multiple(src: &mut Source, end: &str) -> Result<Vec<Box<dyn MersSta
 }
 pub fn parse_no_chain(
     src: &mut Source,
-) -> Result<Option<Box<dyn program::parsed::MersStatement>>, ()> {
+) -> Result<Option<Box<dyn program::parsed::MersStatement>>, CheckError> {
     src.section_begin("statement no chain".to_string());
     src.skip_whitespace();
     match src.peek_char() {
+        Some('#') => {
+            let pos_in_src = src.get_pos();
+            src.next_char();
+            if src.peek_char().is_none() {
+                return Err(CheckError::new()
+                    .src(vec![((pos_in_src, src.get_pos()).into(), Some(Color::Red))])
+                    .msg(format!("EOF after #")));
+            }
+            if src.peek_char().is_some_and(|ch| ch.is_whitespace()) {
+                src.skip_whitespace();
+                return Err(CheckError::new()
+                    .src(vec![((pos_in_src, src.get_pos()).into(), Some(Color::Red))])
+                    .msg(format!("Whitespace after #")));
+            }
+            match src.next_word() {
+                "include" => {
+                    let end_in_src = src.get_pos();
+                    src.skip_whitespace();
+                    let string_in_src = src.get_pos();
+                    if src.next_char() == Some('"') {
+                        let s = parse_string(src, string_in_src)?;
+                        match fs::read_to_string(&s) {
+                            Ok(s) => {
+                                return Ok(Some(Box::new(
+                                    program::parsed::include_mers::IncludeMers {
+                                        pos_in_src: (pos_in_src, src.get_pos()).into(),
+                                        include: super::parse(&mut Source::new(s))?,
+                                    },
+                                )));
+                            }
+                            Err(e) => {
+                                return Err(CheckError::new()
+                                    .src(vec![
+                                        ((pos_in_src, end_in_src).into(), None),
+                                        ((string_in_src, src.get_pos()).into(), Some(Color::Red)),
+                                    ])
+                                    .msg(format!("Can't load file '{s}': {e}")));
+                            }
+                        }
+                    } else {
+                        return Err(CheckError::new()
+                            .src(vec![
+                                ((pos_in_src, end_in_src).into(), Some(Color::BrightBlack)),
+                                ((string_in_src, src.get_pos()).into(), Some(Color::Red)),
+                            ])
+                            .msg(format!(
+                                "#include must be followed by a string literal like \"file.mers\" (\" expected)."
+                            )));
+                    }
+                }
+                other => {
+                    let msg = format!("Unknown #statement: {other}");
+                    return Err(CheckError::new()
+                        .src(vec![((pos_in_src, src.get_pos()).into(), Some(Color::Red))])
+                        .msg(msg));
+                }
+            }
+        }
         Some('{') => {
             let pos_in_src = src.get_pos();
             src.next_char();
@@ -118,28 +199,7 @@ pub fn parse_no_chain(
             src.section_begin("string literal".to_string());
             let pos_in_src = src.get_pos();
             src.next_char();
-            let mut s = String::new();
-            loop {
-                if let Some(ch) = src.next_char() {
-                    if ch == '\\' {
-                        s.push(match src.next_char() {
-                            Some('\\') => '\\',
-                            Some('r') => '\r',
-                            Some('n') => '\n',
-                            Some('t') => '\t',
-                            Some('"') => '"',
-                            Some(o) => todo!("err: unknown backslash escape '\\{o}'"),
-                            None => todo!("err: eof in backslash escape"),
-                        });
-                    } else if ch == '"' {
-                        break;
-                    } else {
-                        s.push(ch);
-                    }
-                } else {
-                    todo!("err: eof in string")
-                }
-            }
+            let s = parse_string(src, pos_in_src)?;
             return Ok(Some(Box::new(program::parsed::value::Value {
                 pos_in_src: (pos_in_src, src.get_pos()).into(),
                 data: Data::new(crate::data::string::String(s)),
@@ -221,4 +281,51 @@ pub fn parse_no_chain(
             }
         }
     }))
+}
+
+/// expects to be called *after* a " character is consumed from src
+pub fn parse_string(src: &mut Source, double_quote: SourcePos) -> Result<String, CheckError> {
+    let mut s = String::new();
+    loop {
+        if let Some(ch) = src.next_char() {
+            if ch == '\\' {
+                let backslash_in_src = src.get_pos();
+                s.push(match src.next_char() {
+                    Some('\\') => '\\',
+                    Some('r') => '\r',
+                    Some('n') => '\n',
+                    Some('t') => '\t',
+                    Some('"') => '"',
+                    Some(o) => {
+                        return Err(CheckError::new()
+                            .src(vec![(
+                                (backslash_in_src, src.get_pos()).into(),
+                                Some(Color::Red),
+                            )])
+                            .msg(format!("unknown backslash escape '\\{o}'")));
+                    }
+                    None => {
+                        return Err(CheckError::new()
+                            .src(vec![(
+                                (backslash_in_src, src.get_pos()).into(),
+                                Some(Color::Red),
+                            )])
+                            .msg(format!("EOF in backslash escape")));
+                    }
+                });
+            } else if ch == '"' {
+                break;
+            } else {
+                s.push(ch);
+            }
+        } else {
+            return Err(CheckError::new()
+                .src(vec![(
+                    (double_quote, src.get_pos()).into(),
+                    Some(Color::BrightBlack),
+                )])
+                .msg(format!("EOF in string literal")));
+        }
+    }
+    Ok(s)
 }

@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Debug};
 
 use crate::info;
 
-use super::run::SourceRange;
+use super::run::{CheckError, SourceRange};
 
 #[cfg(feature = "parse")]
 pub mod assign_to;
@@ -14,6 +14,8 @@ pub mod chain;
 pub mod function;
 #[cfg(feature = "parse")]
 pub mod r#if;
+#[cfg(feature = "parse")]
+pub mod include_mers;
 #[cfg(feature = "parse")]
 pub mod init_to;
 #[cfg(feature = "parse")]
@@ -29,12 +31,12 @@ pub trait MersStatement: Debug + Send + Sync {
         &self,
         info: &mut Info,
         comp: CompInfo,
-    ) -> Result<Box<dyn super::run::MersStatement>, String>;
+    ) -> Result<Box<dyn super::run::MersStatement>, CheckError>;
     fn compile(
         &self,
         info: &mut Info,
         comp: CompInfo,
-    ) -> Result<Box<dyn super::run::MersStatement>, String> {
+    ) -> Result<Box<dyn super::run::MersStatement>, CheckError> {
         if self.has_scope() {
             info.create_scope();
         }
@@ -76,5 +78,8 @@ impl info::Local for Local {
     }
     fn get_var_mut(&mut self, id: &Self::VariableIdentifier) -> Option<&mut Self::VariableData> {
         self.vars.get_mut(id)
+    }
+    fn duplicate(&self) -> Self {
+        self.clone()
     }
 }
