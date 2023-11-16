@@ -2,7 +2,7 @@ use colored::Colorize;
 
 use crate::data::{self, Data, MersType, Type};
 
-use super::{CheckError, CheckInfo, MersStatement, SourceRange};
+use super::{error_colors, CheckError, CheckInfo, MersStatement, SourceRange};
 
 #[derive(Debug)]
 pub struct AssignTo {
@@ -28,11 +28,8 @@ impl MersStatement for AssignTo {
                 return Err(CheckError::new()
                     .src(vec![
                         (self.pos_in_src, None),
-                        (
-                            self.target.source_range(),
-                            Some(colored::Color::BrightYellow),
-                        ),
-                        (self.source.source_range(), Some(colored::Color::BrightCyan)),
+                        (self.target.source_range(), Some(error_colors::InitFrom)),
+                        (self.source.source_range(), Some(error_colors::InitTo)),
                     ])
                     .msg(format!("Cannot initialize:"))
                     .err(e))
@@ -44,16 +41,13 @@ impl MersStatement for AssignTo {
                     return Err(CheckError::new()
                         .src(vec![
                             (self.pos_in_src, None),
-                            (
-                                self.target.source_range(),
-                                Some(colored::Color::BrightYellow),
-                            ),
-                            (self.source.source_range(), Some(colored::Color::BrightCyan)),
+                            (self.target.source_range(), Some(error_colors::AssignTo)),
+                            (self.source.source_range(), Some(error_colors::AssignFrom)),
                         ])
                         .msg(format!(
                             "can't assign {} to {} because it isn't included in {}",
-                            source.to_string().bright_cyan(),
-                            target.to_string().bright_yellow(),
+                            source.to_string().color(error_colors::AssignFrom),
+                            target.to_string().color(error_colors::AssignTo),
                             t
                         )));
                 }
@@ -61,9 +55,15 @@ impl MersStatement for AssignTo {
                 return Err(CheckError::new()
                     .src(vec![
                         (self.pos_in_src, None),
-                        (self.target.source_range(), Some(colored::Color::Red)),
+                        (
+                            self.target.source_range(),
+                            Some(error_colors::AssignTargetNonReference),
+                        ),
                     ])
-                    .msg(format!("can't assign to non-reference!")));
+                    .msg(format!(
+                        "can't assign to {}",
+                        "non-reference!".color(error_colors::AssignTargetNonReference)
+                    )));
             }
         }
         Ok(Type::empty_tuple())

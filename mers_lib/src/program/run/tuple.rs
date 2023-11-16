@@ -4,7 +4,7 @@ use colored::Colorize;
 
 use crate::data::{self, tuple::TupleT, Data, Type};
 
-use super::{MersStatement, SourceRange};
+use super::{error_colors, MersStatement, SourceRange};
 
 #[derive(Debug)]
 pub struct Tuple {
@@ -21,6 +21,7 @@ impl MersStatement for Tuple {
             let mut vec = (0..self.elems.len())
                 .map(|_| Type::empty())
                 .collect::<VecDeque<_>>();
+            let print_is_part_of = init_to.types.len() > 1;
             for t in init_to.types.iter() {
                 if let Some(t) = t.as_any().downcast_ref::<TupleT>() {
                     if t.0.len() == self.elems.len() {
@@ -29,10 +30,19 @@ impl MersStatement for Tuple {
                         }
                     } else {
                         return Err(
-                            format!("can't init statement type Tuple with value type {t}, which is part of {init_to} - only tuples with the same length ({}) can be assigned to tuples", self.elems.len()).into());
+                            format!("can't init a {} with type {}{} - only tuples with the same length ({}) can be assigned.",
+                                "tuple".color(error_colors::InitTo),
+                                t.to_string().color(error_colors::InitFrom),
+                                if print_is_part_of {
+                                    format!(", which is part of {}", init_to.to_string().color(error_colors::InitFrom))
+                                } else {
+                                    format!("")
+                                },
+                                self.elems.len()
+                            ).into());
                     }
                 } else {
-                    return Err(format!("can't init a {} with a value of type {}, which is part of {} - only tuples can be assigned to tuples", "tuple".bright_yellow(), t.to_string().bright_cyan(), init_to.to_string().bright_cyan()).into());
+                    return Err(format!("can't init a {} with a value of type {}, which is part of {} - only tuples can be assigned to tuples", "tuple".color(error_colors::InitTo), t.to_string().color(error_colors::InitFrom), init_to.to_string().color(error_colors::InitFrom)).into());
                 }
             }
             Some(vec)

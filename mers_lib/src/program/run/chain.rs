@@ -4,7 +4,7 @@ use colored::Colorize;
 
 use crate::data::{Data, Type};
 
-use super::{CheckError, MersStatement, SourceRange};
+use super::{error_colors, CheckError, MersStatement, SourceRange};
 
 #[derive(Debug)]
 pub struct Chain {
@@ -35,16 +35,16 @@ impl MersStatement for Chain {
                         return Err(CheckError::new()
                             .src(vec![
                                 (self.pos_in_src, None),
-                                (self.first.source_range(), Some(colored::Color::BrightCyan)),
                                 (
-                                    self.chained.source_range(),
-                                    Some(colored::Color::BrightMagenta),
+                                    self.first.source_range(),
+                                    Some(error_colors::FunctionArgument),
                                 ),
+                                (self.chained.source_range(), Some(error_colors::Function)),
                             ])
                             .msg(format!(
                                 "Can't call {} with an argument of type {}:",
-                                "this function".bright_magenta(),
-                                arg.to_string().bright_cyan()
+                                "this function".color(error_colors::Function),
+                                arg.to_string().color(error_colors::FunctionArgument)
                             ))
                             .err(e))
                     }
@@ -53,11 +53,14 @@ impl MersStatement for Chain {
                 return Err(CheckError::new()
                     .src(vec![
                         (self.pos_in_src, None),
-                        (self.chained.source_range(), Some(colored::Color::BrightRed)),
+                        (
+                            self.chained.source_range(),
+                            Some(error_colors::ChainWithNonFunction),
+                        ),
                     ])
                     .msg(format!(
                         "cannot chain with a non-function ({})",
-                        func.to_string().bright_red()
+                        func.to_string().color(error_colors::ChainWithNonFunction)
                     )));
             }
         }

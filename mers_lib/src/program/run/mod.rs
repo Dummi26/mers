@@ -84,6 +84,34 @@ impl SourceRange {
 }
 #[derive(Clone, Debug)]
 pub struct CheckError(Vec<CheckErrorComponent>);
+#[allow(non_upper_case_globals)]
+pub mod error_colors {
+    use colored::Color;
+
+    pub const UnknownVariable: Color = Color::Red;
+
+    pub const WhitespaceAfterHashtag: Color = Color::Red;
+    pub const HashUnknown: Color = Color::Red;
+    pub const HashIncludeCantLoadFile: Color = Color::Red;
+    pub const HashIncludeNotAString: Color = Color::Red;
+    pub const HashIncludeErrorInIncludedFile: Color = Color::Red;
+
+    pub const BackslashEscapeUnknown: Color = Color::Red;
+    pub const BackslashEscapeEOF: Color = Color::Red;
+    pub const StringEOF: Color = Color::Red;
+
+    pub const IfConditionNotBool: Color = Color::Red;
+    pub const ChainWithNonFunction: Color = Color::Yellow;
+
+    pub const Function: Color = Color::BrightMagenta;
+    pub const FunctionArgument: Color = Color::BrightBlue;
+
+    pub const InitFrom: Color = Color::BrightCyan;
+    pub const InitTo: Color = Color::Green;
+    pub const AssignFrom: Color = InitFrom;
+    pub const AssignTo: Color = InitTo;
+    pub const AssignTargetNonReference: Color = Color::BrightYellow;
+}
 #[derive(Clone, Debug)]
 enum CheckErrorComponent {
     Message(String),

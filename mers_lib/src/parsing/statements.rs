@@ -1,11 +1,13 @@
 use std::fs;
 
-use colored::{Color, Colorize};
-
 use super::{Source, SourcePos};
 use crate::{
     data::Data,
-    program::{self, parsed::MersStatement, run::CheckError},
+    program::{
+        self,
+        parsed::MersStatement,
+        run::{error_colors, CheckError},
+    },
 };
 
 pub fn parse(
@@ -24,11 +26,8 @@ pub fn parse(
             src.next_word();
             let source = parse(src)?.ok_or_else(|| {
                 CheckError::new()
-                    .src(vec![(
-                        (pos_in_src, src.get_pos()).into(),
-                        Some(Color::BrightBlack),
-                    )])
-                    .msg(format!("EOF after :="))
+                    .src(vec![((pos_in_src, src.get_pos()).into(), None)])
+                    .msg(format!("EOF after `:=`"))
             })?;
             first = Box::new(program::parsed::init_to::InitTo {
                 pos_in_src: (pos_in_src, src.get_pos()).into(),
@@ -41,11 +40,8 @@ pub fn parse(
             src.next_word();
             let source = parse(src)?.ok_or_else(|| {
                 CheckError::new()
-                    .src(vec![(
-                        (pos_in_src, src.get_pos()).into(),
-                        Some(Color::BrightBlack),
-                    )])
-                    .msg(format!("EOF after ="))
+                    .src(vec![((pos_in_src, src.get_pos()).into(), None)])
+                    .msg(format!("EOF after `=`"))
             })?;
             first = Box::new(program::parsed::assign_to::AssignTo {
                 pos_in_src: (pos_in_src, src.get_pos()).into(),
@@ -56,7 +52,15 @@ pub fn parse(
         "->" => {
             let pos_in_src = src.get_pos();
             src.next_word();
-            let run = parse(src)?.expect("err: bad eof, fn needs some statement");
+            let run = match parse(src) {
+                Ok(Some(v)) => v,
+                Ok(None) => {
+                    return Err(CheckError::new()
+                        .src(vec![((pos_in_src, src.get_pos()).into(), None)])
+                        .msg(format!("EOF after `->`")))
+                }
+                Err(e) => return Err(e),
+            };
             first = Box::new(program::parsed::function::Function {
                 pos_in_src: (pos_in_src, src.get_pos()).into(),
                 arg: first,
@@ -68,7 +72,15 @@ pub fn parse(
             src.skip_whitespace();
             if let Some('.') = src.peek_char() {
                 src.next_char();
-                let chained = parse_no_chain(src)?.expect("err: EOF instead of chain");
+                let chained = match parse_no_chain(src) {
+                    Ok(Some(v)) => v,
+                    Ok(None) => {
+                        return Err(CheckError::new()
+                            .src(vec![((pos_in_src, src.get_pos()).into(), None)])
+                            .msg(format!("EOF after `.`")))
+                    }
+                    Err(e) => return Err(e),
+                };
                 // allow a.f(b, c) syntax (but not f(a, b, c))
                 if let Some('(') = src.peek_char() {
                     src.next_char();
@@ -124,13 +136,16 @@ pub fn parse_no_chain(
             src.next_char();
             if src.peek_char().is_none() {
                 return Err(CheckError::new()
-                    .src(vec![((pos_in_src, src.get_pos()).into(), Some(Color::Red))])
+                    .src(vec![((pos_in_src, src.get_pos()).into(), None)])
                     .msg(format!("EOF after #")));
             }
             if src.peek_char().is_some_and(|ch| ch.is_whitespace()) {
                 src.skip_whitespace();
                 return Err(CheckError::new()
-                    .src(vec![((pos_in_src, src.get_pos()).into(), Some(Color::Red))])
+                    .src(vec![(
+                        (pos_in_src, src.get_pos()).into(),
+                        Some(error_colors::WhitespaceAfterHashtag),
+                    )])
                     .msg(format!("Whitespace after #")));
             }
             match src.next_word() {
@@ -153,7 +168,10 @@ pub fn parse_no_chain(
                                 return Err(CheckError::new()
                                     .src(vec![
                                         ((pos_in_src, end_in_src).into(), None),
-                                        ((string_in_src, src.get_pos()).into(), Some(Color::Red)),
+                                        (
+                                            (string_in_src, src.get_pos()).into(),
+                                            Some(error_colors::HashIncludeCantLoadFile),
+                                        ),
                                     ])
                                     .msg(format!("Can't load file '{s}': {e}")));
                             }
@@ -161,8 +179,8 @@ pub fn parse_no_chain(
                     } else {
                         return Err(CheckError::new()
                             .src(vec![
-                                ((pos_in_src, end_in_src).into(), Some(Color::BrightBlack)),
-                                ((string_in_src, src.get_pos()).into(), Some(Color::Red)),
+                                ((pos_in_src, end_in_src).into(), None),
+                                ((string_in_src, src.get_pos()).into(), Some(error_colors::HashIncludeNotAString)),
                             ])
                             .msg(format!(
                                 "#include must be followed by a string literal like \"file.mers\" (\" expected)."
@@ -172,7 +190,10 @@ pub fn parse_no_chain(
                 other => {
                     let msg = format!("Unknown #statement: {other}");
                     return Err(CheckError::new()
-                        .src(vec![((pos_in_src, src.get_pos()).into(), Some(Color::Red))])
+                        .src(vec![(
+                            (pos_in_src, src.get_pos()).into(),
+                            Some(error_colors::HashUnknown),
+                        )])
                         .msg(msg));
                 }
             }
@@ -211,14 +232,39 @@ pub fn parse_no_chain(
     Ok(Some(match src.next_word() {
         "if" => {
             src.section_begin("if".to_string());
-            let condition = parse(src)?.expect("err: EOF instead of condition");
-            let on_true = parse(src)?.expect("err: EOF instead of on_true");
+            src.skip_whitespace();
+            let condition = match parse(src) {
+                Ok(Some(v)) => v,
+                Ok(None) => {
+                    return Err(CheckError::new()
+                        .src(vec![((pos_in_src, src.get_pos()).into(), None)])
+                        .msg(format!("EOF in `if`")))
+                }
+                Err(e) => return Err(e),
+            };
+            let on_true = match parse(src) {
+                Ok(Some(v)) => v,
+                Ok(None) => {
+                    return Err(CheckError::new()
+                        .src(vec![((pos_in_src, src.get_pos()).into(), None)])
+                        .msg(format!("EOF after `if <condition>`")))
+                }
+                Err(e) => return Err(e),
+            };
             let on_false = {
                 src.skip_whitespace();
                 if src.peek_word() == "else" {
                     src.section_begin("else".to_string());
                     src.next_word();
-                    Some(parse(src)?.expect("err: EOF instead of on_false after else"))
+                    Some(match parse(src) {
+                        Ok(Some(v)) => v,
+                        Ok(None) => {
+                            return Err(CheckError::new()
+                                .src(vec![((pos_in_src, src.get_pos()).into(), None)])
+                                .msg(format!("EOF after `else`")))
+                        }
+                        Err(e) => return Err(e),
+                    })
                 } else {
                     None
                 }
@@ -300,7 +346,7 @@ pub fn parse_string(src: &mut Source, double_quote: SourcePos) -> Result<String,
                         return Err(CheckError::new()
                             .src(vec![(
                                 (backslash_in_src, src.get_pos()).into(),
-                                Some(Color::Red),
+                                Some(error_colors::BackslashEscapeUnknown),
                             )])
                             .msg(format!("unknown backslash escape '\\{o}'")));
                     }
@@ -308,7 +354,7 @@ pub fn parse_string(src: &mut Source, double_quote: SourcePos) -> Result<String,
                         return Err(CheckError::new()
                             .src(vec![(
                                 (backslash_in_src, src.get_pos()).into(),
-                                Some(Color::Red),
+                                Some(error_colors::BackslashEscapeEOF),
                             )])
                             .msg(format!("EOF in backslash escape")));
                     }
@@ -322,7 +368,7 @@ pub fn parse_string(src: &mut Source, double_quote: SourcePos) -> Result<String,
             return Err(CheckError::new()
                 .src(vec![(
                     (double_quote, src.get_pos()).into(),
-                    Some(Color::BrightBlack),
+                    Some(error_colors::StringEOF),
                 )])
                 .msg(format!("EOF in string literal")));
         }

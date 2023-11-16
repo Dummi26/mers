@@ -4,7 +4,7 @@ use colored::Colorize;
 
 use crate::data::{self, Data, MersType, Type};
 
-use super::{CheckError, MersStatement, SourceRange};
+use super::{error_colors, CheckError, MersStatement, SourceRange};
 
 #[derive(Debug)]
 pub struct If {
@@ -30,13 +30,15 @@ impl MersStatement for If {
                     (self.pos_in_src, None),
                     (
                         self.condition.source_range(),
-                        Some(colored::Color::BrightRed),
+                        Some(error_colors::IfConditionNotBool),
                     ),
                 ])
                 .msg(format!(
                     "The {} in an if-statement must return bool, not {}",
-                    "condition".red(),
-                    cond_return_type.to_string().bright_red(),
+                    "condition".color(error_colors::IfConditionNotBool),
+                    cond_return_type
+                        .to_string()
+                        .color(error_colors::IfConditionNotBool),
                 )));
         }
         let mut t = self.on_true.check(info, None)?;

@@ -2,7 +2,7 @@ use crate::{
     info::Local,
     program::{
         self,
-        run::{CheckError, SourceRange},
+        run::{error_colors, CheckError, SourceRange},
     },
 };
 
@@ -41,7 +41,7 @@ impl MersStatement for Variable {
                 *v
             } else {
                 return Err(CheckError::new()
-                    .src(vec![(self.pos_in_src, Some(colored::Color::Red))])
+                    .src(vec![(self.pos_in_src, Some(error_colors::UnknownVariable))])
                     .msg(format!("No variable named '{}' found!", self.var)));
             },
         }))

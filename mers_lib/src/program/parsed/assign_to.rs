@@ -8,8 +8,8 @@ use super::{CompInfo, MersStatement};
 #[derive(Debug)]
 pub struct AssignTo {
     pub pos_in_src: SourceRange,
-    pub target: Box<dyn MersStatement>,
     pub source: Box<dyn MersStatement>,
+    pub target: Box<dyn MersStatement>,
 }
 
 impl MersStatement for AssignTo {
@@ -24,8 +24,8 @@ impl MersStatement for AssignTo {
         Ok(Box::new(program::run::assign_to::AssignTo {
             pos_in_src: self.pos_in_src,
             is_init: false,
-            target: self.target.compile(info, comp)?,
             source: self.source.compile(info, comp)?,
+            target: self.target.compile(info, comp)?,
         }))
     }
     fn source_range(&self) -> SourceRange {

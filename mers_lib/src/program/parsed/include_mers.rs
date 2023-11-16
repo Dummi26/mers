@@ -7,7 +7,7 @@ use crate::{
     info::{self, Local},
     program::{
         self,
-        run::{CheckError, SourceRange},
+        run::{error_colors, CheckError, SourceRange},
     },
 };
 
@@ -31,8 +31,8 @@ impl MersStatement for IncludeMers {
             Ok(v) => Arc::new(v),
             Err(e) => {
                 return Err(CheckError::new()
-                    .src(vec![(self.pos_in_src, Some(colored::Color::Red))])
-                    .msg("Error in inner mers statement! (note: inner errors may refer to a different file)".red().to_string())
+                    .src(vec![(self.pos_in_src, Some(error_colors::HashIncludeErrorInIncludedFile))])
+                    .msg("Error in inner mers statement! (note: inner errors may refer to a different file)".color(error_colors::HashIncludeErrorInIncludedFile).to_string())
                 .err(e))
             }
         };
