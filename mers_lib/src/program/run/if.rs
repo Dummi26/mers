@@ -2,9 +2,12 @@ use std::sync::Arc;
 
 use colored::Colorize;
 
-use crate::data::{self, Data, MersType, Type};
+use crate::{
+    data::{self, Data, MersType, Type},
+    errors::{error_colors, CheckError, SourceRange},
+};
 
-use super::{error_colors, CheckError, MersStatement, SourceRange};
+use super::MersStatement;
 
 #[derive(Debug)]
 pub struct If {
@@ -19,7 +22,7 @@ impl MersStatement for If {
         &self,
         info: &mut super::CheckInfo,
         init_to: Option<&Type>,
-    ) -> Result<data::Type, super::CheckError> {
+    ) -> Result<data::Type, CheckError> {
         if init_to.is_some() {
             return Err("can't init to statement type If".to_string().into());
         }

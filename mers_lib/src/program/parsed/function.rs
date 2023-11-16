@@ -1,8 +1,8 @@
-use crate::program::run::{CheckError, SourceRange};
 use std::sync::{Arc, Mutex};
 
 use crate::{
     data,
+    errors::{CheckError, SourceRange},
     program::{self, run::CheckInfo},
 };
 
@@ -29,8 +29,8 @@ impl MersStatement for Function {
         let arg_target = Arc::new(self.arg.compile(info, comp)?);
         comp.is_init = false;
         let run = Arc::new(self.run.compile(info, comp)?);
-        let arg2 = Arc::clone(&arg_target);
-        let run2 = Arc::clone(&run);
+        let arg2: Arc<Box<dyn crate::program::run::MersStatement>> = Arc::clone(&arg_target);
+        let run2: Arc<Box<dyn crate::program::run::MersStatement>> = Arc::clone(&run);
         Ok(Box::new(program::run::function::Function {
             pos_in_src: self.pos_in_src,
             func_no_info: data::function::Function {

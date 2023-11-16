@@ -4,11 +4,9 @@ use colored::Colorize;
 
 use crate::{
     data::{self, Data},
+    errors::{error_colors, CheckError, SourceRange},
     info::{self, Local},
-    program::{
-        self,
-        run::{error_colors, CheckError, SourceRange},
-    },
+    program::{self},
 };
 
 use super::{CompInfo, MersStatement};
@@ -27,7 +25,7 @@ impl MersStatement for IncludeMers {
         info: &mut info::Info<super::Local>,
         comp: CompInfo,
     ) -> Result<Box<dyn program::run::MersStatement>, CheckError> {
-        let compiled = match self.include.compile(info, comp) {
+        let compiled: Arc<Box<dyn crate::program::run::MersStatement>> = match self.include.compile(info, comp) {
             Ok(v) => Arc::new(v),
             Err(e) => {
                 return Err(CheckError::new()

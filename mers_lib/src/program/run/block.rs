@@ -1,6 +1,9 @@
-use crate::data::Type;
+use crate::{
+    data::Type,
+    errors::{CheckError, SourceRange},
+};
 
-use super::{MersStatement, SourceRange};
+use super::{CheckInfo, MersStatement};
 
 #[derive(Debug)]
 pub struct Block {
@@ -10,9 +13,9 @@ pub struct Block {
 impl MersStatement for Block {
     fn check_custom(
         &self,
-        info: &mut super::CheckInfo,
+        info: &mut CheckInfo,
         init_to: Option<&Type>,
-    ) -> Result<crate::data::Type, super::CheckError> {
+    ) -> Result<crate::data::Type, CheckError> {
         if init_to.is_some() {
             return Err("can't init to statement type Block".to_string().into());
         }

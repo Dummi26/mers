@@ -6,10 +6,8 @@ use std::{
 
 use crate::{
     data::{self, Data, MersData, MersType, Type},
-    program::{
-        self,
-        run::{CheckError, CheckInfo},
-    },
+    errors::CheckError,
+    program::{self, run::CheckInfo},
 };
 
 use super::Config;

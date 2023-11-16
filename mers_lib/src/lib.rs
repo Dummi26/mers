@@ -1,5 +1,7 @@
 /// data and types in mers
 pub mod data;
+/// struct to represent errors the user may face
+pub mod errors;
 /// shared code handling scopes to guarantee that compiler and runtime scopes match
 pub mod info;
 /// parser implementation.

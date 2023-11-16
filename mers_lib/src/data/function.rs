@@ -4,7 +4,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::program::run::{CheckError, CheckInfo, Info};
+use crate::{
+    errors::CheckError,
+    program::run::{CheckInfo, Info},
+};
 
 use super::{Data, MersData, MersType, Type};
 

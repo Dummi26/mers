@@ -2,9 +2,12 @@ use std::sync::Arc;
 
 use colored::Colorize;
 
-use crate::data::{Data, Type};
+use crate::{
+    data::{Data, Type},
+    errors::{error_colors, CheckError, SourceRange},
+};
 
-use super::{error_colors, CheckError, MersStatement, SourceRange};
+use super::MersStatement;
 
 #[derive(Debug)]
 pub struct Chain {

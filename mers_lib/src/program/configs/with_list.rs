@@ -135,7 +135,7 @@ impl Config {
                 Data::new(data::function::Function {
                     info: Arc::new(program::run::Info::neverused()),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                    out: Arc::new(|a, i| {
+                    out: Arc::new(|a, _i| {
                         if let Some(v) = a.iterable() {
                             Ok(Type::new(ListT(v)))
                         } else {

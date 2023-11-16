@@ -1,8 +1,11 @@
 use std::sync::Arc;
 
-use crate::data::{self, Data, MersData, Type};
+use crate::{
+    data::{self, Data, MersData, Type},
+    errors::{CheckError, SourceRange},
+};
 
-use super::{MersStatement, SourceRange};
+use super::MersStatement;
 
 #[derive(Debug)]
 pub struct Function {
@@ -15,7 +18,7 @@ impl MersStatement for Function {
         &self,
         info: &mut super::CheckInfo,
         init_to: Option<&Type>,
-    ) -> Result<data::Type, super::CheckError> {
+    ) -> Result<data::Type, CheckError> {
         if init_to.is_some() {
             return Err("can't init to statement type Function".to_string().into());
         }

@@ -1,9 +1,7 @@
 use crate::{
+    errors::{CheckError, SourceRange},
     info,
-    program::{
-        self,
-        run::{CheckError, SourceRange},
-    },
+    program::{self},
 };
 
 use super::{CompInfo, MersStatement};

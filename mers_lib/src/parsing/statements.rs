@@ -3,11 +3,8 @@ use std::fs;
 use super::{Source, SourcePos};
 use crate::{
     data::Data,
-    program::{
-        self,
-        parsed::MersStatement,
-        run::{error_colors, CheckError},
-    },
+    errors::{error_colors, CheckError},
+    program::{self, parsed::MersStatement},
 };
 
 pub fn parse(
@@ -19,6 +16,7 @@ pub fn parse(
     } else {
         return Ok(None);
     };
+    let mut pos_after_first = src.get_pos();
     src.skip_whitespace();
     match src.peek_word() {
         ":=" => {
@@ -68,15 +66,15 @@ pub fn parse(
             });
         }
         _ => loop {
-            let pos_in_src = src.get_pos();
             src.skip_whitespace();
+            let dot_in_src = src.get_pos();
             if let Some('.') = src.peek_char() {
                 src.next_char();
                 let chained = match parse_no_chain(src) {
                     Ok(Some(v)) => v,
                     Ok(None) => {
                         return Err(CheckError::new()
-                            .src(vec![((pos_in_src, src.get_pos()).into(), None)])
+                            .src(vec![((dot_in_src, src.get_pos()).into(), None)])
                             .msg(format!("EOF after `.`")))
                     }
                     Err(e) => return Err(e),
@@ -91,11 +89,13 @@ pub fn parse(
                     });
                 }
                 first = Box::new(program::parsed::chain::Chain {
-                    pos_in_src: (pos_in_src, src.get_pos()).into(),
+                    pos_in_src: (first.source_range().start(), src.get_pos()).into(),
                     first,
                     chained,
                 });
+                pos_after_first = src.get_pos();
             } else {
+                src.set_pos(pos_after_first);
                 break;
             }
         },

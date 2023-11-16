@@ -1,5 +1,7 @@
-use crate::program::run::{CheckError, SourceRange};
-use crate::{info, program};
+use crate::{
+    errors::{CheckError, SourceRange},
+    info, program,
+};
 
 use super::{CompInfo, MersStatement};
 

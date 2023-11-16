@@ -9,10 +9,8 @@ use crate::{
         function::{Function, FunctionT},
         Data, MersData, MersType, Type,
     },
-    program::{
-        self,
-        run::{CheckError, CheckInfo},
-    },
+    errors::CheckError,
+    program::{self, run::CheckInfo},
 };
 
 use super::Config;
@@ -140,13 +138,6 @@ impl Config {
     }
 }
 
-fn iter_out(
-    a: &Type,
-    name: &str,
-    func: impl Fn(&FunctionT) -> ItersT + Sync + Send,
-) -> Result<Type, CheckError> {
-    iter_out_arg(a, name, func)
-}
 fn iter_out_arg<T: MersType>(
     a: &Type,
     name: &str,

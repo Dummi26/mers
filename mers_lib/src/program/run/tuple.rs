@@ -2,9 +2,12 @@ use std::{collections::VecDeque, sync::Arc};
 
 use colored::Colorize;
 
-use crate::data::{self, tuple::TupleT, Data, Type};
+use crate::{
+    data::{self, tuple::TupleT, Data, Type},
+    errors::{error_colors, SourceRange},
+};
 
-use super::{error_colors, MersStatement, SourceRange};
+use super::MersStatement;
 
 #[derive(Debug)]
 pub struct Tuple {

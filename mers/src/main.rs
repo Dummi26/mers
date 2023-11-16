@@ -14,6 +14,9 @@ struct Args {
     /// perform checks to avoid runtime crashes
     #[arg(long, default_value_t = Check::Yes)]
     check: Check,
+    /// in error messages, hide comments and only show actual code
+    #[arg(long)]
+    hide_comments: bool,
 }
 #[derive(Subcommand)]
 enum Command {
@@ -81,7 +84,7 @@ fn main() {
     let parsed = match parse(&mut source) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("{}", e.display(&source));
+            eprintln!("{}", e.display(&source).show_comments(!args.hide_comments));
             exit(20);
         }
     };
@@ -90,7 +93,7 @@ fn main() {
     let run = match parsed.compile(&mut info_parsed, Default::default()) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("{}", e.display(&source));
+            eprintln!("{}", e.display(&source).show_comments(!args.hide_comments));
             exit(24);
         }
     };
@@ -104,7 +107,7 @@ fn main() {
             let return_type = match run.check(&mut info_check, None) {
                 Ok(v) => v,
                 Err(e) => {
-                    eprint!("{}", e.display(&source));
+                    eprint!("{}", e.display(&source).show_comments(!args.hide_comments));
                     exit(28);
                 }
             };

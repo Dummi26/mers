@@ -2,10 +2,8 @@ use std::sync::{Arc, Mutex};
 
 use crate::{
     data::{self, Data, MersType, Type},
-    program::{
-        self,
-        run::{CheckError, CheckInfo},
-    },
+    errors::CheckError,
+    program::{self, run::CheckInfo},
 };
 
 use super::Config;

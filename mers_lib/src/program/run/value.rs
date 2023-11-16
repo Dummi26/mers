@@ -1,6 +1,9 @@
-use crate::data::{Data, Type};
+use crate::{
+    data::{Data, Type},
+    errors::SourceRange,
+};
 
-use super::{MersStatement, SourceRange};
+use super::{CheckInfo, MersStatement};
 
 #[derive(Debug)]
 pub struct Value {
@@ -14,7 +17,7 @@ impl MersStatement for Value {
     }
     fn check_custom(
         &self,
-        info: &mut super::CheckInfo,
+        _info: &mut CheckInfo,
         init_to: Option<&Type>,
     ) -> Result<crate::data::Type, super::CheckError> {
         if init_to.is_some() {

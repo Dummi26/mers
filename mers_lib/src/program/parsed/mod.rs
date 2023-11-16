@@ -1,8 +1,9 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use crate::info;
-
-use super::run::{CheckError, SourceRange};
+use crate::{
+    errors::{CheckError, SourceRange},
+    info,
+};
 
 #[cfg(feature = "parse")]
 pub mod assign_to;

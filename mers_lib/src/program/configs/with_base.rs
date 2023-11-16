@@ -5,7 +5,8 @@ use std::{
 
 use crate::{
     data::{self, Data, MersType, Type},
-    program::run::{CheckError, CheckInfo, Info},
+    errors::CheckError,
+    program::run::{CheckInfo, Info},
 };
 
 use super::Config;

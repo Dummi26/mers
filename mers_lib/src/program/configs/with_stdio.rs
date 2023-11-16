@@ -3,8 +3,11 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use colored::Colorize;
+
 use crate::{
     data::{self, Data, Type},
+    errors::error_colors,
     program::{self, run::CheckInfo},
 };
 
@@ -23,7 +26,17 @@ impl Config {
             Data::new(data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, i| Ok(Type::new(data::string::StringT))),
+                out: Arc::new(|a, _i| {
+                    if a.is_zero_tuple() {
+                        Ok(Type::new(data::string::StringT))
+                    } else {
+                        Err(format!(
+                            "expected (), got {}",
+                            a.to_string().color(error_colors::FunctionArgument)
+                        )
+                        .into())
+                    }
+                }),
                 run: Arc::new(|_a, _i| {
                     let mut line = String::new();
                     _ = std::io::stdin().read_line(&mut line);
@@ -36,7 +49,7 @@ impl Config {
             Data::new(data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, i| Ok(Type::empty_tuple())),
+                out: Arc::new(|_a, _i| Ok(Type::empty_tuple())),
                 run: Arc::new(|a, _i| {
                     eprintln!("{:#?}", a.get());
                     Data::empty_tuple()
@@ -48,10 +61,10 @@ impl Config {
             Data::new(data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, i| Ok(Type::empty_tuple())),
+                out: Arc::new(|_a, _i| Ok(Type::empty_tuple())),
                 run: Arc::new(|a, _i| {
                     eprint!("{}", a.get());
-                    std::io::stderr().lock().flush();
+                    _ = std::io::stderr().lock().flush();
                     Data::empty_tuple()
                 }),
             }),
@@ -61,7 +74,7 @@ impl Config {
             Data::new(data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, i| Ok(Type::empty_tuple())),
+                out: Arc::new(|_a, _i| Ok(Type::empty_tuple())),
                 run: Arc::new(|a, _i| {
                     eprintln!("{}", a.get());
                     Data::empty_tuple()
@@ -73,10 +86,10 @@ impl Config {
             Data::new(data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, i| Ok(Type::empty_tuple())),
+                out: Arc::new(|_a, _i| Ok(Type::empty_tuple())),
                 run: Arc::new(|a, _i| {
                     print!("{}", a.get());
-                    std::io::stdout().lock().flush();
+                    _ = std::io::stdout().lock().flush();
                     Data::empty_tuple()
                 }),
             }),
@@ -86,7 +99,7 @@ impl Config {
             Data::new(data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, i| Ok(Type::empty_tuple())),
+                out: Arc::new(|_a, _i| Ok(Type::empty_tuple())),
                 run: Arc::new(|a, _i| {
                     println!("{}", a.get());
                     Data::empty_tuple()

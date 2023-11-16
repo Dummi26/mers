@@ -1,8 +1,11 @@
 use std::sync::{Arc, RwLock};
 
-use crate::data::{self, Data, Type};
+use crate::{
+    data::{self, Data, Type},
+    errors::SourceRange,
+};
 
-use super::{MersStatement, SourceRange};
+use super::MersStatement;
 
 #[derive(Debug)]
 pub struct Variable {

@@ -1,8 +1,11 @@
 use colored::Colorize;
 
-use crate::data::{self, Data, MersType, Type};
+use crate::{
+    data::{self, Data, MersType, Type},
+    errors::{error_colors, CheckError, SourceRange},
+};
 
-use super::{error_colors, CheckError, CheckInfo, MersStatement, SourceRange};
+use super::{CheckInfo, MersStatement};
 
 #[derive(Debug)]
 pub struct AssignTo {

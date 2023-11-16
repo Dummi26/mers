@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
-use crate::program::{self, parsed::block::Block, run::CheckError};
+use crate::{
+    errors::{CheckError, SourcePos},
+    program::{self, parsed::block::Block},
+};
 
-pub mod errors;
 pub mod statements;
 pub mod types;
 
@@ -20,7 +22,7 @@ pub struct Source {
     src_raw_len: usize,
     src_og: String,
     src: String,
-    /// (start, content) of each comment, including start/end (//, \n, /* and */)
+    /// (start, content) of each comment, including start/end (//, /* and */), but NOT newline after //
     comments: Vec<(usize, String)>,
     i: usize,
     sections: Vec<SectionMarker>,
@@ -36,13 +38,15 @@ impl Source {
             if let Some((i, ch)) = chars.next() {
                 match in_comment {
                     Some(false) => {
-                        comment.1.push(ch);
                         if ch == '\n' {
+                            src.push('\n');
                             in_comment = None;
                             comments.push((
                                 comment.0,
                                 std::mem::replace(&mut comment.1, String::new()),
                             ));
+                        } else {
+                            comment.1.push(ch);
                         }
                     }
                     Some(true) => {
@@ -223,6 +227,20 @@ impl Source {
         }
         o
     }
+
+    pub fn pos_in_og(&self, mut pos: usize, inclusive: bool) -> usize {
+        for (start, comment) in &self.comments {
+            if *start < pos || (inclusive && *start == pos) {
+                pos += comment.len();
+            } else {
+                break;
+            }
+        }
+        pos
+    }
+    pub fn src_og(&self) -> &String {
+        &self.src_og
+    }
 }
 
 impl Drop for Source {
@@ -259,16 +277,5 @@ impl SectionMarker {
                 println!("[mers:parse] Section end  : {}", &self.section);
             }
         }
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct SourcePos(usize);
-impl SourcePos {
-    pub fn pos(&self) -> usize {
-        self.0
-    }
-    fn diff(&self, rhs: &Self) -> usize {
-        rhs.0 - self.0
     }
 }
