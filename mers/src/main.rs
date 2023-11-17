@@ -69,17 +69,14 @@ fn main() {
     });
     let (mut info_parsed, mut info_run, mut info_check) = config.infos();
     let mut source = match args.command {
-        Command::Run { file } => {
-            let str = match fs::read_to_string(&file) {
-                Ok(s) => s,
-                Err(e) => {
-                    eprintln!("Can't read file {file:?}: {e}");
-                    exit(10);
-                }
-            };
-            Source::new(str)
-        }
-        Command::Exec { source } => Source::new(source),
+        Command::Run { file } => match Source::new_from_file(PathBuf::from(&file)) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("Can't read file {file:?}: {e}");
+                exit(10);
+            }
+        },
+        Command::Exec { source } => Source::new_from_string(source),
     };
     let parsed = match parse(&mut source) {
         Ok(v) => v,

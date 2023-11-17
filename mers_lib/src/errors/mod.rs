@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 
 use colored::Colorize;
 use line_span::LineSpans;
@@ -35,7 +35,6 @@ impl SourceRange {
         self.end
     }
 }
-#[derive(Clone, Debug)]
 pub struct CheckError(Vec<CheckErrorComponent>);
 #[allow(non_upper_case_globals)]
 pub mod error_colors {
@@ -65,10 +64,10 @@ pub mod error_colors {
     pub const AssignTo: Color = InitTo;
     pub const AssignTargetNonReference: Color = Color::BrightYellow;
 }
-#[derive(Clone, Debug)]
 enum CheckErrorComponent {
     Message(String),
     Error(CheckError),
+    ErrorWithSrc(CheckErrorWithSrc),
     Source(Vec<(SourceRange, Option<colored::Color>)>),
 }
 #[derive(Clone)]
@@ -86,7 +85,20 @@ pub struct CheckErrorDisplay<'a> {
     pub show_comments: bool,
 }
 #[cfg(feature = "parse")]
+pub struct CheckErrorWithSrc {
+    e: CheckError,
+    src: Source,
+    pub show_comments: bool,
+}
+#[cfg(feature = "parse")]
 impl<'a> CheckErrorDisplay<'a> {
+    pub fn show_comments(mut self, show_comments: bool) -> Self {
+        self.show_comments = show_comments;
+        self
+    }
+}
+#[cfg(feature = "parse")]
+impl CheckErrorWithSrc {
     pub fn show_comments(mut self, show_comments: bool) -> Self {
         self.show_comments = show_comments;
         self
@@ -98,6 +110,21 @@ impl Display for CheckErrorDisplay<'_> {
         self.e.human_readable(
             f,
             self.src,
+            &CheckErrorHRConfig {
+                indent_start: String::new(),
+                indent_default: String::new(),
+                indent_end: String::new(),
+                show_comments: self.show_comments,
+            },
+        )
+    }
+}
+#[cfg(feature = "parse")]
+impl Display for CheckErrorWithSrc {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.e.human_readable(
+            f,
+            Some(&self.src),
             &CheckErrorHRConfig {
                 indent_start: String::new(),
                 indent_default: String::new(),
@@ -120,6 +147,13 @@ impl CheckError {
     }
     pub(crate) fn err(self, e: Self) -> Self {
         self.add(CheckErrorComponent::Error(e))
+    }
+    pub(crate) fn err_with_src(self, e: CheckError, src: Source) -> Self {
+        self.add(CheckErrorComponent::ErrorWithSrc(CheckErrorWithSrc {
+            e,
+            src,
+            show_comments: true,
+        }))
     }
     pub(crate) fn src(self, s: Vec<(SourceRange, Option<colored::Color>)>) -> Self {
         self.add(CheckErrorComponent::Source(s))
@@ -148,6 +182,8 @@ impl CheckError {
         src: Option<&Source>,
         cfg: &CheckErrorHRConfig,
     ) -> std::fmt::Result {
+        use crate::parsing::SourceFrom;
+
         let len = self.0.len();
         for (i, component) in self.0.iter().enumerate() {
             macro_rules! indent {
@@ -169,6 +205,14 @@ impl CheckError {
                     cfg.indent_default.push_str("│");
                     cfg.indent_end.push_str("└");
                     err.human_readable(f, src, &cfg)?;
+                }
+                CheckErrorComponent::ErrorWithSrc(err) => {
+                    let mut cfg = cfg.clone();
+                    cfg.indent_start.push_str(&"│".bright_yellow().to_string());
+                    cfg.indent_default
+                        .push_str(&"│".bright_yellow().to_string());
+                    cfg.indent_end.push_str(&"└".bright_yellow().to_string());
+                    err.e.human_readable(f, Some(&err.src), &cfg)?;
                 }
                 CheckErrorComponent::Source(highlights) => {
                     if let Some(src) = src {
@@ -218,21 +262,27 @@ impl CheckError {
                                     }
                                 })
                                 .count();
+                            let src_from = match src.src_from() {
+                                SourceFrom::File(path) => format!(" [{}]", path.to_string_lossy()),
+                                SourceFrom::Unspecified => String::with_capacity(0),
+                            };
                             if first_line_nr == last_line_nr {
                                 writeln!(
                                     f,
-                                    "{}Line {first_line_nr} ({}..{})",
+                                    "{}Line {first_line_nr} ({}..{}){}",
                                     indent!(),
                                     start_with_comments + 1 - first_line_start,
                                     end_with_comments - last_line_start,
+                                    src_from,
                                 )?;
                             } else {
                                 writeln!(
                                     f,
-                                    "{}Lines {first_line_nr}-{last_line_nr} ({}..{})",
+                                    "{}Lines {first_line_nr}-{last_line_nr} ({}..{}){}",
                                     indent!(),
                                     start_with_comments + 1 - first_line_start,
                                     end_with_comments - last_line_start,
+                                    src_from,
                                 )?;
                             }
                             let lines = if cfg.show_comments {
@@ -304,5 +354,15 @@ impl CheckError {
 impl From<String> for CheckError {
     fn from(value: String) -> Self {
         Self::new().msg(value)
+    }
+}
+impl Debug for CheckError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self}")
+    }
+}
+impl Display for CheckError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.display_no_src())
     }
 }

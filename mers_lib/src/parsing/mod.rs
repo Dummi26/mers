@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt::Debug, path::PathBuf, sync::Arc};
 
 use crate::{
     errors::{CheckError, SourcePos},
@@ -19,6 +19,7 @@ pub fn parse(src: &mut Source) -> Result<Box<dyn program::parsed::MersStatement>
 }
 
 pub struct Source {
+    src_from: SourceFrom,
     src_raw_len: usize,
     src_og: String,
     src: String,
@@ -27,8 +28,38 @@ pub struct Source {
     i: usize,
     sections: Vec<SectionMarker>,
 }
+impl Clone for Source {
+    fn clone(&self) -> Self {
+        Self {
+            src_from: self.src_from.clone(),
+            src_raw_len: self.src_raw_len,
+            src_og: self.src_og.clone(),
+            src: self.src.clone(),
+            comments: self.comments.clone(),
+            i: self.i,
+            sections: vec![],
+        }
+    }
+}
+impl Debug for Source {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Src: {:?}", self.src_from)
+    }
+}
+#[derive(Clone, Debug)]
+pub enum SourceFrom {
+    File(PathBuf),
+    Unspecified,
+}
 impl Source {
-    pub fn new(source: String) -> Self {
+    pub fn new_from_file(path: PathBuf) -> std::io::Result<Self> {
+        let content = std::fs::read_to_string(&path)?;
+        Ok(Self::new(SourceFrom::File(path), content))
+    }
+    pub fn new_from_string(source: String) -> Self {
+        Self::new(SourceFrom::Unspecified, source)
+    }
+    pub fn new(src_from: SourceFrom, source: String) -> Self {
         let mut src = String::with_capacity(source.len());
         let mut comment = (0, String::new());
         let mut comments = Vec::new();
@@ -88,6 +119,7 @@ impl Source {
             }
         }
         Self {
+            src_from,
             src_raw_len: source.len(),
             src_og: source,
             src,
@@ -226,6 +258,10 @@ impl Source {
             }
         }
         o
+    }
+
+    pub fn src_from(&self) -> &SourceFrom {
+        &self.src_from
     }
 
     pub fn pos_in_og(&self, mut pos: usize, inclusive: bool) -> usize {

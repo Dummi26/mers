@@ -6,6 +6,7 @@ use crate::{
     data::{self, Data},
     errors::{error_colors, CheckError, SourceRange},
     info::{self, Local},
+    parsing::Source,
     program::{self},
 };
 
@@ -15,6 +16,7 @@ use super::{CompInfo, MersStatement};
 pub struct IncludeMers {
     pub pos_in_src: SourceRange,
     pub include: Box<dyn MersStatement>,
+    pub inner_src: Source,
 }
 impl MersStatement for IncludeMers {
     fn has_scope(&self) -> bool {
@@ -25,15 +27,23 @@ impl MersStatement for IncludeMers {
         info: &mut info::Info<super::Local>,
         comp: CompInfo,
     ) -> Result<Box<dyn program::run::MersStatement>, CheckError> {
-        let compiled: Arc<Box<dyn crate::program::run::MersStatement>> = match self.include.compile(info, comp) {
-            Ok(v) => Arc::new(v),
-            Err(e) => {
-                return Err(CheckError::new()
-                    .src(vec![(self.pos_in_src, Some(error_colors::HashIncludeErrorInIncludedFile))])
-                    .msg("Error in inner mers statement! (note: inner errors may refer to a different file)".color(error_colors::HashIncludeErrorInIncludedFile).to_string())
-                .err(e))
-            }
-        };
+        let compiled: Arc<Box<dyn crate::program::run::MersStatement>> =
+            match self.include.compile(info, comp) {
+                Ok(v) => Arc::new(v),
+                Err(e) => {
+                    return Err(CheckError::new()
+                        .src(vec![(
+                            self.pos_in_src,
+                            Some(error_colors::HashIncludeErrorInIncludedFile),
+                        )])
+                        .msg(
+                            "Error in #include! (note: inner errors may refer to a different file)"
+                                .color(error_colors::HashIncludeErrorInIncludedFile)
+                                .to_string(),
+                        )
+                        .err_with_src(e, self.inner_src.clone()))
+                }
+            };
         let compiled2 = Arc::clone(&compiled);
         Ok(Box::new(program::run::chain::Chain {
             pos_in_src: self.pos_in_src,
@@ -50,6 +60,7 @@ impl MersStatement for IncludeMers {
                     run: Arc::new(move |_, i| compiled2.run(&mut i.duplicate())),
                 },
             }),
+            as_part_of_include: Some(self.inner_src.clone()),
         }))
     }
     fn source_range(&self) -> SourceRange {

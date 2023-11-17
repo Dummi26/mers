@@ -31,8 +31,8 @@ impl MersStatement for AssignTo {
                 return Err(CheckError::new()
                     .src(vec![
                         (self.pos_in_src, None),
-                        (self.target.source_range(), Some(error_colors::InitFrom)),
-                        (self.source.source_range(), Some(error_colors::InitTo)),
+                        (self.target.source_range(), Some(error_colors::InitTo)),
+                        (self.source.source_range(), Some(error_colors::InitFrom)),
                     ])
                     .msg(format!("Cannot initialize:"))
                     .err(e))

@@ -45,7 +45,20 @@ impl MersStatement for Tuple {
                             ).into());
                     }
                 } else {
-                    return Err(format!("can't init a {} with a value of type {}, which is part of {} - only tuples can be assigned to tuples", "tuple".color(error_colors::InitTo), t.to_string().color(error_colors::InitFrom), init_to.to_string().color(error_colors::InitFrom)).into());
+                    return Err(format!(
+                        "can't init a {} with type {}{} - only tuples can be assigned to tuples",
+                        "tuple".color(error_colors::InitTo),
+                        t.to_string().color(error_colors::InitFrom),
+                        if print_is_part_of {
+                            format!(
+                                ", which is part of {}",
+                                init_to.to_string().color(error_colors::InitFrom)
+                            )
+                        } else {
+                            format!("")
+                        }
+                    )
+                    .into());
                 }
             }
             Some(vec)

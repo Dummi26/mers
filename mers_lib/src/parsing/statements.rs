@@ -1,4 +1,4 @@
-use std::fs;
+use std::path::PathBuf;
 
 use super::{Source, SourcePos};
 use crate::{
@@ -154,13 +154,21 @@ pub fn parse_no_chain(
                     src.skip_whitespace();
                     let string_in_src = src.get_pos();
                     if src.next_char() == Some('"') {
-                        let s = parse_string(src, string_in_src)?;
-                        match fs::read_to_string(&s) {
-                            Ok(s) => {
+                        let file_path = parse_string(src, string_in_src)?;
+                        match Source::new_from_file(PathBuf::from(&file_path)) {
+                            Ok(mut inner_src) => {
                                 return Ok(Some(Box::new(
                                     program::parsed::include_mers::IncludeMers {
                                         pos_in_src: (pos_in_src, src.get_pos()).into(),
-                                        include: super::parse(&mut Source::new(s))?,
+                                        include: match super::parse(&mut inner_src) {
+                                            Ok(v) => v,
+                                            Err(e) => {
+                                                return Err(
+                                                    CheckError::new().err_with_src(e, inner_src)
+                                                )
+                                            }
+                                        },
+                                        inner_src,
                                     },
                                 )));
                             }
@@ -173,7 +181,7 @@ pub fn parse_no_chain(
                                             Some(error_colors::HashIncludeCantLoadFile),
                                         ),
                                     ])
-                                    .msg(format!("Can't load file '{s}': {e}")));
+                                    .msg(format!("Can't load file '{file_path}': {e}")));
                             }
                         }
                     } else {

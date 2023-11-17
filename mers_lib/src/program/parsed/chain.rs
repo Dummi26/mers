@@ -24,6 +24,7 @@ impl MersStatement for Chain {
             pos_in_src: self.pos_in_src,
             first: self.first.compile(info, comp)?,
             chained: self.chained.compile(info, comp)?,
+            as_part_of_include: None,
         }))
     }
     fn source_range(&self) -> SourceRange {

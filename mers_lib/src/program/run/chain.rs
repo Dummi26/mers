@@ -5,6 +5,7 @@ use colored::Colorize;
 use crate::{
     data::{Data, Type},
     errors::{error_colors, CheckError, SourceRange},
+    parsing::Source,
 };
 
 use super::MersStatement;
@@ -14,6 +15,7 @@ pub struct Chain {
     pub pos_in_src: SourceRange,
     pub first: Box<dyn MersStatement>,
     pub chained: Box<dyn MersStatement>,
+    pub as_part_of_include: Option<Source>,
 }
 impl MersStatement for Chain {
     fn check_custom(
@@ -35,21 +37,35 @@ impl MersStatement for Chain {
                 match (func.0)(&arg) {
                     Ok(t) => o.add(Arc::new(t)),
                     Err(e) => {
-                        return Err(CheckError::new()
-                            .src(vec![
-                                (self.pos_in_src, None),
-                                (
-                                    self.first.source_range(),
-                                    Some(error_colors::FunctionArgument),
-                                ),
-                                (self.chained.source_range(), Some(error_colors::Function)),
-                            ])
-                            .msg(format!(
-                                "Can't call {} with an argument of type {}:",
-                                "this function".color(error_colors::Function),
-                                arg.to_string().color(error_colors::FunctionArgument)
-                            ))
-                            .err(e))
+                        return Err(if let Some(inner_src) = &self.as_part_of_include {
+                            CheckError::new()
+                                .src(vec![(
+                                    self.pos_in_src,
+                                    Some(error_colors::HashIncludeErrorInIncludedFile),
+                                )])
+                                .msg(
+                                    "Error in #include:"
+                                        .color(error_colors::HashIncludeErrorInIncludedFile)
+                                        .to_string(),
+                                )
+                                .err_with_src(e, inner_src.clone())
+                        } else {
+                            CheckError::new()
+                                .src(vec![
+                                    (self.pos_in_src, None),
+                                    (
+                                        self.first.source_range(),
+                                        Some(error_colors::FunctionArgument),
+                                    ),
+                                    (self.chained.source_range(), Some(error_colors::Function)),
+                                ])
+                                .msg(format!(
+                                    "Can't call {} with an argument of type {}:",
+                                    "this function".color(error_colors::Function),
+                                    arg.to_string().color(error_colors::FunctionArgument)
+                                ))
+                                .err(e)
+                        })
                     }
                 }
             } else {
