@@ -1,20 +1,25 @@
 use std::{
+    collections::HashMap,
     fmt::Debug,
     sync::{Arc, RwLock},
 };
 
 use crate::{
-    data::{self, Data, Type},
+    data::{self, Data, MersType, Type},
     errors::{CheckError, SourceRange},
     info,
 };
 
+#[cfg(feature = "run")]
+pub mod as_type;
 #[cfg(feature = "run")]
 pub mod assign_to;
 #[cfg(feature = "run")]
 pub mod block;
 #[cfg(feature = "run")]
 pub mod chain;
+#[cfg(feature = "run")]
+pub mod custom_type;
 #[cfg(feature = "run")]
 pub mod function;
 #[cfg(feature = "run")]
@@ -65,13 +70,26 @@ pub type CheckInfo = info::Info<CheckLocal>;
 pub struct Local {
     vars: Vec<Arc<RwLock<Data>>>,
 }
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone)]
 pub struct CheckLocal {
     vars: Vec<Type>,
+    pub types: HashMap<
+        String,
+        Result<
+            Arc<dyn MersType>,
+            Arc<dyn Fn(&str, &CheckInfo) -> Result<Arc<dyn MersType>, CheckError> + Send + Sync>,
+        >,
+    >,
+}
+impl Debug for CheckLocal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CheckLocal {:?}, {:?}", self.vars, self.types.keys())
+    }
 }
 impl info::Local for Local {
     type VariableIdentifier = usize;
     type VariableData = Arc<RwLock<Data>>;
+    type Global = ();
     fn init_var(&mut self, id: Self::VariableIdentifier, value: Self::VariableData) {
         let nothing = Arc::new(RwLock::new(Data::new(data::bool::Bool(false))));
         while self.vars.len() <= id {
@@ -104,6 +122,7 @@ impl info::Local for Local {
 impl info::Local for CheckLocal {
     type VariableIdentifier = usize;
     type VariableData = Type;
+    type Global = ();
     fn init_var(&mut self, id: Self::VariableIdentifier, value: Self::VariableData) {
         while self.vars.len() <= id {
             self.vars.push(Type::empty());

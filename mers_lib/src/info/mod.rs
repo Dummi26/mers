@@ -3,26 +3,27 @@ use std::fmt::Debug;
 #[derive(Clone, Debug)]
 pub struct Info<L: Local> {
     pub scopes: Vec<L>,
+    pub global: L::Global,
 }
 
 impl<L: Local> Info<L> {
     /// Returns self, but completely empty (even without globals).
     /// Only use this if you assume this Info will never be used.
     pub fn neverused() -> Self {
-        Self { scopes: vec![] }
+        Self {
+            scopes: vec![],
+            global: L::Global::default(),
+        }
     }
 }
 
 pub trait Local: Default + Debug {
     type VariableIdentifier;
     type VariableData;
-    // type TypesIdentifier;
-    // type TypesType;
+    type Global: Default + Debug + Clone;
     fn init_var(&mut self, id: Self::VariableIdentifier, value: Self::VariableData);
     fn get_var(&self, id: &Self::VariableIdentifier) -> Option<&Self::VariableData>;
     fn get_var_mut(&mut self, id: &Self::VariableIdentifier) -> Option<&mut Self::VariableData>;
-    // fn add_type(&mut self, id: Self::TypesIdentifier, new_type: Self::TypesType);
-    // fn get_type(&self, id: Self::TypesIdentifier) -> Option<&Self::TypesType>;
     fn duplicate(&self) -> Self;
 }
 
@@ -39,6 +40,7 @@ impl<L: Local> Info<L> {
 impl<L: Local> Local for Info<L> {
     type VariableIdentifier = L::VariableIdentifier;
     type VariableData = L::VariableData;
+    type Global = ();
     fn init_var(&mut self, id: Self::VariableIdentifier, value: Self::VariableData) {
         self.scopes.last_mut().unwrap().init_var(id, value)
     }
@@ -51,6 +53,7 @@ impl<L: Local> Local for Info<L> {
     fn duplicate(&self) -> Self {
         Self {
             scopes: self.scopes.iter().map(|v| v.duplicate()).collect(),
+            global: self.global.clone(),
         }
     }
 }
@@ -59,6 +62,7 @@ impl<L: Local> Default for Info<L> {
     fn default() -> Self {
         Self {
             scopes: vec![L::default()],
+            global: L::Global::default(),
         }
     }
 }

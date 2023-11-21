@@ -5,6 +5,7 @@ use std::{
 
 use crate::{
     data::{self, Data, MersData, MersType, Type},
+    parsing::{statements::to_string_literal, Source},
     program::{self, run::CheckInfo},
 };
 
@@ -20,7 +21,10 @@ impl Config {
     /// `get_mut: fn` like get, but returns a reference to the object
     pub fn with_list(self) -> Self {
         // TODO: Type with generics
-        self.add_type("List".to_string(), Type::new(ListT(Type::empty_tuple())))
+        self.add_type("List".to_string(),
+            Err(Arc::new(|s, i| {
+                let t = crate::parsing::types::parse_type(&mut Source::new_from_string_raw(s.to_owned()))?;
+                Ok(Arc::new(ListT(crate::parsing::types::type_from_parsed(&t, i)?)))})))
             .add_var(
                 "pop".to_string(),
                 Data::new(data::function::Function {
@@ -202,7 +206,10 @@ impl MersType for ListT {
             .is_some_and(|v| self.0.is_same_type_as(&v.0))
     }
     fn is_included_in_single(&self, target: &dyn MersType) -> bool {
-        self.is_same_type_as(target)
+        target
+            .as_any()
+            .downcast_ref::<Self>()
+            .is_some_and(|v| self.0.is_included_in(&v.0))
     }
     fn subtypes(&self, acc: &mut Type) {
         for t in self.0.subtypes_type().types {
@@ -234,7 +241,7 @@ impl Display for List {
 }
 impl Display for ListT {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}]", self.0)?;
+        write!(f, "List<{}>", to_string_literal(&self.0.to_string(), '>'))?;
         Ok(())
     }
 }

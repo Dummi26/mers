@@ -1,8 +1,10 @@
 use std::sync::{Arc, RwLock};
 
 use crate::{
-    data::{Data, Type},
+    data::{self, Data, MersType},
+    errors::CheckError,
     info::Local,
+    program::run::CheckInfo,
 };
 
 mod with_base;
@@ -58,11 +60,27 @@ impl Config {
     }
 
     pub fn new() -> Self {
+        let mut info_check: CheckInfo = Default::default();
+        macro_rules! init_d {
+            ($e:expr) => {
+                let t = $e;
+                info_check
+                    .scopes
+                    .last_mut()
+                    .unwrap()
+                    .types
+                    .insert(t.to_string(), Ok(Arc::new(t)));
+            };
+        }
+        init_d!(data::bool::BoolT);
+        init_d!(data::int::IntT);
+        init_d!(data::float::FloatT);
+        init_d!(data::string::StringT);
         Self {
             globals: 0,
             info_parsed: Default::default(),
             info_run: Default::default(),
-            info_check: Default::default(),
+            info_check,
         }
     }
 
@@ -74,8 +92,15 @@ impl Config {
         self.globals += 1;
         self
     }
-    pub fn add_type(self, _name: String, _t: Type) -> Self {
-        // TODO! needed for type syntax in the parser, everything else probably(?) works already
+    pub fn add_type(
+        mut self,
+        name: String,
+        t: Result<
+            Arc<dyn MersType>,
+            Arc<dyn Fn(&str, &CheckInfo) -> Result<Arc<dyn MersType>, CheckError> + Send + Sync>,
+        >,
+    ) -> Self {
+        self.info_check.scopes[0].types.insert(name, t);
         self
     }
 

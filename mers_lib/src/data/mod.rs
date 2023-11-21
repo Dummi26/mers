@@ -374,16 +374,16 @@ impl Display for Type {
         if self.types.is_empty() {
             write!(f, "<unreachable>")
         } else {
-            if self.types.len() > 1 {
-                write!(f, "{{")?;
-            }
+            // if self.types.len() > 1 {
+            //     write!(f, "{{")?;
+            // }
             write!(f, "{}", self.types[0])?;
             for t in self.types.iter().skip(1) {
                 write!(f, "/{t}")?;
             }
-            if self.types.len() > 1 {
-                write!(f, "}}")?;
-            }
+            // if self.types.len() > 1 {
+            //     write!(f, "}}")?;
+            // }
             Ok(())
         }
     }

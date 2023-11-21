@@ -4,13 +4,107 @@ use super::{Source, SourcePos};
 use crate::{
     data::Data,
     errors::{error_colors, CheckError},
-    program::{self, parsed::MersStatement},
+    program::{
+        self,
+        parsed::{as_type::AsType, MersStatement},
+    },
 };
 
 pub fn parse(
     src: &mut Source,
 ) -> Result<Option<Box<dyn program::parsed::MersStatement>>, CheckError> {
     src.section_begin("statement".to_string());
+    src.skip_whitespace();
+    // type annotation:
+    //  [type] statement // force output type to be `type`
+    //  [[name] type] // define `name` as `type`
+    //  [[name] := statement] // define `name` as the type of `statement` (`statement` is never executed)
+    if matches!(src.peek_char(), Some('[')) {
+        let pos_in_src = src.get_pos();
+        src.next_char();
+        return Ok(Some(if matches!(src.peek_char(), Some('[')) {
+            src.next_char();
+            // [[...
+            let name = src.next_word();
+            let name = name.trim().to_owned();
+            src.skip_whitespace();
+            if !matches!(src.next_char(), Some(']')) {
+                return Err(
+                    CheckError::new().msg(format!("Expected ']' after type name in [[type_name]]"))
+                );
+            }
+            src.skip_whitespace();
+            if src.peek_word() == ":=" {
+                src.next_word();
+                // [[name] := statement]
+                let statement = match parse(src) {
+                    Ok(Some(v)) => v,
+                    Ok(None) => {
+                        return Err(CheckError::new()
+                            .src(vec![((pos_in_src, src.get_pos()).into(), None)])
+                            .msg(format!("EOF after `[...]` type annotation")))
+                    }
+                    Err(e) => return Err(e),
+                };
+                if !matches!(src.next_char(), Some(']')) {
+                    return Err(CheckError::new().msg(format!(
+                        "Expected ']' after statement in [[type_name] := statement]"
+                    )));
+                }
+                Box::new(program::parsed::custom_type::CustomType {
+                    pos_in_src: (pos_in_src, src.get_pos()).into(),
+                    name,
+                    source: Err(statement),
+                })
+            } else {
+                // [[name] type]
+                src.skip_whitespace();
+                let as_type = super::types::parse_type(src)?;
+                src.skip_whitespace();
+                if !matches!(src.next_char(), Some(']')) {
+                    return Err(CheckError::new().msg(format!(
+                        "Expected ']' after type definition in [[type_name] type_definition]"
+                    )));
+                }
+                Box::new(program::parsed::custom_type::CustomType {
+                    pos_in_src: (pos_in_src, src.get_pos()).into(),
+                    name,
+                    source: Ok(as_type),
+                })
+            }
+        } else {
+            // [type] statement
+            src.skip_whitespace();
+            let type_pos_in_src = src.get_pos();
+            let as_type = super::types::parse_type(src)?;
+            let type_pos_in_src = (type_pos_in_src, src.get_pos()).into();
+            src.skip_whitespace();
+            if !matches!(src.next_char(), Some(']')) {
+                return Err(CheckError::new()
+                    .src(vec![(
+                        (pos_in_src, src.get_pos()).into(),
+                        Some(error_colors::TypeAnnotationNoClosingBracket),
+                    )])
+                    .msg(format!("Missing closing bracket ']' after type annotation")));
+            }
+            let statement = match parse(src) {
+                Ok(Some(v)) => v,
+                Ok(None) => {
+                    return Err(CheckError::new()
+                        .src(vec![((pos_in_src, src.get_pos()).into(), None)])
+                        .msg(format!("EOF after `[...]` type annotation")))
+                }
+                Err(e) => return Err(e),
+            };
+            Box::new(AsType {
+                pos_in_src: (pos_in_src, src.get_pos()).into(),
+                statement,
+                as_type,
+                type_pos_in_src,
+                expand_type: true,
+            })
+        }));
+    }
     let mut first = if let Some(s) = parse_no_chain(src)? {
         s
     } else {
@@ -128,8 +222,8 @@ pub fn parse_multiple(
 pub fn parse_no_chain(
     src: &mut Source,
 ) -> Result<Option<Box<dyn program::parsed::MersStatement>>, CheckError> {
-    src.section_begin("statement no chain".to_string());
     src.skip_whitespace();
+    src.section_begin("statement no chain".to_string());
     match src.peek_char() {
         Some('#') => {
             let pos_in_src = src.get_pos();
@@ -339,6 +433,14 @@ pub fn parse_no_chain(
 
 /// expects to be called *after* a " character is consumed from src
 pub fn parse_string(src: &mut Source, double_quote: SourcePos) -> Result<String, CheckError> {
+    parse_string_custom_end(src, double_quote, '"', '"')
+}
+pub fn parse_string_custom_end(
+    src: &mut Source,
+    opening: SourcePos,
+    opening_char: char,
+    closing_char: char,
+) -> Result<String, CheckError> {
     let mut s = String::new();
     loop {
         if let Some(ch) = src.next_char() {
@@ -350,6 +452,7 @@ pub fn parse_string(src: &mut Source, double_quote: SourcePos) -> Result<String,
                     Some('n') => '\n',
                     Some('t') => '\t',
                     Some('"') => '"',
+                    Some(c) if c == closing_char || c == opening_char => c,
                     Some(o) => {
                         return Err(CheckError::new()
                             .src(vec![(
@@ -367,7 +470,7 @@ pub fn parse_string(src: &mut Source, double_quote: SourcePos) -> Result<String,
                             .msg(format!("EOF in backslash escape")));
                     }
                 });
-            } else if ch == '"' {
+            } else if ch == closing_char {
                 break;
             } else {
                 s.push(ch);
@@ -375,11 +478,27 @@ pub fn parse_string(src: &mut Source, double_quote: SourcePos) -> Result<String,
         } else {
             return Err(CheckError::new()
                 .src(vec![(
-                    (double_quote, src.get_pos()).into(),
+                    (opening, src.get_pos()).into(),
                     Some(error_colors::StringEOF),
                 )])
-                .msg(format!("EOF in string literal")));
+                .msg(format!(
+                    "EOF in string literal{}",
+                    if closing_char != '"' {
+                        format!(
+                            "{opening_char}...{closing_char} (end string with '{closing_char}')"
+                        )
+                    } else {
+                        String::new()
+                    }
+                )));
         }
     }
     Ok(s)
+}
+pub fn to_string_literal(val: &str, end: char) -> String {
+    val.replace("\\", "\\\\")
+        .replace("\r", "\\r")
+        .replace("\n", "\\n")
+        .replace("\"", "\\\"")
+        .replace(end, format!("\\{end}").as_str())
 }

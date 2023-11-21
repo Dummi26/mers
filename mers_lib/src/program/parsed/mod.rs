@@ -6,11 +6,15 @@ use crate::{
 };
 
 #[cfg(feature = "parse")]
+pub mod as_type;
+#[cfg(feature = "parse")]
 pub mod assign_to;
 #[cfg(feature = "parse")]
 pub mod block;
 #[cfg(feature = "parse")]
 pub mod chain;
+#[cfg(feature = "parse")]
+pub mod custom_type;
 #[cfg(feature = "parse")]
 pub mod function;
 #[cfg(feature = "parse")]
@@ -70,6 +74,7 @@ pub struct Local {
 impl info::Local for Local {
     type VariableIdentifier = String;
     type VariableData = (usize, usize);
+    type Global = ();
     fn init_var(&mut self, id: Self::VariableIdentifier, value: Self::VariableData) {
         self.vars_count += 1;
         self.vars.insert(id, value);

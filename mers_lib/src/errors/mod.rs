@@ -63,6 +63,13 @@ pub mod error_colors {
     pub const AssignFrom: Color = InitFrom;
     pub const AssignTo: Color = InitTo;
     pub const AssignTargetNonReference: Color = Color::BrightYellow;
+
+    pub const AsTypeStatementWithTooBroadType: Color = InitFrom;
+    pub const AsTypeTypeAnnotation: Color = InitTo;
+
+    pub const BadCharInTupleType: Color = Color::Red;
+    pub const BadTypeFromParsed: Color = Color::Blue;
+    pub const TypeAnnotationNoClosingBracket: Color = Color::Blue;
 }
 enum CheckErrorComponent {
     Message(String),

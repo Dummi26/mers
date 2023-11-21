@@ -7,6 +7,7 @@ use std::{
 use crate::{
     data::{self, Data, MersData, MersType, Type},
     errors::CheckError,
+    parsing::{statements::to_string_literal, Source},
     program::{self, run::CheckInfo},
 };
 
@@ -19,7 +20,10 @@ impl Config {
     pub fn with_multithreading(self) -> Self {
         self.add_type(
             "Thread".to_string(),
-            Type::new(ThreadT(Type::empty_tuple())),
+            Err(Arc::new(|s, i| {
+                let t = crate::parsing::types::parse_type(&mut Source::new_from_string_raw(s.to_owned()))?;
+                Ok(Arc::new(ThreadT(crate::parsing::types::type_from_parsed(&t, i)?)))
+            })),
         )
         .add_var(
             "thread".to_string(),
@@ -170,6 +174,6 @@ impl Display for Thread {
 }
 impl Display for ThreadT {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "<Thread>")
+        write!(f, "Thread<{}>", to_string_literal(&self.0.to_string(), '>'))
     }
 }

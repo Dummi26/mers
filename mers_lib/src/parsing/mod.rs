@@ -56,6 +56,17 @@ impl Source {
         let content = std::fs::read_to_string(&path)?;
         Ok(Self::new(SourceFrom::File(path), content))
     }
+    pub fn new_from_string_raw(source: String) -> Self {
+        Self {
+            src_from: SourceFrom::Unspecified,
+            src_raw_len: source.len(),
+            src_og: source.clone(),
+            src: source,
+            comments: vec![],
+            i: 0,
+            sections: vec![],
+        }
+    }
     pub fn new_from_string(source: String) -> Self {
         Self::new(SourceFrom::Unspecified, source)
     }
@@ -167,7 +178,7 @@ impl Source {
         Some(ch)
     }
     fn word_splitter(ch: char) -> bool {
-        ch.is_whitespace() || ".,;[](){}".contains(ch)
+        ch.is_whitespace() || ".,;[](){}/<".contains(ch)
     }
     pub fn peek_word(&self) -> &str {
         self.src[self.i..]

@@ -1,0 +1,76 @@
+// Change a statement's output type:
+// `[type] statement`
+
+my_list := [List<Int/Float>] ().as_list
+
+&my_list.push(12)
+&my_list.push(0.5)
+
+my_list.println
+
+
+// This can also be used to cause a compiler error on invalid types:
+// `[type] statement`
+// If `statement` isn't included in `type`, this will cause an error.
+
+my_list.for_each(v ->
+  v.try((
+    v -> {
+      [Int] v // this won't compile if v isn't a float
+      ("Int: ", v).concat
+    }
+    v -> {
+      [Float] v
+      ("Float: ", v).concat
+    }
+  )).println
+)
+
+
+// These annotations work on all kinds of statements
+
+// Function that always returns Int/Float
+double := x -> [Int/Float] {
+  (x, x).sum
+}
+
+// Function that must take Int/Float, but,
+// if given Int, returns Int, and if given Float, returns Float.
+// Therefore usually nicer than the other `double`
+double := x -> {
+  [Int/Float] x
+  (x, x).sum
+}
+
+
+// Define custom types:
+// `[[MyType] TypeDefinition]`
+
+[[City] (Int, Int, Int)]
+
+get_coords := city -> [(Int, Int)] {
+  // only works with values of type City
+  (_, x, y) := [City] city
+  // return the coords
+  (x, y)
+}
+
+test_city := (56000, 127, -12)
+
+("Coords: ", test_city.get_coords).concat.println
+
+
+// Define custom types that depend on the environment:
+// `[[MyType] := some_statement]`
+// Note: `some_statement` will be compiled and checked, but never executed, since we only care about its type at compile-time, not its actual value at runtime.
+
+make_list_maybe_none := (val_1, val_2) -> {
+  // ListType is List<T> where T is the type of val_1/val_2/()
+  [[ListType] := (val_1, val_2, ()).as_list]
+  // return a list with that type
+  [ListType] (val_1, val_2).as_list
+}
+
+maybe_none_list := ("one", 2).make_list_maybe_none
+maybe_none_list.println
+maybe_none_list // use `--check only` to see the type: `List<String/Int/()>`

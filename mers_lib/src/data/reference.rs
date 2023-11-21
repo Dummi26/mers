@@ -74,6 +74,10 @@ impl Display for Reference {
 }
 impl Display for ReferenceT {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "&{}", self.0)
+        if self.0.types.len() > 1 {
+            write!(f, "&{{{}}}", self.0)
+        } else {
+            write!(f, "&{}", self.0)
+        }
     }
 }
