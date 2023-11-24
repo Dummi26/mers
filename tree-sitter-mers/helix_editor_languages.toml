@@ -1,0 +1,10 @@
+[[language]]
+name = "mers"
+scope = "source.mers"
+file-types = ["mers"]
+indent = { tab-width = 2, unit = " " }
+roots = []
+
+[[grammar]]
+name = "mers"
+source = { git = "https://github.com/Dummi26/mers", rev = "c8431cab9317f0658846b638ae235dcb90b38b91", subpath = "tree-sitter-mers" }
