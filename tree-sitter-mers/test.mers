@@ -1,0 +1,8 @@
+(my_arg, some_flag) -> {
+	x := "test"
+	if some_flag {
+		my_arg.println
+	} else {
+		x.println
+	}
+}

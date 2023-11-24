@@ -1,0 +1,18 @@
+{
+  "name": "tree-sitter-mers",
+  "version": "1.0.0",
+  "description": "tree-sitter syntax highlighting for mers",
+  "main": "bindings/node",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "nan": "^2.18.0"
+  },
+  "tree-sitter": [{
+    "scope": "source.mers",
+    "file-types": ["mers"]
+  }]
+}

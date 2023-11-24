@@ -1,2 +1,5 @@
 **/target/
 **/Cargo.lock
+tree-sitter-mers/log.html
+tree-sitter-mers/package-lock.json
+tree-sitter-mers/node_modules

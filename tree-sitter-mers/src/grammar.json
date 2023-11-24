@@ -1,0 +1,384 @@
+{
+  "name": "mers",
+  "rules": {
+    "source_file": {
+      "type": "REPEAT",
+      "content": {
+        "type": "SYMBOL",
+        "name": "definition"
+      }
+    },
+    "definition": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "init"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "assign"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "if"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "func"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "block"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "tuple"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "chain"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "string"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "number"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "variable"
+        }
+      ]
+    },
+    "definition_in_chain": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "block"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "tuple"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "string"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "number"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "variable"
+        }
+      ]
+    },
+    "definition_initable": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "variable"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "tuple"
+        }
+      ]
+    },
+    "definition_assignable": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "variable"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "tuple"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "block"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "string"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "number"
+        }
+      ]
+    },
+    "block": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "block_start"
+        },
+        {
+          "type": "REPEAT",
+          "content": {
+            "type": "SYMBOL",
+            "name": "definition"
+          }
+        },
+        {
+          "type": "SYMBOL",
+          "name": "block_end"
+        }
+      ]
+    },
+    "block_start": {
+      "type": "STRING",
+      "value": "{"
+    },
+    "block_end": {
+      "type": "STRING",
+      "value": "}"
+    },
+    "if": {
+      "type": "PREC_LEFT",
+      "value": 0,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "SYMBOL",
+            "name": "if_if"
+          },
+          {
+            "type": "SYMBOL",
+            "name": "definition"
+          },
+          {
+            "type": "SYMBOL",
+            "name": "definition"
+          },
+          {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SEQ",
+                "members": [
+                  {
+                    "type": "SYMBOL",
+                    "name": "if_else"
+                  },
+                  {
+                    "type": "SYMBOL",
+                    "name": "definition"
+                  }
+                ]
+              },
+              {
+                "type": "BLANK"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "if_if": {
+      "type": "STRING",
+      "value": "if"
+    },
+    "if_else": {
+      "type": "STRING",
+      "value": "else"
+    },
+    "func": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "func_arg"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "func_arrow"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "func_body"
+        }
+      ]
+    },
+    "func_arg": {
+      "type": "SYMBOL",
+      "name": "definition_assignable"
+    },
+    "func_arrow": {
+      "type": "STRING",
+      "value": "->"
+    },
+    "func_body": {
+      "type": "SYMBOL",
+      "name": "definition"
+    },
+    "init": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "init_to"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "init_colonequals"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "init_source"
+        }
+      ]
+    },
+    "init_to": {
+      "type": "SYMBOL",
+      "name": "definition_initable"
+    },
+    "init_colonequals": {
+      "type": "STRING",
+      "value": ":="
+    },
+    "init_source": {
+      "type": "SYMBOL",
+      "name": "definition"
+    },
+    "assign": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "assign_to"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "assign_equals"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "assign_source"
+        }
+      ]
+    },
+    "assign_to": {
+      "type": "SYMBOL",
+      "name": "definition_assignable"
+    },
+    "assign_equals": {
+      "type": "STRING",
+      "value": "="
+    },
+    "assign_source": {
+      "type": "SYMBOL",
+      "name": "definition"
+    },
+    "tuple": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "tuple_start"
+        },
+        {
+          "type": "REPEAT",
+          "content": {
+            "type": "SEQ",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "definition"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "tuple_separator"
+              }
+            ]
+          }
+        },
+        {
+          "type": "SYMBOL",
+          "name": "tuple_end"
+        }
+      ]
+    },
+    "tuple_start": {
+      "type": "STRING",
+      "value": "("
+    },
+    "tuple_end": {
+      "type": "STRING",
+      "value": ")"
+    },
+    "tuple_separator": {
+      "type": "PATTERN",
+      "value": "(,\\s*)|\\s+"
+    },
+    "chain": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "chain_dot"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "definition_in_chain"
+        }
+      ]
+    },
+    "chain_dot": {
+      "type": "STRING",
+      "value": "."
+    },
+    "number": {
+      "type": "PATTERN",
+      "value": "[\\+-]?(\\d+)|(\\d+\\.\\d+)"
+    },
+    "variable": {
+      "type": "PATTERN",
+      "value": "&?[^\\s:=\\.\\{\\}\\[\\]\\(\\)\\d\"]+"
+    },
+    "string": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "\""
+        },
+        {
+          "type": "SYMBOL",
+          "name": "string_content"
+        },
+        {
+          "type": "STRING",
+          "value": "\""
+        }
+      ]
+    },
+    "string_content": {
+      "type": "PATTERN",
+      "value": "([^\\\\\"]|[\\\\.])+"
+    }
+  },
+  "extras": [
+    {
+      "type": "PATTERN",
+      "value": "\\s"
+    }
+  ],
+  "conflicts": [],
+  "precedences": [],
+  "externals": [],
+  "inline": [],
+  "supertypes": []
+}
+
