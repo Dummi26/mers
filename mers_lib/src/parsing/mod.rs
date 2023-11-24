@@ -8,11 +8,14 @@ use crate::{
 pub mod statements;
 pub mod types;
 
-pub fn parse(src: &mut Source) -> Result<Box<dyn program::parsed::MersStatement>, CheckError> {
+pub fn parse(
+    src: &mut Source,
+    srca: &Arc<Source>,
+) -> Result<Box<dyn program::parsed::MersStatement>, CheckError> {
     let pos_in_src = src.get_pos();
-    let statements = statements::parse_multiple(src, "")?;
+    let statements = statements::parse_multiple(src, srca, "")?;
     let block = Block {
-        pos_in_src: (pos_in_src, src.get_pos()).into(),
+        pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
         statements,
     };
     Ok(Box::new(block))

@@ -32,7 +32,7 @@ impl MersStatement for Function {
         let arg2: Arc<Box<dyn crate::program::run::MersStatement>> = Arc::clone(&arg_target);
         let run2: Arc<Box<dyn crate::program::run::MersStatement>> = Arc::clone(&run);
         Ok(Box::new(program::run::function::Function {
-            pos_in_src: self.pos_in_src,
+            pos_in_src: self.pos_in_src.clone(),
             func_no_info: data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
@@ -48,6 +48,6 @@ impl MersStatement for Function {
         }))
     }
     fn source_range(&self) -> SourceRange {
-        self.pos_in_src
+        self.pos_in_src.clone()
     }
 }

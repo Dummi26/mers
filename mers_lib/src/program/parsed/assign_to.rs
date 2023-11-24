@@ -22,13 +22,13 @@ impl MersStatement for AssignTo {
         comp: CompInfo,
     ) -> Result<Box<dyn program::run::MersStatement>, CheckError> {
         Ok(Box::new(program::run::assign_to::AssignTo {
-            pos_in_src: self.pos_in_src,
+            pos_in_src: self.pos_in_src.clone(),
             is_init: false,
             source: self.source.compile(info, comp)?,
             target: self.target.compile(info, comp)?,
         }))
     }
     fn source_range(&self) -> SourceRange {
-        self.pos_in_src
+        self.pos_in_src.clone()
     }
 }

@@ -36,6 +36,6 @@ impl MersStatement for Block {
         true
     }
     fn source_range(&self) -> SourceRange {
-        self.pos_in_src
+        self.pos_in_src.clone()
     }
 }

@@ -23,7 +23,9 @@ impl Config {
         // TODO: Type with generics
         self.add_type("List".to_string(),
             Err(Arc::new(|s, i| {
-                let t = crate::parsing::types::parse_type(&mut Source::new_from_string_raw(s.to_owned()))?;
+                let mut src = Source::new_from_string_raw(s.to_owned());
+                let srca = Arc::new(src.clone());
+                let t = crate::parsing::types::parse_type(&mut src, &srca)?;
                 Ok(Arc::new(ListT(crate::parsing::types::type_from_parsed(&t, i)?)))})))
             .add_var(
                 "pop".to_string(),

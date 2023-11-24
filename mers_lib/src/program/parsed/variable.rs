@@ -35,7 +35,7 @@ impl MersStatement for Variable {
             }
         }
         Ok(Box::new(program::run::variable::Variable {
-            pos_in_src: self.pos_in_src,
+            pos_in_src: self.pos_in_src.clone(),
             is_init: comp.is_init,
             is_ref_not_ignore: if comp.is_init {
                 !init_and_ignore
@@ -48,12 +48,15 @@ impl MersStatement for Variable {
                 *v
             } else {
                 return Err(CheckError::new()
-                    .src(vec![(self.pos_in_src, Some(error_colors::UnknownVariable))])
+                    .src(vec![(
+                        self.pos_in_src.clone(),
+                        Some(error_colors::UnknownVariable),
+                    )])
                     .msg(format!("No variable named '{}' found!", self.var)));
             },
         }))
     }
     fn source_range(&self) -> SourceRange {
-        self.pos_in_src
+        self.pos_in_src.clone()
     }
 }

@@ -21,7 +21,7 @@ impl MersStatement for Block {
         comp: CompInfo,
     ) -> Result<Box<dyn program::run::MersStatement>, CheckError> {
         Ok(Box::new(program::run::block::Block {
-            pos_in_src: self.pos_in_src,
+            pos_in_src: self.pos_in_src.clone(),
             statements: self
                 .statements
                 .iter()
@@ -30,6 +30,6 @@ impl MersStatement for Block {
         }))
     }
     fn source_range(&self) -> SourceRange {
-        self.pos_in_src
+        self.pos_in_src.clone()
     }
 }

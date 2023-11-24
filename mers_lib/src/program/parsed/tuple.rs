@@ -21,7 +21,7 @@ impl MersStatement for Tuple {
         comp: CompInfo,
     ) -> Result<Box<dyn program::run::MersStatement>, CheckError> {
         Ok(Box::new(program::run::tuple::Tuple {
-            pos_in_src: self.pos_in_src,
+            pos_in_src: self.pos_in_src.clone(),
             elems: self
                 .elems
                 .iter()
@@ -30,6 +30,6 @@ impl MersStatement for Tuple {
         }))
     }
     fn source_range(&self) -> SourceRange {
-        self.pos_in_src
+        self.pos_in_src.clone()
     }
 }

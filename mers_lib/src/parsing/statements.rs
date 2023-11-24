@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use super::{Source, SourcePos};
 use crate::{
@@ -12,6 +12,7 @@ use crate::{
 
 pub fn parse(
     src: &mut Source,
+    srca: &Arc<Source>,
 ) -> Result<Option<Box<dyn program::parsed::MersStatement>>, CheckError> {
     src.section_begin("statement".to_string());
     src.skip_whitespace();
@@ -37,11 +38,11 @@ pub fn parse(
             if src.peek_word() == ":=" {
                 src.next_word();
                 // [[name] := statement]
-                let statement = match parse(src) {
+                let statement = match parse(src, srca) {
                     Ok(Some(v)) => v,
                     Ok(None) => {
                         return Err(CheckError::new()
-                            .src(vec![((pos_in_src, src.get_pos()).into(), None)])
+                            .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
                             .msg(format!("EOF after `[...]` type annotation")))
                     }
                     Err(e) => return Err(e),
@@ -52,14 +53,14 @@ pub fn parse(
                     )));
                 }
                 Box::new(program::parsed::custom_type::CustomType {
-                    pos_in_src: (pos_in_src, src.get_pos()).into(),
+                    pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
                     name,
                     source: Err(statement),
                 })
             } else {
                 // [[name] type]
                 src.skip_whitespace();
-                let as_type = super::types::parse_type(src)?;
+                let as_type = super::types::parse_type(src, srca)?;
                 src.skip_whitespace();
                 if !matches!(src.next_char(), Some(']')) {
                     return Err(CheckError::new().msg(format!(
@@ -67,7 +68,7 @@ pub fn parse(
                     )));
                 }
                 Box::new(program::parsed::custom_type::CustomType {
-                    pos_in_src: (pos_in_src, src.get_pos()).into(),
+                    pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
                     name,
                     source: Ok(as_type),
                 })
@@ -76,28 +77,28 @@ pub fn parse(
             // [type] statement
             src.skip_whitespace();
             let type_pos_in_src = src.get_pos();
-            let as_type = super::types::parse_type(src)?;
-            let type_pos_in_src = (type_pos_in_src, src.get_pos()).into();
+            let as_type = super::types::parse_type(src, srca)?;
+            let type_pos_in_src = (type_pos_in_src, src.get_pos(), srca).into();
             src.skip_whitespace();
             if !matches!(src.next_char(), Some(']')) {
                 return Err(CheckError::new()
                     .src(vec![(
-                        (pos_in_src, src.get_pos()).into(),
+                        (pos_in_src, src.get_pos(), srca).into(),
                         Some(error_colors::TypeAnnotationNoClosingBracket),
                     )])
                     .msg(format!("Missing closing bracket ']' after type annotation")));
             }
-            let statement = match parse(src) {
+            let statement = match parse(src, srca) {
                 Ok(Some(v)) => v,
                 Ok(None) => {
                     return Err(CheckError::new()
-                        .src(vec![((pos_in_src, src.get_pos()).into(), None)])
+                        .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
                         .msg(format!("EOF after `[...]` type annotation")))
                 }
                 Err(e) => return Err(e),
             };
             Box::new(AsType {
-                pos_in_src: (pos_in_src, src.get_pos()).into(),
+                pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
                 statement,
                 as_type,
                 type_pos_in_src,
@@ -105,7 +106,7 @@ pub fn parse(
             })
         }));
     }
-    let mut first = if let Some(s) = parse_no_chain(src)? {
+    let mut first = if let Some(s) = parse_no_chain(src, srca)? {
         s
     } else {
         return Ok(None);
@@ -116,13 +117,13 @@ pub fn parse(
         ":=" => {
             let pos_in_src = src.get_pos();
             src.next_word();
-            let source = parse(src)?.ok_or_else(|| {
+            let source = parse(src, srca)?.ok_or_else(|| {
                 CheckError::new()
-                    .src(vec![((pos_in_src, src.get_pos()).into(), None)])
+                    .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
                     .msg(format!("EOF after `:=`"))
             })?;
             first = Box::new(program::parsed::init_to::InitTo {
-                pos_in_src: (pos_in_src, src.get_pos()).into(),
+                pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
                 target: first,
                 source,
             });
@@ -130,13 +131,13 @@ pub fn parse(
         "=" => {
             let pos_in_src = src.get_pos();
             src.next_word();
-            let source = parse(src)?.ok_or_else(|| {
+            let source = parse(src, srca)?.ok_or_else(|| {
                 CheckError::new()
-                    .src(vec![((pos_in_src, src.get_pos()).into(), None)])
+                    .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
                     .msg(format!("EOF after `=`"))
             })?;
             first = Box::new(program::parsed::assign_to::AssignTo {
-                pos_in_src: (pos_in_src, src.get_pos()).into(),
+                pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
                 target: first,
                 source,
             });
@@ -144,17 +145,17 @@ pub fn parse(
         "->" => {
             let pos_in_src = src.get_pos();
             src.next_word();
-            let run = match parse(src) {
+            let run = match parse(src, srca) {
                 Ok(Some(v)) => v,
                 Ok(None) => {
                     return Err(CheckError::new()
-                        .src(vec![((pos_in_src, src.get_pos()).into(), None)])
+                        .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
                         .msg(format!("EOF after `->`")))
                 }
                 Err(e) => return Err(e),
             };
             first = Box::new(program::parsed::function::Function {
-                pos_in_src: (pos_in_src, src.get_pos()).into(),
+                pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
                 arg: first,
                 run,
             });
@@ -164,11 +165,11 @@ pub fn parse(
             let dot_in_src = src.get_pos();
             if let Some('.') = src.peek_char() {
                 src.next_char();
-                let chained = match parse_no_chain(src) {
+                let chained = match parse_no_chain(src, srca) {
                     Ok(Some(v)) => v,
                     Ok(None) => {
                         return Err(CheckError::new()
-                            .src(vec![((dot_in_src, src.get_pos()).into(), None)])
+                            .src(vec![((dot_in_src, src.get_pos(), srca).into(), None)])
                             .msg(format!("EOF after `.`")))
                     }
                     Err(e) => return Err(e),
@@ -176,14 +177,14 @@ pub fn parse(
                 // allow a.f(b, c) syntax (but not f(a, b, c))
                 if let Some('(') = src.peek_char() {
                     src.next_char();
-                    let elems = parse_multiple(src, ")")?;
+                    let elems = parse_multiple(src, srca, ")")?;
                     first = Box::new(program::parsed::tuple::Tuple {
-                        pos_in_src: (first.source_range().start(), src.get_pos()).into(),
+                        pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
                         elems: [first].into_iter().chain(elems).collect(),
                     });
                 }
                 first = Box::new(program::parsed::chain::Chain {
-                    pos_in_src: (first.source_range().start(), src.get_pos()).into(),
+                    pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
                     first,
                     chained,
                 });
@@ -201,6 +202,7 @@ pub fn parse(
 }
 pub fn parse_multiple(
     src: &mut Source,
+    srca: &Arc<Source>,
     end: &str,
 ) -> Result<Vec<Box<dyn MersStatement>>, CheckError> {
     src.section_begin("block".to_string());
@@ -210,7 +212,7 @@ pub fn parse_multiple(
         if src.peek_char().is_some_and(|ch| end.contains(ch)) {
             src.next_char();
             break;
-        } else if let Some(s) = parse(src)? {
+        } else if let Some(s) = parse(src, srca)? {
             statements.push(s);
         } else {
             // EOF
@@ -221,6 +223,7 @@ pub fn parse_multiple(
 }
 pub fn parse_no_chain(
     src: &mut Source,
+    srca: &Arc<Source>,
 ) -> Result<Option<Box<dyn program::parsed::MersStatement>>, CheckError> {
     src.skip_whitespace();
     src.section_begin("statement no chain".to_string());
@@ -230,14 +233,14 @@ pub fn parse_no_chain(
             src.next_char();
             if src.peek_char().is_none() {
                 return Err(CheckError::new()
-                    .src(vec![((pos_in_src, src.get_pos()).into(), None)])
+                    .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
                     .msg(format!("EOF after #")));
             }
             if src.peek_char().is_some_and(|ch| ch.is_whitespace()) {
                 src.skip_whitespace();
                 return Err(CheckError::new()
                     .src(vec![(
-                        (pos_in_src, src.get_pos()).into(),
+                        (pos_in_src, src.get_pos(), srca).into(),
                         Some(error_colors::WhitespaceAfterHashtag),
                     )])
                     .msg(format!("Whitespace after #")));
@@ -248,18 +251,17 @@ pub fn parse_no_chain(
                     src.skip_whitespace();
                     let string_in_src = src.get_pos();
                     if src.next_char() == Some('"') {
-                        let file_path = parse_string(src, string_in_src)?;
+                        let file_path = parse_string(src, srca, string_in_src)?;
                         match Source::new_from_file(PathBuf::from(&file_path)) {
                             Ok(mut inner_src) => {
+                                let inner_srca = Arc::new(inner_src.clone());
                                 return Ok(Some(Box::new(
                                     program::parsed::include_mers::IncludeMers {
-                                        pos_in_src: (pos_in_src, src.get_pos()).into(),
-                                        include: match super::parse(&mut inner_src) {
+                                        pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
+                                        include: match super::parse(&mut inner_src, &inner_srca) {
                                             Ok(v) => v,
                                             Err(e) => {
-                                                return Err(
-                                                    CheckError::new().err_with_src(e, inner_src)
-                                                )
+                                                return Err(CheckError::new().err_with_diff_src(e))
                                             }
                                         },
                                         inner_src,
@@ -269,9 +271,9 @@ pub fn parse_no_chain(
                             Err(e) => {
                                 return Err(CheckError::new()
                                     .src(vec![
-                                        ((pos_in_src, end_in_src).into(), None),
+                                        ((pos_in_src, end_in_src, srca).into(), None),
                                         (
-                                            (string_in_src, src.get_pos()).into(),
+                                            (string_in_src, src.get_pos(), srca).into(),
                                             Some(error_colors::HashIncludeCantLoadFile),
                                         ),
                                     ])
@@ -281,8 +283,8 @@ pub fn parse_no_chain(
                     } else {
                         return Err(CheckError::new()
                             .src(vec![
-                                ((pos_in_src, end_in_src).into(), None),
-                                ((string_in_src, src.get_pos()).into(), Some(error_colors::HashIncludeNotAString)),
+                                ((pos_in_src, end_in_src, srca).into(), None),
+                                ((string_in_src, src.get_pos(), srca).into(), Some(error_colors::HashIncludeNotAString)),
                             ])
                             .msg(format!(
                                 "#include must be followed by a string literal like \"file.mers\" (\" expected)."
@@ -293,7 +295,7 @@ pub fn parse_no_chain(
                     let msg = format!("Unknown #statement: {other}");
                     return Err(CheckError::new()
                         .src(vec![(
-                            (pos_in_src, src.get_pos()).into(),
+                            (pos_in_src, src.get_pos(), srca).into(),
                             Some(error_colors::HashUnknown),
                         )])
                         .msg(msg));
@@ -303,18 +305,18 @@ pub fn parse_no_chain(
         Some('{') => {
             let pos_in_src = src.get_pos();
             src.next_char();
-            let statements = parse_multiple(src, "}")?;
+            let statements = parse_multiple(src, srca, "}")?;
             return Ok(Some(Box::new(program::parsed::block::Block {
-                pos_in_src: (pos_in_src, src.get_pos()).into(),
+                pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
                 statements,
             })));
         }
         Some('(') => {
             let pos_in_src = src.get_pos();
             src.next_char();
-            let elems = parse_multiple(src, ")")?;
+            let elems = parse_multiple(src, srca, ")")?;
             return Ok(Some(Box::new(program::parsed::tuple::Tuple {
-                pos_in_src: (pos_in_src, src.get_pos()).into(),
+                pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
                 elems,
             })));
         }
@@ -322,9 +324,9 @@ pub fn parse_no_chain(
             src.section_begin("string literal".to_string());
             let pos_in_src = src.get_pos();
             src.next_char();
-            let s = parse_string(src, pos_in_src)?;
+            let s = parse_string(src, srca, pos_in_src)?;
             return Ok(Some(Box::new(program::parsed::value::Value {
-                pos_in_src: (pos_in_src, src.get_pos()).into(),
+                pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
                 data: Data::new(crate::data::string::String(s)),
             })));
         }
@@ -335,20 +337,20 @@ pub fn parse_no_chain(
         "if" => {
             src.section_begin("if".to_string());
             src.skip_whitespace();
-            let condition = match parse(src) {
+            let condition = match parse(src, srca) {
                 Ok(Some(v)) => v,
                 Ok(None) => {
                     return Err(CheckError::new()
-                        .src(vec![((pos_in_src, src.get_pos()).into(), None)])
+                        .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
                         .msg(format!("EOF in `if`")))
                 }
                 Err(e) => return Err(e),
             };
-            let on_true = match parse(src) {
+            let on_true = match parse(src, srca) {
                 Ok(Some(v)) => v,
                 Ok(None) => {
                     return Err(CheckError::new()
-                        .src(vec![((pos_in_src, src.get_pos()).into(), None)])
+                        .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
                         .msg(format!("EOF after `if <condition>`")))
                 }
                 Err(e) => return Err(e),
@@ -358,11 +360,11 @@ pub fn parse_no_chain(
                 if src.peek_word() == "else" {
                     src.section_begin("else".to_string());
                     src.next_word();
-                    Some(match parse(src) {
+                    Some(match parse(src, srca) {
                         Ok(Some(v)) => v,
                         Ok(None) => {
                             return Err(CheckError::new()
-                                .src(vec![((pos_in_src, src.get_pos()).into(), None)])
+                                .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
                                 .msg(format!("EOF after `else`")))
                         }
                         Err(e) => return Err(e),
@@ -372,18 +374,18 @@ pub fn parse_no_chain(
                 }
             };
             Box::new(program::parsed::r#if::If {
-                pos_in_src: (pos_in_src, src.get_pos()).into(),
+                pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
                 condition,
                 on_true,
                 on_false,
             })
         }
         "true" => Box::new(program::parsed::value::Value {
-            pos_in_src: (pos_in_src, src.get_pos()).into(),
+            pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
             data: Data::new(crate::data::bool::Bool(true)),
         }),
         "false" => Box::new(program::parsed::value::Value {
-            pos_in_src: (pos_in_src, src.get_pos()).into(),
+            pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
             data: Data::new(crate::data::bool::Bool(false)),
         }),
         "" => return Ok(None),
@@ -396,32 +398,32 @@ pub fn parse_no_chain(
                     src.next_char();
                     if let Ok(num) = format!("{o}.{}", src.next_word()).parse() {
                         Box::new(program::parsed::value::Value {
-                            pos_in_src: (pos_in_src, src.get_pos()).into(),
+                            pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
                             data: Data::new(crate::data::float::Float(num)),
                         })
                     } else {
                         src.set_pos(here);
                         Box::new(program::parsed::value::Value {
-                            pos_in_src: (pos_in_src, src.get_pos()).into(),
+                            pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
                             data: Data::new(crate::data::int::Int(n)),
                         })
                     }
                 } else {
                     Box::new(program::parsed::value::Value {
-                        pos_in_src: (pos_in_src, src.get_pos()).into(),
+                        pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
                         data: Data::new(crate::data::int::Int(n)),
                     })
                 }
             } else {
                 if let Some('&') = o.chars().next() {
                     Box::new(program::parsed::variable::Variable {
-                        pos_in_src: (pos_in_src, src.get_pos()).into(),
+                        pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
                         is_ref: true,
                         var: o[1..].to_string(),
                     })
                 } else {
                     Box::new(program::parsed::variable::Variable {
-                        pos_in_src: (pos_in_src, src.get_pos()).into(),
+                        pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
                         is_ref: false,
                         var: o.to_string(),
                     })
@@ -432,11 +434,16 @@ pub fn parse_no_chain(
 }
 
 /// expects to be called *after* a " character is consumed from src
-pub fn parse_string(src: &mut Source, double_quote: SourcePos) -> Result<String, CheckError> {
-    parse_string_custom_end(src, double_quote, '"', '"')
+pub fn parse_string(
+    src: &mut Source,
+    srca: &Arc<Source>,
+    double_quote: SourcePos,
+) -> Result<String, CheckError> {
+    parse_string_custom_end(src, srca, double_quote, '"', '"')
 }
 pub fn parse_string_custom_end(
     src: &mut Source,
+    srca: &Arc<Source>,
     opening: SourcePos,
     opening_char: char,
     closing_char: char,
@@ -456,7 +463,7 @@ pub fn parse_string_custom_end(
                     Some(o) => {
                         return Err(CheckError::new()
                             .src(vec![(
-                                (backslash_in_src, src.get_pos()).into(),
+                                (backslash_in_src, src.get_pos(), srca).into(),
                                 Some(error_colors::BackslashEscapeUnknown),
                             )])
                             .msg(format!("unknown backslash escape '\\{o}'")));
@@ -464,7 +471,7 @@ pub fn parse_string_custom_end(
                     None => {
                         return Err(CheckError::new()
                             .src(vec![(
-                                (backslash_in_src, src.get_pos()).into(),
+                                (backslash_in_src, src.get_pos(), srca).into(),
                                 Some(error_colors::BackslashEscapeEOF),
                             )])
                             .msg(format!("EOF in backslash escape")));
@@ -478,7 +485,7 @@ pub fn parse_string_custom_end(
         } else {
             return Err(CheckError::new()
                 .src(vec![(
-                    (opening, src.get_pos()).into(),
+                    (opening, src.get_pos(), srca).into(),
                     Some(error_colors::StringEOF),
                 )])
                 .msg(format!(

@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand, ValueEnum};
 use mers_lib::prelude_compile::*;
-use std::{fmt::Display, fs, path::PathBuf, process::exit};
+use std::{fmt::Display, path::PathBuf, process::exit, sync::Arc};
 
 mod cfg_globals;
 
@@ -78,10 +78,11 @@ fn main() {
         },
         Command::Exec { source } => Source::new_from_string(source),
     };
-    let parsed = match parse(&mut source) {
+    let srca = Arc::new(source.clone());
+    let parsed = match parse(&mut source, &srca) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("{}", e.display(&source).show_comments(!args.hide_comments));
+            eprintln!("{}", e.display().show_comments(!args.hide_comments));
             exit(20);
         }
     };
@@ -90,7 +91,7 @@ fn main() {
     let run = match parsed.compile(&mut info_parsed, Default::default()) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("{}", e.display(&source).show_comments(!args.hide_comments));
+            eprintln!("{}", e.display().show_comments(!args.hide_comments));
             exit(24);
         }
     };
@@ -104,7 +105,7 @@ fn main() {
             let return_type = match run.check(&mut info_check, None) {
                 Ok(v) => v,
                 Err(e) => {
-                    eprint!("{}", e.display(&source).show_comments(!args.hide_comments));
+                    eprint!("{}", e.display().show_comments(!args.hide_comments));
                     exit(28);
                 }
             };

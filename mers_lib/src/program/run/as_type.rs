@@ -32,7 +32,7 @@ impl MersStatement for AsType {
             crate::parsing::types::type_from_parsed(&self.as_type, info).map_err(|e| {
                 CheckError::new()
                     .src(vec![(
-                        self.type_pos_in_src,
+                        self.type_pos_in_src.clone(),
                         Some(error_colors::BadTypeFromParsed),
                     )])
                     .err(e)
@@ -40,9 +40,9 @@ impl MersStatement for AsType {
         if !return_type.is_included_in(&as_type) {
             return Err(CheckError::new()
                 .src(vec![
-                    (self.pos_in_src, None),
+                    (self.pos_in_src.clone(), None),
                     (
-                        self.type_pos_in_src,
+                        self.type_pos_in_src.clone(),
                         Some(error_colors::AsTypeTypeAnnotation),
                     ),
                     (
@@ -73,6 +73,6 @@ impl MersStatement for AsType {
         false
     }
     fn source_range(&self) -> SourceRange {
-        self.pos_in_src
+        self.pos_in_src.clone()
     }
 }

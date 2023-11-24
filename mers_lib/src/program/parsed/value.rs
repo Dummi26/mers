@@ -22,11 +22,11 @@ impl MersStatement for Value {
         _comp: CompInfo,
     ) -> Result<Box<dyn program::run::MersStatement>, CheckError> {
         Ok(Box::new(program::run::value::Value {
-            pos_in_src: self.pos_in_src,
+            pos_in_src: self.pos_in_src.clone(),
             val: self.data.clone(),
         }))
     }
     fn source_range(&self) -> SourceRange {
-        self.pos_in_src
+        self.pos_in_src.clone()
     }
 }

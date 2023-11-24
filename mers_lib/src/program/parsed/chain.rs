@@ -21,13 +21,13 @@ impl MersStatement for Chain {
         comp: CompInfo,
     ) -> Result<Box<dyn program::run::MersStatement>, CheckError> {
         Ok(Box::new(program::run::chain::Chain {
-            pos_in_src: self.pos_in_src,
+            pos_in_src: self.pos_in_src.clone(),
             first: self.first.compile(info, comp)?,
             chained: self.chained.compile(info, comp)?,
             as_part_of_include: None,
         }))
     }
     fn source_range(&self) -> SourceRange {
-        self.pos_in_src
+        self.pos_in_src.clone()
     }
 }

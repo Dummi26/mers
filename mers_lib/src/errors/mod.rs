@@ -1,4 +1,7 @@
-use std::fmt::{Debug, Display};
+use std::{
+    fmt::{Debug, Display},
+    sync::Arc,
+};
 
 use colored::Colorize;
 use line_span::LineSpans;
@@ -14,14 +17,16 @@ impl SourcePos {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct SourceRange {
+    in_file: Arc<Source>,
     start: SourcePos,
     end: SourcePos,
 }
-impl From<(SourcePos, SourcePos)> for SourceRange {
-    fn from(value: (SourcePos, SourcePos)) -> Self {
+impl From<(SourcePos, SourcePos, &Arc<Source>)> for SourceRange {
+    fn from(value: (SourcePos, SourcePos, &Arc<Source>)) -> Self {
         SourceRange {
+            in_file: Arc::clone(value.2),
             start: value.0,
             end: value.1,
         }
@@ -74,7 +79,7 @@ pub mod error_colors {
 enum CheckErrorComponent {
     Message(String),
     Error(CheckError),
-    ErrorWithSrc(CheckErrorWithSrc),
+    ErrorWithDifferentSource(CheckError),
     Source(Vec<(SourceRange, Option<colored::Color>)>),
 }
 #[derive(Clone)]
@@ -88,13 +93,6 @@ pub struct CheckErrorHRConfig {
 #[cfg(feature = "parse")]
 pub struct CheckErrorDisplay<'a> {
     e: &'a CheckError,
-    src: Option<&'a Source>,
-    pub show_comments: bool,
-}
-#[cfg(feature = "parse")]
-pub struct CheckErrorWithSrc {
-    e: CheckError,
-    src: Source,
     pub show_comments: bool,
 }
 #[cfg(feature = "parse")]
@@ -105,33 +103,10 @@ impl<'a> CheckErrorDisplay<'a> {
     }
 }
 #[cfg(feature = "parse")]
-impl CheckErrorWithSrc {
-    pub fn show_comments(mut self, show_comments: bool) -> Self {
-        self.show_comments = show_comments;
-        self
-    }
-}
-#[cfg(feature = "parse")]
 impl Display for CheckErrorDisplay<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.e.human_readable(
             f,
-            self.src,
-            &CheckErrorHRConfig {
-                indent_start: String::new(),
-                indent_default: String::new(),
-                indent_end: String::new(),
-                show_comments: self.show_comments,
-            },
-        )
-    }
-}
-#[cfg(feature = "parse")]
-impl Display for CheckErrorWithSrc {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.e.human_readable(
-            f,
-            Some(&self.src),
             &CheckErrorHRConfig {
                 indent_start: String::new(),
                 indent_default: String::new(),
@@ -155,29 +130,16 @@ impl CheckError {
     pub(crate) fn err(self, e: Self) -> Self {
         self.add(CheckErrorComponent::Error(e))
     }
-    pub(crate) fn err_with_src(self, e: CheckError, src: Source) -> Self {
-        self.add(CheckErrorComponent::ErrorWithSrc(CheckErrorWithSrc {
-            e,
-            src,
-            show_comments: true,
-        }))
+    pub(crate) fn err_with_diff_src(self, e: CheckError) -> Self {
+        self.add(CheckErrorComponent::ErrorWithDifferentSource(e))
     }
     pub(crate) fn src(self, s: Vec<(SourceRange, Option<colored::Color>)>) -> Self {
         self.add(CheckErrorComponent::Source(s))
     }
     #[cfg(feature = "parse")]
-    pub fn display<'a>(&'a self, src: &'a Source) -> CheckErrorDisplay<'a> {
+    pub fn display<'a>(&'a self) -> CheckErrorDisplay<'a> {
         CheckErrorDisplay {
             e: self,
-            src: Some(src),
-            show_comments: true,
-        }
-    }
-    #[cfg(feature = "parse")]
-    pub fn display_no_src<'a>(&'a self) -> CheckErrorDisplay<'a> {
-        CheckErrorDisplay {
-            e: self,
-            src: None,
             show_comments: true,
         }
     }
@@ -186,7 +148,6 @@ impl CheckError {
     fn human_readable(
         &self,
         f: &mut std::fmt::Formatter<'_>,
-        src: Option<&Source>,
         cfg: &CheckErrorHRConfig,
     ) -> std::fmt::Result {
         use crate::parsing::SourceFrom;
@@ -211,18 +172,18 @@ impl CheckError {
                     cfg.indent_start.push_str("│");
                     cfg.indent_default.push_str("│");
                     cfg.indent_end.push_str("└");
-                    err.human_readable(f, src, &cfg)?;
+                    err.human_readable(f, &cfg)?;
                 }
-                CheckErrorComponent::ErrorWithSrc(err) => {
+                CheckErrorComponent::ErrorWithDifferentSource(err) => {
                     let mut cfg = cfg.clone();
                     cfg.indent_start.push_str(&"│".bright_yellow().to_string());
                     cfg.indent_default
                         .push_str(&"│".bright_yellow().to_string());
                     cfg.indent_end.push_str(&"└".bright_yellow().to_string());
-                    err.e.human_readable(f, Some(&err.src), &cfg)?;
+                    err.human_readable(f, &cfg)?;
                 }
                 CheckErrorComponent::Source(highlights) => {
-                    if let Some(src) = src {
+                    if let Some(src) = highlights.first().map(|v| v.0.in_file.as_ref()) {
                         let start = highlights.iter().map(|v| v.0.start.pos()).min();
                         let end = highlights.iter().map(|v| v.0.end.pos()).max();
                         if let (Some(start_in_line), Some(end_in_line)) = (start, end) {
@@ -370,6 +331,6 @@ impl Debug for CheckError {
 }
 impl Display for CheckError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.display_no_src())
+        write!(f, "{}", self.display())
     }
 }

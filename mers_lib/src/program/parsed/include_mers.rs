@@ -33,7 +33,7 @@ impl MersStatement for IncludeMers {
                 Err(e) => {
                     return Err(CheckError::new()
                         .src(vec![(
-                            self.pos_in_src,
+                            self.pos_in_src.clone(),
                             Some(error_colors::HashIncludeErrorInIncludedFile),
                         )])
                         .msg(
@@ -41,18 +41,18 @@ impl MersStatement for IncludeMers {
                                 .color(error_colors::HashIncludeErrorInIncludedFile)
                                 .to_string(),
                         )
-                        .err_with_src(e, self.inner_src.clone()))
+                        .err_with_diff_src(e))
                 }
             };
         let compiled2 = Arc::clone(&compiled);
         Ok(Box::new(program::run::chain::Chain {
-            pos_in_src: self.pos_in_src,
+            pos_in_src: self.pos_in_src.clone(),
             first: Box::new(program::run::value::Value {
-                pos_in_src: self.pos_in_src,
+                pos_in_src: self.pos_in_src.clone(),
                 val: Data::empty_tuple(),
             }),
             chained: Box::new(program::run::function::Function {
-                pos_in_src: self.pos_in_src,
+                pos_in_src: self.pos_in_src.clone(),
                 func_no_info: data::function::Function {
                     info: Arc::new(info::Info::neverused()),
                     info_check: Arc::new(Mutex::new(info::Info::neverused())),
@@ -64,6 +64,6 @@ impl MersStatement for IncludeMers {
         }))
     }
     fn source_range(&self) -> SourceRange {
-        self.pos_in_src
+        self.pos_in_src.clone()
     }
 }

@@ -30,7 +30,7 @@ impl MersStatement for If {
         if !cond_return_type.is_included_in(&data::bool::BoolT) {
             return Err(CheckError::new()
                 .src(vec![
-                    (self.pos_in_src, None),
+                    (self.pos_in_src.clone(), None),
                     (
                         self.condition.source_range(),
                         Some(error_colors::IfConditionNotBool),
@@ -71,6 +71,6 @@ impl MersStatement for If {
         true
     }
     fn source_range(&self) -> SourceRange {
-        self.pos_in_src
+        self.pos_in_src.clone()
     }
 }

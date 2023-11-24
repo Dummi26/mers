@@ -16,7 +16,7 @@ pub enum ParsedType {
     TypeWithInfo(String, String),
 }
 
-pub fn parse_single_type(src: &mut Source) -> Result<ParsedType, CheckError> {
+pub fn parse_single_type(src: &mut Source, srca: &Arc<Source>) -> Result<ParsedType, CheckError> {
     src.section_begin("parse single type".to_string());
     src.skip_whitespace();
     Ok(match src.peek_char() {
@@ -25,7 +25,7 @@ pub fn parse_single_type(src: &mut Source) -> Result<ParsedType, CheckError> {
             src.next_char();
             if let Some('{') = src.peek_char() {
                 src.next_char();
-                let types = parse_type(src)?;
+                let types = parse_type(src, srca)?;
                 let nc = src.next_char();
                 if !matches!(nc, Some('}')) {
                     let nc = if let Some(nc) = nc {
@@ -39,7 +39,7 @@ pub fn parse_single_type(src: &mut Source) -> Result<ParsedType, CheckError> {
                 }
                 ParsedType::Reference(types)
             } else {
-                ParsedType::Reference(vec![parse_single_type(src)?])
+                ParsedType::Reference(vec![parse_single_type(src, srca)?])
             }
         }
         // Tuple
@@ -53,7 +53,7 @@ pub fn parse_single_type(src: &mut Source) -> Result<ParsedType, CheckError> {
                 // empty tuple, don't even start the loop
             } else {
                 loop {
-                    inner.push(parse_type(src)?);
+                    inner.push(parse_type(src, srca)?);
                     match src.peek_char() {
                         Some(')') => {
                             src.next_char();
@@ -67,9 +67,9 @@ pub fn parse_single_type(src: &mut Source) -> Result<ParsedType, CheckError> {
                             src.next_char();
                             return Err(CheckError::new()
                                 .src(vec![
-                                    ((pos_in_src, src.get_pos()).into(), None),
+                                    ((pos_in_src, src.get_pos(), srca).into(), None),
                                     (
-                                        (ppos, src.get_pos()).into(),
+                                        (ppos, src.get_pos(), srca).into(),
                                         Some(error_colors::BadCharInTupleType),
                                     ),
                                 ])
@@ -90,7 +90,7 @@ pub fn parse_single_type(src: &mut Source) -> Result<ParsedType, CheckError> {
                 src.next_char();
                 ParsedType::TypeWithInfo(
                     t,
-                    super::statements::parse_string_custom_end(src, pos, '<', '>')?,
+                    super::statements::parse_string_custom_end(src, srca, pos, '<', '>')?,
                 )
             } else {
                 ParsedType::Type(t)
@@ -100,11 +100,11 @@ pub fn parse_single_type(src: &mut Source) -> Result<ParsedType, CheckError> {
     })
 }
 
-pub fn parse_type(src: &mut Source) -> Result<Vec<ParsedType>, CheckError> {
+pub fn parse_type(src: &mut Source, srca: &Arc<Source>) -> Result<Vec<ParsedType>, CheckError> {
     src.section_begin("parse single type".to_string());
     let mut types = vec![];
     loop {
-        types.push(parse_single_type(src)?);
+        types.push(parse_single_type(src, srca)?);
         src.skip_whitespace();
         if let Some('/') = src.peek_char() {
             src.next_char();

@@ -23,7 +23,7 @@ impl MersStatement for CustomType {
             Err(s) => Err(s.compile(info, comp)?),
         };
         Ok(Box::new(crate::program::run::custom_type::CustomType {
-            pos_in_src: self.pos_in_src,
+            pos_in_src: self.pos_in_src.clone(),
             name: self.name.clone(),
             source: Box::new(move |ci| match &src {
                 Ok(parsed) => Ok(Ok(Arc::new(type_from_parsed(parsed, ci)?))),
@@ -35,7 +35,7 @@ impl MersStatement for CustomType {
         false
     }
     fn source_range(&self) -> SourceRange {
-        self.pos_in_src
+        self.pos_in_src.clone()
     }
 }
 

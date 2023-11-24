@@ -28,13 +28,13 @@ impl MersStatement for InitTo {
         let target = self.target.compile(info, comp)?;
         comp.is_init = false;
         Ok(Box::new(program::run::assign_to::AssignTo {
-            pos_in_src: self.pos_in_src,
+            pos_in_src: self.pos_in_src.clone(),
             is_init: true,
             source,
             target,
         }))
     }
     fn source_range(&self) -> SourceRange {
-        self.pos_in_src
+        self.pos_in_src.clone()
     }
 }

@@ -23,7 +23,7 @@ impl MersStatement for If {
         comp: CompInfo,
     ) -> Result<Box<dyn program::run::MersStatement>, CheckError> {
         Ok(Box::new(program::run::r#if::If {
-            pos_in_src: self.pos_in_src,
+            pos_in_src: self.pos_in_src.clone(),
             condition: self.condition.compile(info, comp)?,
             on_true: self.on_true.compile(info, comp)?,
             on_false: if let Some(v) = &self.on_false {
@@ -34,6 +34,6 @@ impl MersStatement for If {
         }))
     }
     fn source_range(&self) -> SourceRange {
-        self.pos_in_src
+        self.pos_in_src.clone()
     }
 }

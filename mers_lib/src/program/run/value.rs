@@ -29,6 +29,6 @@ impl MersStatement for Value {
         self.val.clone()
     }
     fn source_range(&self) -> SourceRange {
-        self.pos_in_src
+        self.pos_in_src.clone()
     }
 }

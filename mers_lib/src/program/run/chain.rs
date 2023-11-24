@@ -37,10 +37,10 @@ impl MersStatement for Chain {
                 match (func.0)(&arg) {
                     Ok(t) => o.add(Arc::new(t)),
                     Err(e) => {
-                        return Err(if let Some(inner_src) = &self.as_part_of_include {
+                        return Err(if let Some(_) = &self.as_part_of_include {
                             CheckError::new()
                                 .src(vec![(
-                                    self.pos_in_src,
+                                    self.pos_in_src.clone(),
                                     Some(error_colors::HashIncludeErrorInIncludedFile),
                                 )])
                                 .msg(
@@ -48,11 +48,11 @@ impl MersStatement for Chain {
                                         .color(error_colors::HashIncludeErrorInIncludedFile)
                                         .to_string(),
                                 )
-                                .err_with_src(e, inner_src.clone())
+                                .err_with_diff_src(e)
                         } else {
                             CheckError::new()
                                 .src(vec![
-                                    (self.pos_in_src, None),
+                                    (self.pos_in_src.clone(), None),
                                     (
                                         self.first.source_range(),
                                         Some(error_colors::FunctionArgument),
@@ -71,7 +71,7 @@ impl MersStatement for Chain {
             } else {
                 return Err(CheckError::new()
                     .src(vec![
-                        (self.pos_in_src, None),
+                        (self.pos_in_src.clone(), None),
                         (
                             self.chained.source_range(),
                             Some(error_colors::ChainWithNonFunction),
@@ -99,6 +99,6 @@ impl MersStatement for Chain {
         false
     }
     fn source_range(&self) -> SourceRange {
-        self.pos_in_src
+        self.pos_in_src.clone()
     }
 }

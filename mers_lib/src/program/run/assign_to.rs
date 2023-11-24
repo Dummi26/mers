@@ -30,7 +30,7 @@ impl MersStatement for AssignTo {
             Err(e) => {
                 return Err(CheckError::new()
                     .src(vec![
-                        (self.pos_in_src, None),
+                        (self.pos_in_src.clone(), None),
                         (self.target.source_range(), Some(error_colors::InitTo)),
                         (self.source.source_range(), Some(error_colors::InitFrom)),
                     ])
@@ -43,7 +43,7 @@ impl MersStatement for AssignTo {
                 if !source.is_included_in(&t) {
                     return Err(CheckError::new()
                         .src(vec![
-                            (self.pos_in_src, None),
+                            (self.pos_in_src.clone(), None),
                             (self.target.source_range(), Some(error_colors::AssignTo)),
                             (self.source.source_range(), Some(error_colors::AssignFrom)),
                         ])
@@ -57,7 +57,7 @@ impl MersStatement for AssignTo {
             } else {
                 return Err(CheckError::new()
                     .src(vec![
-                        (self.pos_in_src, None),
+                        (self.pos_in_src.clone(), None),
                         (
                             self.target.source_range(),
                             Some(error_colors::AssignTargetNonReference),
@@ -81,6 +81,6 @@ impl MersStatement for AssignTo {
         false
     }
     fn source_range(&self) -> SourceRange {
-        self.pos_in_src
+        self.pos_in_src.clone()
     }
 }

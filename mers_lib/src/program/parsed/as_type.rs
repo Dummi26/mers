@@ -25,14 +25,14 @@ impl MersStatement for AsType {
         comp: CompInfo,
     ) -> Result<Box<dyn program::run::MersStatement>, CheckError> {
         Ok(Box::new(program::run::as_type::AsType {
-            pos_in_src: self.pos_in_src,
+            pos_in_src: self.pos_in_src.clone(),
             statement: self.statement.compile(info, comp)?,
             as_type: self.as_type.clone(),
-            type_pos_in_src: self.type_pos_in_src,
+            type_pos_in_src: self.type_pos_in_src.clone(),
             expand_type: self.expand_type,
         }))
     }
     fn source_range(&self) -> SourceRange {
-        self.pos_in_src
+        self.pos_in_src.clone()
     }
 }
