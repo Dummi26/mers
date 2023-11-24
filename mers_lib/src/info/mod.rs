@@ -52,7 +52,7 @@ impl<L: Local> Local for Info<L> {
     }
     fn duplicate(&self) -> Self {
         Self {
-            scopes: self.scopes.iter().map(|v| v.duplicate()).collect(),
+            scopes: vec![self.scopes[0].duplicate()],
             global: self.global.clone(),
         }
     }

@@ -28,7 +28,7 @@ impl MersStatement for IncludeMers {
         comp: CompInfo,
     ) -> Result<Box<dyn program::run::MersStatement>, CheckError> {
         let compiled: Arc<Box<dyn crate::program::run::MersStatement>> =
-            match self.include.compile(info, comp) {
+            match self.include.compile(&mut info.duplicate(), comp) {
                 Ok(v) => Arc::new(v),
                 Err(e) => {
                     return Err(CheckError::new()
