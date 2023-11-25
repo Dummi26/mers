@@ -16,7 +16,7 @@ my_list.println
 my_list.for_each(v ->
   v.try((
     v -> {
-      [Int] v // this won't compile if v isn't a float
+      [Int] v // this won't compile if v is a float
       ("Int: ", v).concat
     }
     v -> {
