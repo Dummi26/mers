@@ -7,15 +7,15 @@ use crate::{
     program::run::CheckInfo,
 };
 
-mod with_base;
-mod with_command_running;
-mod with_get;
-mod with_iters;
-mod with_list;
-mod with_math;
-mod with_multithreading;
-mod with_stdio;
-mod with_string;
+pub mod with_base;
+pub mod with_command_running;
+pub mod with_get;
+pub mod with_iters;
+pub mod with_list;
+pub mod with_math;
+pub mod with_multithreading;
+pub mod with_stdio;
+pub mod with_string;
 
 /// Usage: create an empty Config using Config::new(), use the methods to customize it, then get the Infos using Config::infos()
 /// bundle_* for bundles (combines multiple groups or even bundles)

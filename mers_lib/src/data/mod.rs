@@ -101,6 +101,9 @@ impl Data {
             data: Arc::new(RwLock::new(data)),
         }
     }
+    pub fn is_mut(&self) -> bool {
+        self.is_mut
+    }
     pub fn empty_tuple() -> Self {
         Self::new(tuple::Tuple(vec![]))
     }
@@ -166,20 +169,27 @@ impl Data {
         }
         self.get_mut_unchecked()
     }
-    pub fn mkref(&self) -> Self {
+    /// If self is already mut, returns `(Data, false)`. If not, inner data will be cloned and `(Data, true)` will be returned.
+    pub fn mkref(&self) -> (Self, bool) {
         if self.is_mut {
             self.counts
                 .1
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            Self {
-                is_mut: true,
-                counts: Arc::clone(&self.counts),
-                data: Arc::clone(&self.data),
-            }
+            (
+                Self {
+                    is_mut: true,
+                    counts: Arc::clone(&self.counts),
+                    data: Arc::clone(&self.data),
+                },
+                false,
+            )
         } else {
             #[cfg(debug_assertions)]
             eprintln!("[mers:data:cow] cloning! mkref called on immutable data");
-            Self::new_boxed(self.data.read().unwrap().clone(), true)
+            (
+                Self::new_boxed(self.data.read().unwrap().clone(), true),
+                true,
+            )
         }
     }
 }
