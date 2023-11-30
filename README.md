@@ -14,13 +14,13 @@ Mers is simple. There are only few expressions:
 
 - Values (`1`, `"my string"`, ...)
 - Blocks (`{}`)
-- Tuples (`()`)
+- Tuples (`()`) and Objects (`{}`)
 - Assignments (`=`)
 - Variable initializations (`:=`)
 - Variables (`my_var`, `&my_var`)
 - If statements (`if <condition> <then> [else <else>]`)
 - Functions (`arg -> <do something>`)
-- Function calls `arg.function`
+- Function calls `arg.function` or `arg1.function(arg2, arg3)` (= `(arg1, arg2, arg3).function`)
 
 Everything else is implemented as a function.
 
