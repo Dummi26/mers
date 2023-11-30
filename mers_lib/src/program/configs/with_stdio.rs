@@ -51,7 +51,8 @@ impl Config {
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|_a, _i| Ok(Type::empty_tuple())),
                 run: Arc::new(|a, _i| {
-                    eprintln!("{:#?}", a.get());
+                    let a = a.get();
+                    eprintln!("{} :: {}", a.as_type(), a);
                     Data::empty_tuple()
                 }),
             }),
