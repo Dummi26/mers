@@ -321,23 +321,30 @@ pub fn parse_no_chain(
                     let name = src.next_word().to_owned();
                     src.skip_whitespace();
                     match src.next_char() {
-                        Some(':') => elems.push((
-                            name,
-                            match parse(src, srca) {
-                                Ok(Some(v)) => v,
-                                Ok(None) => {
-                                    return Err(CheckError::new()
-                                        .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
-                                        .msg(format!("EOF after `:` in object")))
-                                }
-                                Err(e) => {
-                                    return Err(CheckError::new()
-                                        .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
-                                        .msg(format!("Error in statement after `:` in object"))
-                                        .err(e))
-                                }
-                            },
-                        )),
+                        Some(':') if src.next_char().is_some_and(|c| c.is_whitespace()) => elems
+                            .push((
+                                name,
+                                match parse(src, srca) {
+                                    Ok(Some(v)) => v,
+                                    Ok(None) => {
+                                        return Err(CheckError::new()
+                                            .src(vec![(
+                                                (pos_in_src, src.get_pos(), srca).into(),
+                                                None,
+                                            )])
+                                            .msg(format!("EOF after `:` in object")))
+                                    }
+                                    Err(e) => {
+                                        return Err(CheckError::new()
+                                            .src(vec![(
+                                                (pos_in_src, src.get_pos(), srca).into(),
+                                                None,
+                                            )])
+                                            .msg(format!("Error in statement after `:` in object"))
+                                            .err(e))
+                                    }
+                                },
+                            )),
                         _ => {
                             // not an object (or invalid syntax)
                             src.set_pos(pos_in_src_after_bracket);
