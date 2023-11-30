@@ -51,6 +51,7 @@ pub fn parse_single_type(src: &mut Source, srca: &Arc<Source>) -> Result<ParsedT
             let mut inner = vec![];
             src.skip_whitespace();
             if let Some(')') = src.peek_char() {
+                src.next_char();
                 // empty tuple, don't even start the loop
             } else {
                 loop {
@@ -92,6 +93,7 @@ pub fn parse_single_type(src: &mut Source, srca: &Arc<Source>) -> Result<ParsedT
             let mut inner = vec![];
             src.skip_whitespace();
             if let Some('}') = src.peek_char() {
+                src.next_char();
                 // empty object, don't even start the loop
             } else {
                 loop {
