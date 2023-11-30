@@ -8,6 +8,7 @@ pub mod bool;
 pub mod float;
 pub mod function;
 pub mod int;
+pub mod object;
 pub mod reference;
 pub mod string;
 pub mod tuple;

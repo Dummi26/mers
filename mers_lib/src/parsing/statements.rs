@@ -35,15 +35,15 @@ pub fn parse(
                 );
             }
             src.skip_whitespace();
-            if src.peek_word() == ":=" {
-                src.next_word();
+            if src.peek_word_allow_colon() == ":=" {
+                src.next_word_allow_colon();
                 // [[name] := statement]
                 let statement = match parse(src, srca) {
                     Ok(Some(v)) => v,
                     Ok(None) => {
                         return Err(CheckError::new()
                             .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
-                            .msg(format!("EOF after `[...]` type annotation")))
+                            .msg(format!("EOF after `[[...] := ...]` type definition")))
                     }
                     Err(e) => return Err(e),
                 };
@@ -113,10 +113,10 @@ pub fn parse(
     };
     let mut pos_after_first = src.get_pos();
     src.skip_whitespace();
-    match src.peek_word() {
+    match src.peek_word_allow_colon() {
         ":=" => {
             let pos_in_src = src.get_pos();
-            src.next_word();
+            src.next_word_allow_colon();
             let source = parse(src, srca)?.ok_or_else(|| {
                 CheckError::new()
                     .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
@@ -130,7 +130,7 @@ pub fn parse(
         }
         "=" => {
             let pos_in_src = src.get_pos();
-            src.next_word();
+            src.next_word_allow_colon();
             let source = parse(src, srca)?.ok_or_else(|| {
                 CheckError::new()
                     .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
@@ -144,7 +144,7 @@ pub fn parse(
         }
         "->" => {
             let pos_in_src = src.get_pos();
-            src.next_word();
+            src.next_word_allow_colon();
             let run = match parse(src, srca) {
                 Ok(Some(v)) => v,
                 Ok(None) => {
@@ -303,8 +303,50 @@ pub fn parse_no_chain(
             }
         }
         Some('{') => {
+            // try: is this an object?
             let pos_in_src = src.get_pos();
             src.next_char();
+            let pos_in_src_after_bracket = src.get_pos();
+            {
+                let mut elems = vec![];
+                loop {
+                    src.skip_whitespace();
+                    if src.peek_char() == Some('}') {
+                        src.next_char();
+                        return Ok(Some(Box::new(program::parsed::object::Object {
+                            pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
+                            elems,
+                        })));
+                    }
+                    let name = src.next_word().to_owned();
+                    src.skip_whitespace();
+                    match src.next_char() {
+                        Some(':') => elems.push((
+                            name,
+                            match parse(src, srca) {
+                                Ok(Some(v)) => v,
+                                Ok(None) => {
+                                    return Err(CheckError::new()
+                                        .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
+                                        .msg(format!("EOF after `:` in object")))
+                                }
+                                Err(e) => {
+                                    return Err(CheckError::new()
+                                        .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
+                                        .msg(format!("Error in statement after `:` in object"))
+                                        .err(e))
+                                }
+                            },
+                        )),
+                        _ => {
+                            // not an object (or invalid syntax)
+                            src.set_pos(pos_in_src_after_bracket);
+                            break;
+                        }
+                    }
+                }
+            }
+            // if not an object
             let statements = parse_multiple(src, srca, "}")?;
             return Ok(Some(Box::new(program::parsed::block::Block {
                 pos_in_src: (pos_in_src, src.get_pos(), srca).into(),

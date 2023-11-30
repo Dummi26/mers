@@ -180,8 +180,11 @@ impl Source {
         self.i += ch.len_utf8();
         Some(ch)
     }
-    fn word_splitter(ch: char) -> bool {
+    fn word_splitter_no_colon(ch: char) -> bool {
         ch.is_whitespace() || ".,;[](){}/<".contains(ch)
+    }
+    fn word_splitter(ch: char) -> bool {
+        Self::word_splitter_no_colon(ch) || ch == ':'
     }
     pub fn peek_word(&self) -> &str {
         self.src[self.i..]
@@ -189,10 +192,25 @@ impl Source {
             .next()
             .unwrap_or("")
     }
+    pub fn peek_word_allow_colon(&self) -> &str {
+        self.src[self.i..]
+            .split(Self::word_splitter_no_colon)
+            .next()
+            .unwrap_or("")
+    }
     pub fn next_word(&mut self) -> &str {
         self.end_sections();
         let word = self.src[self.i..]
             .split(Self::word_splitter)
+            .next()
+            .unwrap_or("");
+        self.i += word.len();
+        word
+    }
+    pub fn next_word_allow_colon(&mut self) -> &str {
+        self.end_sections();
+        let word = self.src[self.i..]
+            .split(Self::word_splitter_no_colon)
             .next()
             .unwrap_or("");
         self.i += word.len();

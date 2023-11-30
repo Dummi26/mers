@@ -25,6 +25,8 @@ pub mod function;
 #[cfg(feature = "run")]
 pub mod r#if;
 #[cfg(feature = "run")]
+pub mod object;
+#[cfg(feature = "run")]
 pub mod tuple;
 #[cfg(feature = "run")]
 pub mod value;

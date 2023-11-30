@@ -24,6 +24,8 @@ pub mod include_mers;
 #[cfg(feature = "parse")]
 pub mod init_to;
 #[cfg(feature = "parse")]
+pub mod object;
+#[cfg(feature = "parse")]
 pub mod tuple;
 #[cfg(feature = "parse")]
 pub mod value;

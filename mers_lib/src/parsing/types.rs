@@ -12,6 +12,7 @@ use super::Source;
 pub enum ParsedType {
     Reference(Vec<Self>),
     Tuple(Vec<Vec<Self>>),
+    Object(Vec<(String, Vec<Self>)>),
     Type(String),
     TypeWithInfo(String, String),
 }
@@ -54,6 +55,7 @@ pub fn parse_single_type(src: &mut Source, srca: &Arc<Source>) -> Result<ParsedT
             } else {
                 loop {
                     inner.push(parse_type(src, srca)?);
+                    src.skip_whitespace();
                     match src.peek_char() {
                         Some(')') => {
                             src.next_char();
@@ -81,6 +83,42 @@ pub fn parse_single_type(src: &mut Source, srca: &Arc<Source>) -> Result<ParsedT
                 }
             }
             ParsedType::Tuple(inner)
+        }
+        // Object
+        Some('{') => {
+            let pos_in_src = src.get_pos();
+            src.next_char();
+            src.section_begin("parse tuple's inner types".to_string());
+            let mut inner = vec![];
+            src.skip_whitespace();
+            if let Some('}') = src.peek_char() {
+                // empty object, don't even start the loop
+            } else {
+                loop {
+                    src.skip_whitespace();
+                    let field = src.next_word().to_owned();
+                    src.skip_whitespace();
+                    if src.next_char() != Some(':') {
+                        return Err(CheckError::new()
+                            .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
+                            .msg(format!("Expected colon ':' in object type")));
+                    }
+                    src.skip_whitespace();
+                    inner.push((field, parse_type(src, srca)?));
+                    src.skip_whitespace();
+                    match src.peek_char() {
+                        Some('}') => {
+                            src.next_char();
+                            break;
+                        }
+                        Some(',') => {
+                            src.next_char();
+                        }
+                        _ => (),
+                    }
+                }
+            }
+            ParsedType::Object(inner)
         }
         Some(_) => {
             let t = src.next_word().to_owned();
@@ -129,6 +167,13 @@ pub fn type_from_parsed(
             ParsedType::Tuple(t) => Arc::new(data::tuple::TupleT(
                 t.iter()
                     .map(|v| type_from_parsed(v, info))
+                    .collect::<Result<_, _>>()?,
+            )),
+            ParsedType::Object(o) => Arc::new(data::object::ObjectT(
+                o.iter()
+                    .map(|(s, v)| -> Result<_, CheckError> {
+                        Ok((s.clone(), type_from_parsed(v, info)?))
+                    })
                     .collect::<Result<_, _>>()?,
             )),
             ParsedType::Type(name) => match info
