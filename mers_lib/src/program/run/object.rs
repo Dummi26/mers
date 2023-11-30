@@ -21,57 +21,81 @@ impl MersStatement for Object {
         init_to: Option<&Type>,
     ) -> Result<data::Type, super::CheckError> {
         let mut assign_types = if let Some(init_to) = init_to {
+            let mut acc = (0..self.elems.len())
+                .map(|_| Type::empty())
+                .collect::<VecDeque<_>>();
             let print_is_part_of = init_to.types.len() > 1;
-            Some(
-                self.elems
-                    .iter()
-                    .map(|(field, _)| -> Result<_, CheckError> {
-                        let mut acc = Type::empty();
-                        for t in init_to.types.iter() {
-                            if let Some(t) = t.as_any().downcast_ref::<ObjectT>() {
-                                let mut found = false;
-                                for (name, assign_to) in t.0.iter() {
-                                    if name == field {
-                                        acc.add(Arc::new(assign_to.clone()));
-                                        found = true;
-                                        break;
-                                    }
-                                }
-                                if !found {
-                                    return Err(format!(
-                                        "can't init an {} with type {}{} - field {field} not found",
-                                    "object".color(error_colors::InitTo),
-                                    t.to_string().color(error_colors::InitFrom),
-                                    if print_is_part_of {
-                                        format!(
-                                            ", which is part of {}",
-                                            init_to.to_string().color(error_colors::InitFrom)
-                                        )
-                                    } else {
-                                        format!("")
-                                    }
-                                    ).into());
-                                }
-                            } else {
-                                return Err(format!(
-                                    "can't init an {} with type {}{} - only objects can be assigned to objects",
-                                    "object".color(error_colors::InitTo),
-                                    t.to_string().color(error_colors::InitFrom),
-                                    if print_is_part_of {
-                                        format!(
-                                            ", which is part of {}",
-                                            init_to.to_string().color(error_colors::InitFrom)
-                                        )
-                                    } else {
-                                        format!("")
-                                    }
-                                ).into());
+            for t in init_to.types.iter() {
+                if let Some(t) = t.as_any().downcast_ref::<ObjectT>() {
+                    if self.elems.len() == t.0.len() {
+                        for (i, ((sn, _), (tn, t))) in self.elems.iter().zip(t.0.iter()).enumerate()
+                        {
+                            if sn != tn {
+                                return Err(format!("can't init an {} with type {}{} - field mismatch: {sn} != {tn}",                                    "object".color(error_colors::InitTo),
+                                                t.to_string().color(error_colors::InitFrom),
+                                                if print_is_part_of {
+                                                    format!(
+                                                        ", which is part of {}",
+                                                        init_to.to_string().color(error_colors::InitFrom)
+                                                    )
+                                                } else {
+                                                    format!("")
+                                                }
+                                            ).into());
                             }
+                            acc[i].add(Arc::new(t.clone()));
                         }
-                        Ok(acc)
-                    })
-                    .collect::<Result<VecDeque<Type>, CheckError>>()?,
-            )
+                    } else {
+                        return Err(format!(
+                            "can't init an {} with type {}{} - source has {}",
+                            "object".color(error_colors::InitTo),
+                            t.to_string().color(error_colors::InitFrom),
+                            if print_is_part_of {
+                                format!(
+                                    ", which is part of {}",
+                                    init_to.to_string().color(error_colors::InitFrom)
+                                )
+                            } else {
+                                format!("")
+                            },
+                            if self.elems.len() > t.0.len() {
+                                format!("less fields ({}, not {})", t.0.len(), self.elems.len())
+                            } else {
+                                format!(
+                                    "more fields. Either ignore those fields (`{}`) - or remove them from the type (`... := [{}] ...`)",
+                                    t.0.iter()
+                                        .skip(self.elems.len())
+                                        .enumerate()
+                                        .map(|(i, (n, _))| if i == 0 {
+                                            format!("{n}: _")
+                                        } else {
+                                            format!(", {n}: _")
+                                        })
+                                        .collect::<String>(),
+                                    data::object::ObjectT(t.0.iter().take(self.elems.len()).cloned().collect())
+                                )
+                            }
+                        )
+                        .into());
+                    }
+                } else {
+                    return Err(format!(
+                        "can't init an {} with type {}{} - only objects can be assigned to objects",
+                        "object".color(error_colors::InitTo),
+                        t.to_string().color(error_colors::InitFrom),
+                        if print_is_part_of {
+                            format!(
+                                ", which is part of {}",
+                                init_to.to_string().color(error_colors::InitFrom)
+                            )
+                        } else {
+                            format!("")
+                        }
+                    )
+                    .into());
+                }
+            }
+            Some(acc)
         } else {
             None
         };
