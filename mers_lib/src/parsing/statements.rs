@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-use super::{Source, SourcePos};
+use super::{Source, SourceFrom, SourcePos};
 use crate::{
     data::Data,
     errors::{error_colors, CheckError},
@@ -251,8 +251,16 @@ pub fn parse_no_chain(
                     src.skip_whitespace();
                     let string_in_src = src.get_pos();
                     if src.next_char() == Some('"') {
-                        let file_path = parse_string(src, srca, string_in_src)?;
-                        match Source::new_from_file(PathBuf::from(&file_path)) {
+                        let file_path_str = parse_string(src, srca, string_in_src)?;
+                        let mut file_path: PathBuf = PathBuf::from(&file_path_str);
+                        if !file_path.is_absolute() {
+                            if let SourceFrom::File(other_file_path) = srca.src_from() {
+                                if let Some(files_dir) = other_file_path.parent() {
+                                    file_path = files_dir.join(file_path);
+                                }
+                            }
+                        }
+                        match Source::new_from_file(file_path) {
                             Ok(mut inner_src) => {
                                 let inner_srca = Arc::new(inner_src.clone());
                                 return Ok(Some(Box::new(
@@ -277,7 +285,7 @@ pub fn parse_no_chain(
                                             Some(error_colors::HashIncludeCantLoadFile),
                                         ),
                                     ])
-                                    .msg(format!("Can't load file '{file_path}': {e}")));
+                                    .msg(format!("Can't load file '{file_path_str}': {e}")));
                             }
                         }
                     } else {

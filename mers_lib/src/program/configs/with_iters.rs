@@ -17,7 +17,7 @@ use super::Config;
 
 impl Config {
     /// Adds functions to deal with iterables
-    /// `iter: fn` executes a function once for each element of the iterable
+    /// `for_each: fn` executes a function once for each element of the iterable
     /// `map: fn` maps each value in the iterable to a new one by applying a transformation function
     /// `filter: fn` filters the iterable by removing all elements where the filter function doesn't return true
     /// `filter_map: fn` combines filter and map. requires that the function returns ()/(t).
