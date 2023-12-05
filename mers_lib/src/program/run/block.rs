@@ -38,4 +38,10 @@ impl MersStatement for Block {
     fn source_range(&self) -> SourceRange {
         self.pos_in_src.clone()
     }
+    fn inner_statements(&self) -> Vec<&dyn MersStatement> {
+        self.statements.iter().map(|s| s.as_ref()).collect()
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

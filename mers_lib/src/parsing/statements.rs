@@ -123,7 +123,7 @@ pub fn parse(
                     .msg(format!("EOF after `:=`"))
             })?;
             first = Box::new(program::parsed::init_to::InitTo {
-                pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
+                pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
                 target: first,
                 source,
             });
@@ -133,7 +133,10 @@ pub fn parse(
             src.next_word_allow_colon();
             let source = parse(src, srca)?.ok_or_else(|| {
                 CheckError::new()
-                    .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
+                    .src(vec![(
+                        (first.source_range().start(), src.get_pos(), srca).into(),
+                        None,
+                    )])
                     .msg(format!("EOF after `=`"))
             })?;
             first = Box::new(program::parsed::assign_to::AssignTo {
@@ -155,7 +158,7 @@ pub fn parse(
                 Err(e) => return Err(e),
             };
             first = Box::new(program::parsed::function::Function {
-                pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
+                pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
                 arg: first,
                 run,
             });

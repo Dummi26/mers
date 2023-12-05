@@ -76,6 +76,7 @@ impl Config {
                         unreachable!("run_command called with non-tuple argument")
                     }
                 }),
+                inner_statements: None,
             }),
         )
     }

@@ -1,5 +1,7 @@
 use std::{fmt::Debug, path::PathBuf, sync::Arc};
 
+use line_span::{LineSpan, LineSpanExt};
+
 use crate::{
     errors::{CheckError, SourcePos},
     program::{self, parsed::block::Block},
@@ -306,8 +308,36 @@ impl Source {
         }
         pos
     }
+    pub fn pos_from_og(&self, mut pos: usize, behind_comment: bool) -> usize {
+        for (start, comment) in &self.comments {
+            if *start + comment.len() <= pos {
+                pos -= comment.len();
+            } else if *start <= pos {
+                return if behind_comment {
+                    *start + comment.len()
+                } else {
+                    *start
+                };
+            } else {
+                break;
+            }
+        }
+        pos
+    }
     pub fn src_og(&self) -> &String {
         &self.src_og
+    }
+    /// If found, returns `Some((line_nr, line_str, byte_pos_in_line_may_be_out_of_string_bounds))`
+    pub fn get_line_and_char_from_pos_in_str(
+        byte_index: usize,
+        str: &str,
+    ) -> Option<(usize, LineSpan<'_>, usize)> {
+        for (line, line_span) in str.line_spans().enumerate() {
+            if line_span.start() <= byte_index {
+                return Some((line, line_span, byte_index - line_span.start()));
+            }
+        }
+        None
     }
 }
 

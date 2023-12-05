@@ -66,6 +66,7 @@ impl Config {
                         unreachable!("get called with less than 2 args")
                     }
                 }),
+                inner_statements: None,
             }),
         )
     }

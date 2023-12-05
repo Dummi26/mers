@@ -30,4 +30,10 @@ impl MersStatement for Chain {
     fn source_range(&self) -> SourceRange {
         self.pos_in_src.clone()
     }
+    fn inner_statements(&self) -> Vec<&dyn MersStatement> {
+        vec![self.first.as_ref(), self.chained.as_ref()]
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

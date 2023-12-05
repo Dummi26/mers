@@ -42,6 +42,7 @@ impl Config {
                     _ = std::io::stdin().read_line(&mut line);
                     Data::new(data::string::String(line))
                 }),
+                inner_statements: None,
             }),
         )
         .add_var(
@@ -55,6 +56,7 @@ impl Config {
                     eprintln!("{} :: {}", a.as_type(), a);
                     Data::empty_tuple()
                 }),
+                inner_statements: None,
             }),
         )
         .add_var(
@@ -68,6 +70,7 @@ impl Config {
                     _ = std::io::stderr().lock().flush();
                     Data::empty_tuple()
                 }),
+                inner_statements: None,
             }),
         )
         .add_var(
@@ -80,6 +83,7 @@ impl Config {
                     eprintln!("{}", a.get());
                     Data::empty_tuple()
                 }),
+                inner_statements: None,
             }),
         )
         .add_var(
@@ -93,6 +97,7 @@ impl Config {
                     _ = std::io::stdout().lock().flush();
                     Data::empty_tuple()
                 }),
+                inner_statements: None,
             }),
         )
         .add_var(
@@ -105,6 +110,7 @@ impl Config {
                     println!("{}", a.get());
                     Data::empty_tuple()
                 }),
+                inner_statements: None,
             }),
         )
     }

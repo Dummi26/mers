@@ -39,8 +39,12 @@ impl SourceRange {
     pub fn end(&self) -> SourcePos {
         self.end
     }
+    pub fn in_file(&self) -> &Arc<Source> {
+        &self.in_file
+    }
 }
-pub struct CheckError(Vec<CheckErrorComponent>);
+#[derive(Clone)]
+pub struct CheckError(pub Vec<CheckErrorComponent>);
 #[allow(non_upper_case_globals)]
 pub mod error_colors {
     use colored::Color;
@@ -76,7 +80,8 @@ pub mod error_colors {
     pub const BadTypeFromParsed: Color = Color::Blue;
     pub const TypeAnnotationNoClosingBracket: Color = Color::Blue;
 }
-enum CheckErrorComponent {
+#[derive(Clone)]
+pub enum CheckErrorComponent {
     Message(String),
     Error(CheckError),
     ErrorWithDifferentSource(CheckError),

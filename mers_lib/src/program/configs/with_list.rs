@@ -94,6 +94,7 @@ impl Config {
                         };
                         o
                     }),
+                inner_statements: None,
             }))
             .add_var(
                 "pop".to_string(),
@@ -140,6 +141,7 @@ impl Config {
                             None => Data::empty_tuple(),
                         }
                     }),
+                inner_statements: None,
                 }),
             )
             .add_var(
@@ -202,6 +204,7 @@ impl Config {
                             .push(Arc::new(RwLock::new(tuple.0[1].clone())));
                             Data::empty_tuple()
                     }),
+                inner_statements: None,
                 }),
             )
             .add_var(
@@ -225,6 +228,7 @@ impl Config {
                             unreachable!("as_list called on non-iterable")
                         }
                     }),
+                inner_statements: None,
                 }),
             )
     }

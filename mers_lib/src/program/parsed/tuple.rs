@@ -32,4 +32,10 @@ impl MersStatement for Tuple {
     fn source_range(&self) -> SourceRange {
         self.pos_in_src.clone()
     }
+    fn inner_statements(&self) -> Vec<&dyn MersStatement> {
+        self.elems.iter().map(|v| v.as_ref()).collect()
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

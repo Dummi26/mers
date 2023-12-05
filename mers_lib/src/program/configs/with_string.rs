@@ -25,7 +25,8 @@ impl Config {
             }),
             run: Arc::new(|a, _i| {
                 Data::new(data::string::String(a.get().as_any().downcast_ref::<data::string::String>().unwrap().0.trim().to_owned()))
-            })
+            }),
+                inner_statements: None,
         })).add_var("concat".to_string(), Data::new(data::function::Function {
             info: Arc::new(Info::neverused()),
             info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
@@ -35,11 +36,13 @@ impl Config {
                 Err(format!("concat called on non-iterable type {a}").into())
             }),
             run: Arc::new(|a, _i| Data::new(data::string::String(a.get().iterable().unwrap().map(|v| v.get().to_string()).collect()))),
+                inner_statements: None,
         })).add_var("to_string".to_string(), Data::new(data::function::Function {
             info: Arc::new(Info::neverused()),
             info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
             out: Arc::new(|_a, _i| Ok(Type::new(data::string::StringT))),
             run: Arc::new(|a, _i| Data::new(data::string::String(a.get().to_string()))),
+                inner_statements: None,
         })).add_var("index_of".to_string(), Data::new(data::function::Function {
             info: Arc::new(Info::neverused()),
             info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
@@ -52,6 +55,7 @@ impl Config {
                 Err(format!("wrong args for index_of: must be (string, string)").into())
             }),
             run: Arc::new(|a, _i| index_of(a, false)),
+                inner_statements: None,
         })).add_var("index_of_rev".to_string(), Data::new(data::function::Function {
             info: Arc::new(Info::neverused()),
             info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
@@ -64,6 +68,7 @@ impl Config {
                 Err(format!("wrong args for index_of: must be (string, string)").into())
             }),
             run: Arc::new(|a, _i| index_of(a, true)),
+                inner_statements: None,
         })).add_var("substring".to_string(), Data::new(data::function::Function {
             info: Arc::new(Info::neverused()),
             info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
@@ -113,6 +118,7 @@ impl Config {
                 Data::new(data::string::String(s[start..end].to_owned()))
 
             }),
+                inner_statements: None,
         }))
     }
 }

@@ -58,6 +58,7 @@ impl MersStatement for IncludeMers {
                     info_check: Arc::new(Mutex::new(info::Info::neverused())),
                     out: Arc::new(move |_, i| compiled.check(&mut i.duplicate(), None)),
                     run: Arc::new(move |_, i| compiled2.run(&mut i.duplicate())),
+                    inner_statements: None,
                 },
             }),
             as_part_of_include: Some(self.inner_src.clone()),
@@ -65,5 +66,11 @@ impl MersStatement for IncludeMers {
     }
     fn source_range(&self) -> SourceRange {
         self.pos_in_src.clone()
+    }
+    fn inner_statements(&self) -> Vec<&dyn MersStatement> {
+        vec![]
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }

@@ -54,6 +54,12 @@ impl MersStatement for CustomType {
     fn source_range(&self) -> SourceRange {
         self.pos_in_src.clone()
     }
+    fn inner_statements(&self) -> Vec<&dyn MersStatement> {
+        vec![]
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 impl Debug for CustomType {

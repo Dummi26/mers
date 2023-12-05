@@ -17,6 +17,10 @@ pub struct Function {
     pub info_check: Arc<Mutex<CheckInfo>>,
     pub out: Arc<dyn Fn(&Type, &mut CheckInfo) -> Result<Type, CheckError> + Send + Sync>,
     pub run: Arc<dyn Fn(Data, &mut crate::program::run::Info) -> Data + Send + Sync>,
+    pub inner_statements: Option<(
+        Arc<Box<dyn crate::prelude_compile::RunMersStatement>>,
+        Arc<Box<dyn crate::prelude_compile::RunMersStatement>>,
+    )>,
 }
 impl Function {
     pub fn with_info_run(&self, info: Arc<Info>) -> Self {
@@ -25,6 +29,10 @@ impl Function {
             info_check: Arc::clone(&self.info_check),
             out: Arc::clone(&self.out),
             run: Arc::clone(&self.run),
+            inner_statements: self
+                .inner_statements
+                .as_ref()
+                .map(|v| (Arc::clone(&v.0), Arc::clone(&v.1))),
         }
     }
     pub fn with_info_check(&self, check: CheckInfo) {

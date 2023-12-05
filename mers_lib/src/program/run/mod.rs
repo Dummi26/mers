@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fmt::Debug,
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex, RwLock},
 };
 
 use crate::{
@@ -43,13 +43,50 @@ pub trait MersStatement: Debug + Send + Sync {
     /// if true, local variables etc. will be contained inside their own scope.
     fn has_scope(&self) -> bool;
     fn check(&self, info: &mut CheckInfo, assign: Option<&Type>) -> Result<Type, CheckError> {
+        info.global.depth += 1;
         if self.has_scope() {
             info.create_scope();
         }
         let o = self.check_custom(info, assign);
+        if info.global.enable_hooks {
+            // Hooks - keep in sync with run/mod.rs/compile() hooks section
+            'hook_save_info_at: {
+                // `save_info_at` hook
+                let mut save_info_at = if let Ok(lock) = info.global.save_info_at.try_lock() {
+                    lock
+                } else {
+                    eprintln!(
+                        "[HOOKS/save_info_at] couldn't acquire lock - result may be incomplete"
+                    );
+                    break 'hook_save_info_at;
+                };
+                if !save_info_at.is_empty() {
+                    let pos_start = self.source_range().start().pos();
+                    let pos_end = self.source_range().end().pos();
+                    let cloned_info = Arc::new(info.clone());
+                    for (save_to, save_at, deepest_statement) in save_info_at.iter_mut() {
+                        if info.global.depth >= *deepest_statement
+                            && pos_start <= *save_at
+                            && *save_at < pos_end
+                        {
+                            if info.global.depth > *deepest_statement {
+                                *deepest_statement = info.global.depth;
+                                save_to.clear();
+                            }
+                            save_to.push((
+                                self.source_range(),
+                                Arc::clone(&cloned_info),
+                                o.clone(),
+                            ));
+                        }
+                    }
+                }
+            }
+        }
         if self.has_scope() {
             info.end_scope();
         }
+        info.global.depth -= 1;
         o
     }
     fn run(&self, info: &mut Info) -> Data {
@@ -63,6 +100,8 @@ pub trait MersStatement: Debug + Send + Sync {
         o
     }
     fn source_range(&self) -> SourceRange;
+    fn inner_statements(&self) -> Vec<&dyn MersStatement>;
+    fn as_any(&self) -> &dyn std::any::Any;
 }
 
 pub type Info = info::Info<Local>;
@@ -70,16 +109,33 @@ pub type CheckInfo = info::Info<CheckLocal>;
 
 #[derive(Default, Clone, Debug)]
 pub struct Local {
-    vars: Vec<Arc<RwLock<Data>>>,
+    pub vars: Vec<Arc<RwLock<Data>>>,
 }
 #[derive(Default, Clone)]
 pub struct CheckLocal {
-    vars: Vec<Type>,
+    pub vars: Vec<Type>,
     pub types: HashMap<
         String,
         Result<
             Arc<dyn MersType>,
             Arc<dyn Fn(&str, &CheckInfo) -> Result<Arc<dyn MersType>, CheckError> + Send + Sync>,
+        >,
+    >,
+}
+#[derive(Clone, Debug, Default)]
+pub struct CheckLocalGlobalInfo {
+    pub depth: usize,
+    pub enable_hooks: bool,
+    /// ((results, byte_pos_in_src, deepest_statement))
+    /// you only have to set `byte_pos_in_src`. `deepest` is used internally.
+    /// These values should be initialized to `(vec![], _, 0)`, but `0` can be replaced by a minimum statement depth, i.e. `2` to exclude the outer scope (which has depth `1`).
+    pub save_info_at: Arc<
+        Mutex<
+            Vec<(
+                Vec<(SourceRange, Arc<CheckInfo>, Result<Type, CheckError>)>,
+                usize,
+                usize,
+            )>,
         >,
     >,
 }
@@ -124,7 +180,7 @@ impl info::Local for Local {
 impl info::Local for CheckLocal {
     type VariableIdentifier = usize;
     type VariableData = Type;
-    type Global = ();
+    type Global = CheckLocalGlobalInfo;
     fn init_var(&mut self, id: Self::VariableIdentifier, value: Self::VariableData) {
         while self.vars.len() <= id {
             self.vars.push(Type::empty());

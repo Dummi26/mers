@@ -75,7 +75,8 @@ impl Config {
                 } else {
                     Data::empty_tuple()
                 }
-            })
+            }),
+                inner_statements: None,
         })).add_var("parse_int".to_string(), Data::new(data::function::Function {
             info: Arc::new(program::run::Info::neverused()),
             info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
@@ -95,7 +96,8 @@ impl Config {
                 } else {
                     Data::empty_tuple()
                 }
-            })
+            }),
+                inner_statements: None,
         })).add_var("signum".to_string(), Data::new(data::function::Function {
             info: Arc::new(program::run::Info::neverused()),
             info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
@@ -118,7 +120,8 @@ impl Config {
                     } else { 0
                     }
                 } else { unreachable!("called signum on non-number type")}))
-            })
+            }),
+                inner_statements: None,
         }))            .add_var("div".to_string(), Data::new(data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
@@ -137,6 +140,7 @@ impl Config {
                         _ => unreachable!(),
                     }
                 } else { unreachable!() }),
+                inner_statements: None,
             })).add_var("modulo".to_string(), Data::new(data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
@@ -155,6 +159,7 @@ impl Config {
                         _ => unreachable!(),
                     }
                 } else { unreachable!() }),
+                inner_statements: None,
             }))
             .add_var(
             "sum".to_string(),
@@ -215,6 +220,7 @@ impl Config {
                         unreachable!("sum called on non-tuple")
                     }
                 }),
+                inner_statements: None,
             }),
         )
             .add_var(
@@ -288,6 +294,7 @@ impl Config {
                         unreachable!("sum called on non-tuple")
                     }
                 }),
+                inner_statements: None,
             }),
         )
             .add_var(
@@ -349,6 +356,7 @@ impl Config {
                         unreachable!("product called on non-tuple")
                     }
                 }),
+                inner_statements: None,
             }),
         )
     }
@@ -428,6 +436,7 @@ fn ltgtoe_function(
             }
             Data::new(data::bool::Bool(true))
         }),
+        inner_statements: None,
     }
 }
 #[derive(Clone, Copy)]

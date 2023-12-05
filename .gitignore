@@ -1,5 +1,6 @@
 **/target/
 **/Cargo.lock
+mers_language_server/mers_language_server
 tree-sitter-mers/log.html
 tree-sitter-mers/package-lock.json
 tree-sitter-mers/node_modules

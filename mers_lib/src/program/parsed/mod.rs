@@ -1,4 +1,8 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    sync::{Arc, Mutex},
+};
 
 use crate::{
     errors::{CheckError, SourceRange},
@@ -44,21 +48,53 @@ pub trait MersStatement: Debug + Send + Sync {
         info: &mut Info,
         comp: CompInfo,
     ) -> Result<Box<dyn super::run::MersStatement>, CheckError> {
+        info.global.depth += 1;
         if self.has_scope() {
             info.create_scope();
         }
         let o = self.compile_custom(info, comp);
+        if info.global.enable_hooks {
+            // Hooks - keep in sync with run/mod.rs/compile() hooks section
+            {
+                // `save_info_at` hook
+                let mut save_info_at = info.global.save_info_at.try_lock().unwrap();
+                if !save_info_at.is_empty() {
+                    let pos_start = self.source_range().start().pos();
+                    let pos_end = self.source_range().end().pos();
+                    let cloned_info = Arc::new(info.clone());
+                    for (save_to, save_at, deepest_statement) in save_info_at.iter_mut() {
+                        if info.global.depth >= *deepest_statement
+                            && pos_start <= *save_at
+                            && *save_at < pos_end
+                        {
+                            if info.global.depth > *deepest_statement {
+                                *deepest_statement = info.global.depth;
+                                save_to.clear();
+                            }
+                            save_to.push((
+                                self.source_range(),
+                                Arc::clone(&cloned_info),
+                                o.as_ref().map(|_| ()).map_err(|e| e.clone()),
+                            ));
+                        }
+                    }
+                }
+            }
+        }
         if self.has_scope() {
             info.end_scope();
         }
+        info.global.depth -= 1;
         o
     }
     fn source_range(&self) -> SourceRange;
+    fn inner_statements(&self) -> Vec<&dyn MersStatement>;
+    fn as_any(&self) -> &dyn std::any::Any;
 }
 
 #[derive(Clone, Copy)]
 pub struct CompInfo {
-    is_init: bool,
+    pub is_init: bool,
 }
 impl Default for CompInfo {
     fn default() -> Self {
@@ -70,13 +106,30 @@ pub type Info = info::Info<Local>;
 
 #[derive(Default, Clone, Debug)]
 pub struct Local {
-    vars: HashMap<String, (usize, usize)>,
-    vars_count: usize,
+    pub vars: HashMap<String, (usize, usize)>,
+    pub vars_count: usize,
+}
+#[derive(Clone, Debug, Default)]
+pub struct LocalGlobalInfo {
+    pub depth: usize,
+    pub enable_hooks: bool,
+    /// ((results, byte_pos_in_src, deepest_statement))
+    /// you only have to set `byte_pos_in_src`. `deepest` is used internally.
+    /// These values should be initialized to `(vec![], _, 0)`, but `0` can be replaced by a minimum statement depth, i.e. `2` to exclude the outer scope (which has depth `1`).
+    pub save_info_at: Arc<
+        Mutex<
+            Vec<(
+                Vec<(SourceRange, Arc<Info>, Result<(), CheckError>)>,
+                usize,
+                usize,
+            )>,
+        >,
+    >,
 }
 impl info::Local for Local {
     type VariableIdentifier = String;
     type VariableData = (usize, usize);
-    type Global = ();
+    type Global = LocalGlobalInfo;
     fn init_var(&mut self, id: Self::VariableIdentifier, value: Self::VariableData) {
         self.vars_count += 1;
         self.vars.insert(id, value);

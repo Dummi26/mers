@@ -29,8 +29,10 @@ impl MersStatement for Function {
         let arg_target = Arc::new(self.arg.compile(info, comp)?);
         comp.is_init = false;
         let run = Arc::new(self.run.compile(info, comp)?);
-        let arg2: Arc<Box<dyn crate::program::run::MersStatement>> = Arc::clone(&arg_target);
-        let run2: Arc<Box<dyn crate::program::run::MersStatement>> = Arc::clone(&run);
+        let arg2 = Arc::clone(&arg_target);
+        let run2 = Arc::clone(&run);
+        let arg3 = Arc::clone(&arg_target);
+        let run3 = Arc::clone(&run);
         Ok(Box::new(program::run::function::Function {
             pos_in_src: self.pos_in_src.clone(),
             func_no_info: data::function::Function {
@@ -44,10 +46,17 @@ impl MersStatement for Function {
                     data::defs::assign(&arg, &arg_target.run(info));
                     run.run(info)
                 }),
+                inner_statements: Some((arg3, run3)),
             },
         }))
     }
     fn source_range(&self) -> SourceRange {
         self.pos_in_src.clone()
+    }
+    fn inner_statements(&self) -> Vec<&dyn MersStatement> {
+        vec![self.arg.as_ref(), self.run.as_ref()]
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }

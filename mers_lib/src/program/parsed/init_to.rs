@@ -37,4 +37,10 @@ impl MersStatement for InitTo {
     fn source_range(&self) -> SourceRange {
         self.pos_in_src.clone()
     }
+    fn inner_statements(&self) -> Vec<&dyn MersStatement> {
+        vec![self.source.as_ref(), self.target.as_ref()]
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

@@ -58,6 +58,7 @@ impl Config {
                         unreachable!("thread called, but arg wasn't a function");
                     }
                 }),
+                inner_statements: None,
             }),
         )
             .add_var("thread_finished".to_string(), Data::new(data::function::Function {
@@ -78,7 +79,8 @@ impl Config {
                         Ok(t) => t.is_finished(),
                         Err(_d) => true,
                     }))
-                })
+                }),
+                inner_statements: None,
             }))
             .add_var("thread_await".to_string(), Data::new(data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
@@ -103,7 +105,8 @@ impl Config {
                     };
                     *t = Err(d.clone());
                     d
-                })
+                }),
+                inner_statements: None,
             }))
     }
 }

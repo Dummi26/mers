@@ -35,4 +35,10 @@ impl MersStatement for AsType {
     fn source_range(&self) -> SourceRange {
         self.pos_in_src.clone()
     }
+    fn inner_statements(&self) -> Vec<&dyn MersStatement> {
+        vec![self.statement.as_ref()]
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

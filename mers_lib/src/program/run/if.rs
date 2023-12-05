@@ -73,4 +73,18 @@ impl MersStatement for If {
     fn source_range(&self) -> SourceRange {
         self.pos_in_src.clone()
     }
+    fn inner_statements(&self) -> Vec<&dyn MersStatement> {
+        if let Some(on_false) = &self.on_false {
+            vec![
+                self.condition.as_ref(),
+                self.on_true.as_ref(),
+                on_false.as_ref(),
+            ]
+        } else {
+            vec![self.condition.as_ref(), self.on_true.as_ref()]
+        }
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

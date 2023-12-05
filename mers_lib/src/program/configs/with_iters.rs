@@ -98,6 +98,7 @@ impl Config {
                         unreachable!("for_each called on non-tuple")
                     }
                 }),
+                inner_statements: None,
             }),
         )
         .add_var(
@@ -133,6 +134,7 @@ impl Config {
                     Ok(Type::new(IterT::new(ItersT::Enumerate, data)?))
                 }),
                 run: Arc::new(|a, _i| Data::new(Iter(Iters::Enumerate, a.clone()))),
+                inner_statements: None,
             }),
         )
     }
@@ -203,6 +205,7 @@ fn genfunc_iter_and_arg<T: MersType, D: MersData>(
                 unreachable!("{name} called on non-tuple")
             }
         }),
+        inner_statements: None,
     }
 }
 
@@ -408,5 +411,6 @@ fn genfunc_iter_in_val_out(
             }
         }),
         run: Arc::new(run),
+        inner_statements: None,
     }
 }

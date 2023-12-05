@@ -112,7 +112,8 @@ impl Config {
                     }
                 }
                 unreachable!("try: no function found")
-            })
+            }),
+            inner_statements: None,
         }))
             .add_var("lock_update".to_string(), Data::new(data::function::Function {
                 info: Arc::new(Info::neverused()),
@@ -160,7 +161,8 @@ impl Config {
                     let func = func.as_any().downcast_ref::<data::function::Function>().unwrap();
                     *arg = func.run(arg.clone());
                     Data::empty_tuple()
-                })
+                }),
+            inner_statements: None,
             }))
             .add_var("sleep".to_string(), Data::new(data::function::Function {
                 info: Arc::new(Info::neverused()),
@@ -183,7 +185,8 @@ impl Config {
                         unreachable!("sleep called on non-int/non-float")
                     });
                     Data::empty_tuple()
-                })
+                }),
+                inner_statements: None,
             }))
             .add_var("panic".to_string(), Data::new(data::function::Function {
                 info: Arc::new(Info::neverused()),
@@ -195,7 +198,8 @@ impl Config {
             }),
             run: Arc::new(|a, _i|  {
                 std::process::exit(a.get().as_any().downcast_ref::<data::int::Int>().map(|i| i.0 as _).unwrap_or(1));
-            })
+            }),
+            inner_statements: None,
         }))
             .add_var(
             "len".to_string(),
@@ -222,6 +226,7 @@ impl Config {
                         unreachable!("called len on {a:?}, which isn't a tuple or a string")
                     }))
                 }),
+                inner_statements: None,
             }),
         ).add_var(
             "loop".to_string(),
@@ -270,6 +275,7 @@ impl Config {
                             }
                         }
                 }),
+                inner_statements: None,
             }),
         )
         .add_var(
@@ -303,6 +309,7 @@ impl Config {
                         false
                     }))
                 }),
+                inner_statements: None,
             }),
         )
         .add_var(
@@ -323,6 +330,7 @@ impl Config {
                         unreachable!("called deref on non-reference")
                     }
                 }),
+                inner_statements: None,
             }),
         )
     }

@@ -1,0 +1,12 @@
+[package]
+name = "mers_language_server"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+mers_lib = { path = "../mers_lib", features = ["parse"] }
+tokio = { version = "1.34.0", default-features = false, features = ["macros", "rt", "io-std"] }
+tower-lsp = "0.20.0"
+line-span = "0.1.5"

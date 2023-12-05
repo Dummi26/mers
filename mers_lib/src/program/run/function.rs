@@ -34,4 +34,14 @@ impl MersStatement for Function {
     fn source_range(&self) -> SourceRange {
         self.pos_in_src.clone()
     }
+    fn inner_statements(&self) -> Vec<&dyn MersStatement> {
+        if let Some((a, b)) = &self.func_no_info.inner_statements {
+            vec![a.as_ref().as_ref(), b.as_ref().as_ref()]
+        } else {
+            vec![]
+        }
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
