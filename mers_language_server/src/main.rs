@@ -189,10 +189,10 @@ impl LanguageServer for Backend {
                 ParseCompileCheckResult::DoesntPassChecks(_, _, e, _, _, _, info3) => {
                     let i3sia = info3.global.save_info_at.lock().unwrap();
                     format!(
-                        "# Error (doesn't pass checks):\n```\n{e}```{}",
+                        "# Error (doesn't pass checks):{}\n## Global error:\n\n```\n{e}```",
                         if let Some(i3) = infos_at_cursor_hook_index.map(|(_, i)| &i3sia[i].0) {
                             format!(
-                                "\n\n## Local types:{}",
+                                "\n\n## Local types:{}\n---\n",
                                 i3.iter()
                                     .map(|(src_range, _info, res)| {
                                         let src_snippet = src_range.in_file().src()
