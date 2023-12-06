@@ -27,7 +27,6 @@ async fn main() {
 
 struct Backend {
     client: Client,
-    main_document: Arc<Mutex<Option<tower_lsp::lsp_types::Url>>>,
     current_document: Arc<Mutex<Option<tower_lsp::lsp_types::Url>>>,
     documents: Arc<Mutex<HashMap<tower_lsp::lsp_types::Url, TextDocumentItem>>>,
     last_compiled: Arc<Mutex<Option<ParseCompileCheckResult>>>,
@@ -36,7 +35,6 @@ impl Backend {
     pub fn new(client: Client) -> Self {
         Self {
             client,
-            main_document: Arc::new(Mutex::new(None)),
             current_document: Arc::new(Mutex::new(None)),
             documents: Arc::new(Mutex::new(HashMap::new())),
             last_compiled: Arc::new(Mutex::new(None)),
@@ -47,10 +45,10 @@ impl Backend {
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
     async fn did_open(&self, p: DidOpenTextDocumentParams) {
-        *self.last_compiled.lock().await = None;
-        let mut md = self.main_document.lock().await;
-        if md.is_none() {
+        {
+            let mut md = self.current_document.lock().await;
             *md = Some(p.text_document.uri.clone());
+            *self.last_compiled.lock().await = None;
         }
         self.documents
             .lock()
@@ -58,7 +56,11 @@ impl LanguageServer for Backend {
             .insert(p.text_document.uri.clone(), p.text_document);
     }
     async fn did_change(&self, p: DidChangeTextDocumentParams) {
-        *self.last_compiled.lock().await = None;
+        {
+            let mut md = self.current_document.lock().await;
+            *md = Some(p.text_document.uri.clone());
+            *self.last_compiled.lock().await = None;
+        }
         if let Some(document) = self.documents.lock().await.get_mut(&p.text_document.uri) {
             for change in p.content_changes {
                 if let Some(_range) = change.range {
@@ -113,18 +115,22 @@ impl LanguageServer for Backend {
         Ok(())
     }
 
-    async fn hover(&self, params: HoverParams) -> tower_lsp::jsonrpc::Result<Option<Hover>> {
-        *self.last_compiled.lock().await = None;
+    async fn hover(&self, p: HoverParams) -> tower_lsp::jsonrpc::Result<Option<Hover>> {
+        {
+            let mut md = self.current_document.lock().await;
+            *md = Some(p.text_document_position_params.text_document.uri.clone());
+            *self.last_compiled.lock().await = None;
+        }
         let byte_pos = {
-            match self.main_document.lock().await.as_ref() {
+            match self.current_document.lock().await.as_ref() {
                 Some(uri) => {
                     let doc = self.documents.lock().await;
                     let doc = doc.get(uri);
                     let doc = doc.map(|doc| doc.text.as_str()).unwrap_or("");
                     let pos_in_og = get_byte_pos_in_og(
                         doc,
-                        params.text_document_position_params.position.line as _,
-                        params.text_document_position_params.position.character as _,
+                        p.text_document_position_params.position.line as _,
+                        p.text_document_position_params.position.character as _,
                     );
                     Some(
                         mers_lib::prelude_compile::Source::new_from_string(doc.to_owned())
@@ -250,10 +256,17 @@ impl LanguageServer for Backend {
 
     async fn code_action(
         &self,
-        params: CodeActionParams,
+        p: CodeActionParams,
     ) -> tower_lsp::jsonrpc::Result<Option<CodeActionResponse>> {
+        {
+            let mut md = self.current_document.lock().await;
+            if !md.as_ref().is_some_and(|md| *md == p.text_document.uri) {
+                *md = Some(p.text_document.uri.clone());
+                *self.last_compiled.lock().await = None;
+            }
+        }
         Ok(Some(
-            if let Some(doc) = self.documents.lock().await.get(&params.text_document.uri) {
+            if let Some(doc) = self.documents.lock().await.get(&p.text_document.uri) {
                 let mut src = mers_lib::prelude_compile::Source::new_from_string(doc.text.clone());
                 let srca = Arc::new(src.clone());
                 match mers_lib::prelude_compile::parse(&mut src, &srca) {
@@ -262,16 +275,16 @@ impl LanguageServer for Backend {
                         let pos_start = srca.pos_from_og(
                             get_byte_pos_in_og(
                                 srca.src_og(),
-                                params.range.start.line as _,
-                                params.range.start.character as _,
+                                p.range.start.line as _,
+                                p.range.start.character as _,
                             ),
                             false,
                         );
                         let pos_end = srca.pos_from_og(
                             get_byte_pos_in_og(
                                 srca.src_og(),
-                                params.range.end.line as _,
-                                params.range.end.character as _,
+                                p.range.end.line as _,
+                                p.range.end.character as _,
                             ),
                             true,
                         );
@@ -322,7 +335,7 @@ impl LanguageServer for Backend {
                                         TextDocumentEdit {
                                             text_document:
                                                 OptionalVersionedTextDocumentIdentifier {
-                                                    uri: params.text_document.uri.clone(),
+                                                    uri: p.text_document.uri.clone(),
                                                     version: None,
                                                 },
                                             edits: vec![OneOf::Left(TextEdit {
@@ -437,7 +450,7 @@ impl Backend {
         let mut last_compiled = self.last_compiled.lock().await;
         if last_compiled.is_none() {
             *last_compiled = Some(
-                if let Some(source) = self.main_document.lock().await.clone() {
+                if let Some(source) = self.current_document.lock().await.clone() {
                     if let Some(document) = self.documents.lock().await.get(&source) {
                         let src_from = match document.uri.to_file_path() {
                             Ok(path) => mers_lib::parsing::SourceFrom::File(path),

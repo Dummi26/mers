@@ -26,8 +26,11 @@ impl MersStatement for Chain {
         if init_to.is_some() {
             return Err("can't init to statement type Chain".to_string().into());
         }
+        let prev_enable_hooks = info.global.enable_hooks;
+        info.global.enable_hooks = false;
         let arg = self.first.check(info, None)?;
         let func = self.chained.check(info, None)?;
+        info.global.enable_hooks = prev_enable_hooks;
         let mut o = Type::empty();
         for func in &func.types {
             if let Some(func) = func
