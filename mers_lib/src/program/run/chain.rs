@@ -27,7 +27,9 @@ impl MersStatement for Chain {
             return Err("can't init to statement type Chain".to_string().into());
         }
         let prev_enable_hooks = info.global.enable_hooks;
-        info.global.enable_hooks = false;
+        if self.as_part_of_include.is_some() {
+            info.global.enable_hooks = false;
+        }
         let arg = self.first.check(info, None)?;
         let func = self.chained.check(info, None)?;
         info.global.enable_hooks = prev_enable_hooks;
