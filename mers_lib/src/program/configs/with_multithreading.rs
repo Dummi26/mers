@@ -40,6 +40,8 @@ impl Config {
                                 Ok(t) => out.add(Arc::new(t)),
                                 Err(e) => return Err(CheckError::new().msg(format!("Can't call thread on a function which can't be called on an empty tuple: ")).err(e))
                             }
+                        } else {
+                            return Err(format!("thread: argument wasn't a function").into());
                         }
                     }
                     Ok(Type::new(ThreadT(out)))

@@ -1,9 +1,10 @@
 use std::{
     fmt::{Debug, Display},
-    sync::Arc,
+    rc::Rc,
+    sync::{atomic::AtomicUsize, Arc},
 };
 
-use colored::Colorize;
+use colored::{ColoredString, Colorize};
 use line_span::LineSpans;
 
 #[cfg(feature = "parse")]
@@ -89,6 +90,7 @@ pub enum CheckErrorComponent {
 }
 #[derive(Clone)]
 pub struct CheckErrorHRConfig {
+    color_index: Rc<AtomicUsize>,
     indent_start: String,
     indent_default: String,
     indent_end: String,
@@ -113,6 +115,7 @@ impl Display for CheckErrorDisplay<'_> {
         self.e.human_readable(
             f,
             &CheckErrorHRConfig {
+                color_index: Rc::new(AtomicUsize::new(0)),
                 indent_start: String::new(),
                 indent_default: String::new(),
                 indent_end: String::new(),
@@ -160,10 +163,10 @@ impl CheckError {
         let len = self.0.len();
         for (i, component) in self.0.iter().enumerate() {
             macro_rules! indent {
-                () => {
-                    if i + 1 == len {
+                ($s:expr, $e:expr) => {
+                    if $e && i + 1 == len {
                         &cfg.indent_end
-                    } else if i == 0 {
+                    } else if $s && i == 0 {
                         &cfg.indent_start
                     } else {
                         &cfg.indent_default
@@ -171,20 +174,27 @@ impl CheckError {
                 };
             }
             match component {
-                CheckErrorComponent::Message(msg) => writeln!(f, "{}{msg}", indent!())?,
+                CheckErrorComponent::Message(msg) => {
+                    let lines = msg.lines().collect::<Vec<_>>();
+                    let lc = lines.len();
+                    for (i, line) in lines.into_iter().enumerate() {
+                        writeln!(f, "{}{line}", indent!(i == 0, i + 1 == lc))?
+                    }
+                }
                 CheckErrorComponent::Error(err) => {
+                    let clr = Self::get_color(&cfg.color_index);
                     let mut cfg = cfg.clone();
-                    cfg.indent_start.push_str("│");
-                    cfg.indent_default.push_str("│");
-                    cfg.indent_end.push_str("└");
+                    cfg.indent_start.push_str(&clr("│").to_string());
+                    cfg.indent_default.push_str(&clr("│").to_string());
+                    cfg.indent_end.push_str(&clr("└").to_string());
                     err.human_readable(f, &cfg)?;
                 }
                 CheckErrorComponent::ErrorWithDifferentSource(err) => {
+                    let clr = Self::get_color(&cfg.color_index);
                     let mut cfg = cfg.clone();
-                    cfg.indent_start.push_str(&"│".bright_yellow().to_string());
-                    cfg.indent_default
-                        .push_str(&"│".bright_yellow().to_string());
-                    cfg.indent_end.push_str(&"└".bright_yellow().to_string());
+                    cfg.indent_start.push_str(&clr("┃").bold().to_string());
+                    cfg.indent_default.push_str(&clr("┃").bold().to_string());
+                    cfg.indent_end.push_str(&clr("┗").bold().to_string());
                     err.human_readable(f, &cfg)?;
                 }
                 CheckErrorComponent::Source(highlights) => {
@@ -243,7 +253,7 @@ impl CheckError {
                                 writeln!(
                                     f,
                                     "{}Line {first_line_nr} ({}..{}){}",
-                                    indent!(),
+                                    indent!(true, false),
                                     start_with_comments + 1 - first_line_start,
                                     end_with_comments - last_line_start,
                                     src_from,
@@ -252,7 +262,7 @@ impl CheckError {
                                 writeln!(
                                     f,
                                     "{}Lines {first_line_nr}-{last_line_nr} ({}..{}){}",
-                                    indent!(),
+                                    indent!(true, false),
                                     start_with_comments + 1 - first_line_start,
                                     end_with_comments - last_line_start,
                                     src_from,
@@ -263,11 +273,13 @@ impl CheckError {
                             } else {
                                 src.src()[start..end].line_spans().collect::<Vec<_>>()
                             };
-                            for line in lines {
+                            let lines_count = lines.len();
+                            for (line_nr_rel, line) in lines.into_iter().enumerate() {
+                                let last_line = line_nr_rel + 1 == lines_count;
                                 let line_start = line.start();
                                 let line_end = line.end();
                                 let line = line.as_str();
-                                writeln!(f, "{} {line}", indent!())?;
+                                let mut line_printed = false;
                                 let mut right = 0;
                                 for (pos, color) in highlights {
                                     if let Some(color) = color {
@@ -284,6 +296,11 @@ impl CheckError {
                                         let highlight_end = highlight_end - start;
                                         if highlight_start < line_end && highlight_end > line_start
                                         {
+                                            if !line_printed {
+                                                // this isn't the last line (important for indent)
+                                                writeln!(f, "{} {line}", indent!(false, false))?;
+                                                line_printed = true;
+                                            }
                                             // where the highlight starts in this line
                                             let hl_start =
                                                 highlight_start.saturating_sub(line_start);
@@ -301,7 +318,7 @@ impl CheckError {
                                             let hl_len = hl_len.min(line.len() - right);
                                             right += hl_space + hl_len;
                                             if print_indent && right != 0 {
-                                                write!(f, "{} ", indent!())?;
+                                                write!(f, "{} ", indent!(false, false))?;
                                             }
                                             write!(
                                                 f,
@@ -311,6 +328,10 @@ impl CheckError {
                                             )?;
                                         }
                                     }
+                                }
+                                if !line_printed {
+                                    // may be last line (important for indent)
+                                    writeln!(f, "{} {line}", indent!(false, last_line))?;
                                 }
                                 if right != 0 {
                                     writeln!(f)?;
@@ -322,6 +343,19 @@ impl CheckError {
             }
         }
         Ok(())
+    }
+    fn get_color(i: &AtomicUsize) -> impl Fn(&str) -> ColoredString {
+        let i = i.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        move |s| match i % 8 {
+            0 => s.bright_white(),
+            1 => s.bright_green(),
+            2 => s.bright_purple(),
+            3 => s.bright_cyan(),
+            4 => s.bright_red(),
+            5 => s.bright_yellow(),
+            6 => s.bright_magenta(),
+            _ => s.bright_blue(),
+        }
     }
 }
 impl From<String> for CheckError {
