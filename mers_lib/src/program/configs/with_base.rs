@@ -22,136 +22,8 @@ impl Config {
     /// `panic: fn` exits the program with the given exit code
     /// `lock_update: fn` locks the value of a reference so you can exclusively modify it: &var.lock_update(v -> (v, 1).sum)
     pub fn with_base(self) -> Self {
-        self.add_var("try".to_string(), Data::new(data::function::Function {
-                info: Arc::new(Info::neverused()),
-                info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-            out: Arc::new(|a, _i| {
-                let mut out = Type::empty();
-                for t in a.types.iter() {
-                    if let Some(outer_tuple) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
-                        if outer_tuple.0.len() != 2 {
-                            return Err(format!("cannot use try with tuple argument where len != 2 (got len {})", outer_tuple.0.len()).into());
-                        }
-                        let arg_type = &outer_tuple.0[0];
-                        let functions = &outer_tuple.0[1];
-                        let mut used_functions_and_errors = vec![];
-                        for arg_type in arg_type.subtypes_type().types.iter() {
-                            let arg_type = Type::newm(vec![arg_type.clone()]);
-                            // possibilities for the tuple (f1, f2, f3, ..., fn)
-                            for (fti, ft) in functions.types.iter().enumerate() {
-                                if used_functions_and_errors.len() <= fti {
-                                    used_functions_and_errors.push(vec![]);
-                                }
-                                let mut tuple_fallible = true;
-                                let mut tuple_possible = false;
-                                if let Some(ft) = ft.as_any().downcast_ref::<data::tuple::TupleT>() {
-                                    // f1, f2, f3, ..., fn
-                                    let mut func_errors = vec![];
-                                    let mut skip_checks = false;
-                                    for (fi, ft) in ft.0.iter().enumerate() {
-                                        if used_functions_and_errors[fti].len() <= fi {
-                                            used_functions_and_errors[fti].push(vec![]);
-                                        }
-                                        let mut func_fallible = false;
-                                        // possibilities for f_
-                                        for (fvi, ft) in ft.types.iter().enumerate() {
-                                            if let Some(ft) = ft.as_any().downcast_ref::<data::function::FunctionT>() {
-                                                if used_functions_and_errors[fti][fi].len() <= fvi {
-                                                    used_functions_and_errors[fti][fi].push(Some(vec![]));
-                                                }
-                                                if !skip_checks {
-                                                    func_errors.push((fvi, match ft.0(&arg_type) {
-                                                        Err(e) => {
-                                                            func_fallible = true;
-                                                            if let Some(errs) = &mut used_functions_and_errors[fti][fi][fvi] {
-                                                                errs.push(e.clone());
-                                                            }
-                                                            Some(e)
-                                                        }
-                                                        Ok(o) => {
-                                                            used_functions_and_errors[fti][fi][fvi] = None;
-                                                            tuple_possible = true;
-                                                            for t in o.types {
-                                                                out.add(t);
-                                                            }
-                                                            None
-                                                        },
-                                                    }));
-                                                }
-                                            } else {
-                                                return Err(format!("try: arguments f1-fn must be functions").into());
-                                            }
-                                        }
-                                        // found a function that won't fail for this arg_type!
-                                        if !func_fallible {
-                                            tuple_fallible = false;
-                                            if tuple_possible {
-                                                skip_checks = true;
-                                            }
-                                        }
-                                    }
-                                    if tuple_fallible || !tuple_possible {
-                                        // if the argument is {arg_type}, there is no infallible function. add a fallback function to handle this case!
-                                        let mut e = CheckError::new()
-                                            .msg(format!("if the argument is {arg_type}, there is no infallible function."))
-                                            .msg(format!("Add a function to handle this case!"));
-                                        for (i, err) in func_errors.into_iter() {
-                                            if let Some(err) = err {
-                                                e = e
-                                                    .msg(format!("Error for function #{}:", i + 1))
-                                                    .err(err);
-                                            }
-                                        }
-                                        return Err(e);
-                                    }
-                                } else {
-                                    return Err(format!("try: argument must be (arg, (f1, f2, f3, ..., fn))").into());
-                                }
-                            }
-                        }
-                        for (functions_posibility_index, functions_possibility) in used_functions_and_errors.into_iter().enumerate() {
-                            for (func_index, func_possibilities) in functions_possibility.into_iter().enumerate() {
-                                for (func_possibility_index, errors_if_unused) in func_possibilities.into_iter().enumerate() {
-                                    if let Some(errs) = errors_if_unused {
-                                        let mut e = CheckError::new().msg(format!("try: For the argument {t}:\nFunction #{}{} is never used.{}",
-                                            func_index + 1,
-                                            if functions_posibility_index != 0 || func_possibility_index != 0 {
-                                                format!(" (func-tuple possibility {}, function possibility {})", functions_posibility_index + 1, func_possibility_index + 1)
-                                            } else {
-                                                format!("")
-                                            },
-                                            if errs.is_empty() { "" } else { " Errors:" }));
-                                        for err in errs {
-                                            e = e.err(err);
-                                        }
-                                        return Err(e);
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        return Err(format!("cannot use try with non-tuple argument").into());
-                    }
-                }
-                Ok(out)
-            }),
-            run: Arc::new(|a, _i|  {
-                let tuple = a.get();
-                let tuple = tuple.as_any().downcast_ref::<data::tuple::Tuple>().expect("try: not a tuple");
-                let arg = &tuple.0[0];
-                let funcs = tuple.0[1].get();
-                let funcs = funcs.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
-                for func in funcs.0.iter() {
-                    let func = func.get();
-                    let func = func.as_any().downcast_ref::<data::function::Function>().unwrap();
-                    if func.check(&arg.get().as_type()).is_ok() {
-                        return func.run(arg.clone());
-                    }
-                }
-                unreachable!("try: no function found")
-            }),
-            inner_statements: None,
-        }))
+        self.add_var("try".to_string(), get_try(false))
+        .add_var("try_allow_unused".to_string(), get_try(true))
             .add_var("lock_update".to_string(), Data::new(data::function::Function {
                 info: Arc::new(Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
@@ -371,4 +243,172 @@ impl Config {
             }),
         )
     }
+}
+
+fn get_try(allow_unused_functions: bool) -> Data {
+    Data::new(data::function::Function {
+        info: Arc::new(Info::neverused()),
+        info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+        out: Arc::new(move |a, _i| {
+            let mut out = Type::empty();
+            for t in a.types.iter() {
+                if let Some(outer_tuple) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
+                    if outer_tuple.0.len() != 2 {
+                        return Err(format!(
+                            "cannot use try with tuple argument where len != 2 (got len {})",
+                            outer_tuple.0.len()
+                        )
+                        .into());
+                    }
+                    let arg_type = &outer_tuple.0[0];
+                    let functions = &outer_tuple.0[1];
+                    let mut used_functions_and_errors = vec![];
+                    for arg_type in arg_type.subtypes_type().types.iter() {
+                        let arg_type = Type::newm(vec![arg_type.clone()]);
+                        // possibilities for the tuple (f1, f2, f3, ..., fn)
+                        for (fti, ft) in functions.types.iter().enumerate() {
+                            if used_functions_and_errors.len() <= fti {
+                                used_functions_and_errors.push(vec![]);
+                            }
+                            let mut tuple_fallible = true;
+                            let mut tuple_possible = false;
+                            if let Some(ft) = ft.as_any().downcast_ref::<data::tuple::TupleT>() {
+                                // f1, f2, f3, ..., fn
+                                let mut func_errors = vec![];
+                                let mut skip_checks = false;
+                                for (fi, ft) in ft.0.iter().enumerate() {
+                                    if used_functions_and_errors[fti].len() <= fi {
+                                        used_functions_and_errors[fti].push(vec![]);
+                                    }
+                                    let mut func_fallible = false;
+                                    // possibilities for f_
+                                    for (fvi, ft) in ft.types.iter().enumerate() {
+                                        if let Some(ft) =
+                                            ft.as_any().downcast_ref::<data::function::FunctionT>()
+                                        {
+                                            if used_functions_and_errors[fti][fi].len() <= fvi {
+                                                used_functions_and_errors[fti][fi]
+                                                    .push(Some(vec![]));
+                                            }
+                                            if !skip_checks {
+                                                func_errors.push((
+                                                    fvi,
+                                                    match ft.0(&arg_type) {
+                                                        Err(e) => {
+                                                            func_fallible = true;
+                                                            if let Some(errs) =
+                                                                &mut used_functions_and_errors[fti]
+                                                                    [fi][fvi]
+                                                            {
+                                                                errs.push(e.clone());
+                                                            }
+                                                            Some(e)
+                                                        }
+                                                        Ok(o) => {
+                                                            used_functions_and_errors[fti][fi]
+                                                                [fvi] = None;
+                                                            tuple_possible = true;
+                                                            for t in o.types {
+                                                                out.add(t);
+                                                            }
+                                                            None
+                                                        }
+                                                    },
+                                                ));
+                                            }
+                                        } else {
+                                            return Err(format!(
+                                                "try: arguments f1-fn must be functions"
+                                            )
+                                            .into());
+                                        }
+                                    }
+                                    // found a function that won't fail for this arg_type!
+                                    if !func_fallible {
+                                        tuple_fallible = false;
+                                        if tuple_possible {
+                                            skip_checks = true;
+                                        }
+                                    }
+                                }
+                                if tuple_fallible || !tuple_possible {
+                                    // if the argument is {arg_type}, there is no infallible function. add a fallback function to handle this case!
+                                    let mut e = CheckError::new()
+                                            .msg(format!("if the argument is {arg_type}, there is no infallible function."))
+                                            .msg(format!("Add a function to handle this case!"));
+                                    for (i, err) in func_errors.into_iter() {
+                                        if let Some(err) = err {
+                                            e = e
+                                                .msg(format!("Error for function #{}:", i + 1))
+                                                .err(err);
+                                        }
+                                    }
+                                    return Err(e);
+                                }
+                            } else {
+                                return Err(format!(
+                                    "try: argument must be (arg, (f1, f2, f3, ..., fn))"
+                                )
+                                .into());
+                            }
+                        }
+                    }
+                    // check for unused functions
+                    if !allow_unused_functions {
+                        for (functions_posibility_index, functions_possibility) in
+                            used_functions_and_errors.into_iter().enumerate()
+                        {
+                            for (func_index, func_possibilities) in
+                                functions_possibility.into_iter().enumerate()
+                            {
+                                for (func_possibility_index, errors_if_unused) in
+                                    func_possibilities.into_iter().enumerate()
+                                {
+                                    if let Some(errs) = errors_if_unused {
+                                        let mut e = CheckError::new().msg(format!("try: For the argument {t}:\nFunction #{}{} is never used. (use `try_allow_unused` to avoid this error){}",
+                                            func_index + 1,
+                                            if functions_posibility_index != 0 || func_possibility_index != 0 {
+                                                format!(" (func-tuple possibility {}, function possibility {})", functions_posibility_index + 1, func_possibility_index + 1)
+                                            } else {
+                                                format!("")
+                                            },
+                                            if errs.is_empty() { "" } else { " Errors:" }));
+                                        for err in errs {
+                                            e = e.err(err);
+                                        }
+                                        return Err(e);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    return Err(format!("cannot use try with non-tuple argument").into());
+                }
+            }
+            Ok(out)
+        }),
+        run: Arc::new(|a, _i| {
+            let tuple = a.get();
+            let tuple = tuple
+                .as_any()
+                .downcast_ref::<data::tuple::Tuple>()
+                .expect("try: not a tuple");
+            let arg = &tuple.0[0];
+            let funcs = tuple.0[1].get();
+            let funcs = funcs.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
+            for func in funcs.0.iter() {
+                let func = func.get();
+                let func = func
+                    .as_any()
+                    .downcast_ref::<data::function::Function>()
+                    .unwrap();
+                if func.check(&arg.get().as_type()).is_ok() {
+                    return func.run(arg.clone());
+                }
+            }
+            unreachable!("try: no function found")
+        }),
+        inner_statements: None,
+    })
 }
