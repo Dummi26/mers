@@ -1,0 +1,12 @@
+(
+  (if true 1 else (), 2, "a", "b", 3, "c", 12.5),
+  (
+    // why is this RTL instead of LTR???? (starts with float)
+    (a, b, c, d, e, f, g) -> {
+      (a, b, e).sum
+      (a, b, e, g).sum
+      (c, d, f).concat
+    }
+    x -> 1
+  )
+).try

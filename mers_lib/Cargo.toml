@@ -1,8 +1,12 @@
 [package]
 name = "mers_lib"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
-
+license = "MIT OR Apache-2.0"
+description = "library to use the mers language in other projects"
+keywords = ["scripting"]
+readme = "README.md"
+repository = "https://github.com/Dummi26/mers"
 
 [features]
 default = ["parse"]

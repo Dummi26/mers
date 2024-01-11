@@ -1,0 +1,11 @@
+t := {() -> {
+  1.sleep
+  "test".println
+  1.sleep
+}}.thread
+
+t.thread_finished.println
+
+t.thread_await
+
+t.thread_finished.println

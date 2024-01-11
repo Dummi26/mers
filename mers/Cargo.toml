@@ -1,10 +1,16 @@
 [package]
 name = "mers"
-version = "0.1.0"
+version = "0.3.1"
 edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "dynamically typed but type-checked programming language"
+keywords = ["scripting"]
+readme = "README.md"
+repository = "https://github.com/Dummi26/mers"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-mers_lib = { path = "../mers_lib", features = ["parse"] }
+mers_lib = "0.3.1"
+# mers_lib = { path = "../mers_lib", features = ["parse"] }
 clap = { version = "4.3.19", features = ["derive"] }

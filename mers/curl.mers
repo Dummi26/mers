@@ -1,0 +1,6 @@
+url -> "curl".run_command((url)).try((
+	(s, o, e) -> if (s.eq(0), s.eq(())).any {
+		(o)
+	} else ((), e)
+	e -> (e, ())
+))
