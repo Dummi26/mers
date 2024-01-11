@@ -3,8 +3,14 @@
 Mers is a high-level programming language.
 It is designed to be safe (it doesn't crash at runtime) and as simple as possible.
 
+Install from *crates.io*:
+
+```sh
+cargo install mers
+```
+
 See also:
-[Quickstart](Quickstart.md),
+[Quickstart](Quickstart.md)
 
 ## what makes it special
 
