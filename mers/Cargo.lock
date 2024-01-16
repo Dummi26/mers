@@ -191,7 +191,7 @@ checksum = "09fc20d2ca12cb9f044c93e3bd6d32d523e6e2ec3db4f7b2939cd99026ecd3f0"
 
 [[package]]
 name = "mers"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "clap",
  "mers_lib",
@@ -199,9 +199,9 @@ dependencies = [
 
 [[package]]
 name = "mers_lib"
-version = "0.3.3"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4bb692b23943c1ca19206ac603ca6dcd44975cbb8ffbd45ec442137ebaf916ba"
+checksum = "2e9ab50df4b97ef38d60f613002ebe0ba04301bec8adc22bfc60e983a9e561e8"
 dependencies = [
  "colored",
  "line-span",
