@@ -299,6 +299,8 @@ impl MersType for ListT {
         for t in self.0.subtypes_type().types {
             acc.add(Arc::new(Self(Type::newm(vec![t]))));
         }
+        // The type of an empty list is a list where the items are `<unreachable>`
+        acc.add(Arc::new(Self(Type::empty())));
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
