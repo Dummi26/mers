@@ -114,9 +114,9 @@ impl Config {
 }
 
 #[derive(Clone)]
-pub struct Thread(Arc<Mutex<Result<JoinHandle<Data>, Data>>>);
+pub struct Thread(pub Arc<Mutex<Result<JoinHandle<Data>, Data>>>);
 #[derive(Debug, Clone)]
-pub struct ThreadT(Type);
+pub struct ThreadT(pub Type);
 
 impl MersData for Thread {
     fn is_eq(&self, _other: &dyn MersData) -> bool {

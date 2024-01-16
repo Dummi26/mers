@@ -235,9 +235,9 @@ impl Config {
 }
 
 #[derive(Clone, Debug)]
-pub struct List(Vec<Arc<RwLock<Data>>>);
+pub struct List(pub Vec<Arc<RwLock<Data>>>);
 #[derive(Debug)]
-pub struct ListT(Type);
+pub struct ListT(pub Type);
 impl MersData for List {
     fn is_eq(&self, other: &dyn MersData) -> bool {
         if let Some(other) = other.as_any().downcast_ref::<Self>() {

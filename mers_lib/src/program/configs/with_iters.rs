@@ -228,9 +228,9 @@ pub enum ItersT {
     Enumerate,
 }
 #[derive(Clone, Debug)]
-pub struct Iter(Iters, Data);
+pub struct Iter(pub Iters, pub Data);
 #[derive(Clone, Debug)]
-pub struct IterT(ItersT, Type, Type);
+pub struct IterT(pub ItersT, pub Type, pub Type);
 impl MersData for Iter {
     fn is_eq(&self, _other: &dyn MersData) -> bool {
         false
