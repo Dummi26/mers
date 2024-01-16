@@ -296,11 +296,12 @@ impl MersType for ListT {
             .is_some_and(|v| self.0.is_included_in(&v.0))
     }
     fn subtypes(&self, acc: &mut Type) {
+        // The type of an empty list is a list where the items are `<unreachable>`
+        acc.add(Arc::new(Self(Type::empty())));
+        // All possible list types
         for t in self.0.subtypes_type().types {
             acc.add(Arc::new(Self(Type::newm(vec![t]))));
         }
-        // The type of an empty list is a list where the items are `<unreachable>`
-        acc.add(Arc::new(Self(Type::empty())));
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
