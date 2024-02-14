@@ -137,6 +137,23 @@ impl Config {
                 inner_statements: None,
             }),
         )
+        .add_var(
+            "chain".to_string(),
+            Data::new(data::function::Function {
+                info: Arc::new(program::run::Info::neverused()),
+                info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                out: Arc::new(|a, _i| {
+                    let data = if let Some(a) = a.iterable() {
+                        a
+                    } else {
+                        return Err(format!("cannot call chain on non-iterable type {a}.").into());
+                    };
+                    Ok(Type::new(IterT::new(ItersT::Chained, data)?))
+                }),
+                run: Arc::new(|a, _i| Data::new(Iter(Iters::Chained, a.clone()))),
+                inner_statements: None,
+            }),
+        )
     }
 }
 
@@ -217,6 +234,7 @@ pub enum Iters {
     MapWhile(data::function::Function),
     Take(usize),
     Enumerate,
+    Chained,
 }
 #[derive(Clone, Debug)]
 pub enum ItersT {
@@ -226,6 +244,7 @@ pub enum ItersT {
     MapWhile(data::function::FunctionT),
     Take,
     Enumerate,
+    Chained,
 }
 #[derive(Clone, Debug)]
 pub struct Iter(pub Iters, pub Data);
@@ -276,6 +295,15 @@ impl MersData for Iter {
                     v,
                 ]))
             })),
+            Iters::Chained => {
+                let iters = self
+                    .1
+                    .get()
+                    .iterable()?
+                    .map(|v| v.get().iterable())
+                    .collect::<Option<Vec<_>>>()?;
+                Box::new(iters.into_iter().flatten())
+            }
         })
     }
     fn clone(&self) -> Box<dyn MersData> {
@@ -331,6 +359,16 @@ impl IterT {
                 Type::new(data::int::IntT),
                 data.clone(),
             ])),
+            ItersT::Chained => {
+                if let Some(out) = data.iterable() {
+                    out
+                } else {
+                    return Err(format!(
+                        "Cannot create a chain from an iterator over the non-iterator type {data}."
+                    )
+                    .into());
+                }
+            }
         };
         Ok(Self(iter, data, t))
     }
@@ -386,6 +424,7 @@ impl Iters {
             Self::MapWhile(f) => ItersT::MapWhile(f.get_as_type()),
             Self::Take(_) => ItersT::Take,
             Self::Enumerate => ItersT::Enumerate,
+            Self::Chained => ItersT::Chained,
         }
     }
 }
