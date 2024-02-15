@@ -14,6 +14,7 @@ pub enum ParsedType {
     Tuple(Vec<Vec<Self>>),
     Object(Vec<(String, Vec<Self>)>),
     Type(String),
+    Function(Vec<(Self, Self)>),
     TypeWithInfo(String, String),
 }
 
@@ -24,18 +25,18 @@ pub fn parse_single_type(src: &mut Source, srca: &Arc<Source>) -> Result<ParsedT
         // Reference
         Some('&') => {
             src.next_char();
-            if let Some('{') = src.peek_char() {
+            if let Some('[') = src.peek_char() {
                 src.next_char();
                 let types = parse_type(src, srca)?;
                 let nc = src.next_char();
-                if !matches!(nc, Some('}')) {
+                if !matches!(nc, Some(']')) {
                     let nc = if let Some(nc) = nc {
                         format!("'{nc}'")
                     } else {
                         format!("EOF")
                     };
                     return Err(CheckError::new().msg(format!(
-                        "No closing }} in reference type with opening {{! Found {nc} instead"
+                        "No closing ] in reference type with opening [! Found {nc} instead"
                     )));
                 }
                 ParsedType::Reference(types)
