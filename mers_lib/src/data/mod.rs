@@ -138,8 +138,6 @@ impl Data {
         }
     }
     pub fn get(&self) -> RwLockReadGuard<Box<dyn MersData>> {
-        #[cfg(debug_assertions)]
-        eprintln!("[mers:data:cow] get");
         self.data.read().unwrap()
     }
     pub fn get_mut_unchecked(&self) -> RwLockWriteGuard<Box<dyn MersData>> {
