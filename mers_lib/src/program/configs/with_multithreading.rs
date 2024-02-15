@@ -36,7 +36,7 @@ impl Config {
                     let mut out = Type::empty();
                     for t in a.types.iter() {
                         if let Some(f) = t.as_any().downcast_ref::<data::function::FunctionT>() {
-                            match (f.0)(&Type::empty_tuple()) {
+                            match f.o(&Type::empty_tuple()) {
                                 Ok(t) => out.add(Arc::new(t)),
                                 Err(e) => return Err(CheckError::new().msg(format!("Can't call thread on a function which can't be called on an empty tuple: ")).err(e))
                             }

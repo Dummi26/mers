@@ -78,6 +78,7 @@ pub mod error_colors {
     pub const AsTypeTypeAnnotation: Color = InitTo;
 
     pub const BadCharInTupleType: Color = Color::Red;
+    pub const BadCharInFunctionType: Color = Color::Red;
     pub const BadTypeFromParsed: Color = Color::Blue;
     pub const TypeAnnotationNoClosingBracket: Color = Color::Blue;
 }

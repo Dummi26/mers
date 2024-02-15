@@ -36,7 +36,7 @@ impl Config {
                                     let func = &t.0[1];
                                     for func_t in func.types.iter() {
                                         if let Some(f) = func_t.as_any().downcast_ref::<data::function::FunctionT>() {
-                                            match (f.0)(&arg) {
+                                            match f.o(&arg) {
                                                 Ok(out) => {
                                                     if !out.is_included_in(&arg) {
                                                         return Err(format!("Function returns a value of type {out}, which isn't included in the type of the reference, {arg}.").into());
@@ -150,7 +150,7 @@ impl Config {
                             } else { [v].into_iter().collect() }
                         } else { [v].into_iter().collect() }) {
                         if let Some(t) = t.as_any().downcast_ref::<data::function::FunctionT>() {
-                            for t in (t.0)(&Type::empty_tuple())?.types {
+                            for t in t.o(&Type::empty_tuple())?.types {
                                 if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
                                     if t.0.len() > 1 {
                                         return Err(format!("called loop with funcion that might return a tuple of length > 1").into());
@@ -293,7 +293,7 @@ fn get_try(allow_unused_functions: bool) -> Data {
                                             if !skip_checks {
                                                 func_errors.push((
                                                     fvi,
-                                                    match ft.0(&arg_type) {
+                                                    match ft.o(&arg_type) {
                                                         Err(e) => {
                                                             func_fallible = true;
                                                             if let Some(errs) =

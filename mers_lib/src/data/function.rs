@@ -50,12 +50,12 @@ impl Function {
     pub fn get_as_type(&self) -> FunctionT {
         let out = Arc::clone(&self.out);
         let info = Arc::clone(&self.info_check);
-        FunctionT(Arc::new(move |a| {
+        FunctionT(Ok(Arc::new(move |a| {
             let lock = info.lock().unwrap();
             let mut info = lock.clone();
             drop(lock);
             out(a, &mut info)
-        }))
+        })))
     }
 }
 
@@ -87,11 +87,22 @@ impl MersData for Function {
 }
 
 #[derive(Clone)]
-pub struct FunctionT(pub Arc<dyn Fn(&Type) -> Result<Type, CheckError> + Send + Sync>);
+pub struct FunctionT(
+    pub Result<Arc<dyn Fn(&Type) -> Result<Type, CheckError> + Send + Sync>, Vec<(Type, Type)>>,
+);
+impl FunctionT {
+    /// get output type
+    pub fn o(&self, i: &Type) -> Result<Type, CheckError> {
+        match &self.0 {
+            Ok(f) => f(i),
+            Err(v) => v.iter().find(|(a, _)| i.is_included_in(a)).map(|(_, o)| o.clone()).ok_or_else(|| format!("This function, which was defined with an explicit type, cannot be called with an argument of type {i}.").into()),
+        }
+    }
+}
 impl MersType for FunctionT {
     fn iterable(&self) -> Option<Type> {
         // if this function can be called with an empty tuple and returns `()` or `(T)`, it can act as an iterator with type `T`.
-        if let Ok(t) = self.0(&Type::empty_tuple()) {
+        if let Ok(t) = self.o(&Type::empty_tuple()) {
             let mut out = Type::empty();
             for t in &t.types {
                 if let Some(t) = t.as_any().downcast_ref::<super::tuple::TupleT>() {
@@ -109,11 +120,38 @@ impl MersType for FunctionT {
             None
         }
     }
-    fn is_same_type_as(&self, _other: &dyn MersType) -> bool {
-        false
+    fn is_same_type_as(&self, other: &dyn MersType) -> bool {
+        if let Err(s) = &self.0 {
+            if let Some(other) = other.as_any().downcast_ref::<Self>() {
+                if let Err(o) = &other.0 {
+                    s.iter().all(|(si, so)| {
+                        o.iter()
+                            .any(|(oi, oo)| si.is_same_type_as(oi) && so.is_same_type_as(oo))
+                    }) && o.iter().all(|(oi, oo)| {
+                        s.iter()
+                            .any(|(si, so)| oi.is_same_type_as(si) && oo.is_same_type_as(so))
+                    })
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        }
     }
-    fn is_included_in_single(&self, _target: &dyn MersType) -> bool {
-        false
+    fn is_included_in_single(&self, target: &dyn MersType) -> bool {
+        if let Some(target) = target.as_any().downcast_ref::<Self>() {
+            if let Err(s) = &target.0 {
+                s.iter()
+                    .all(|(i, o)| self.o(i).is_ok_and(|r| r.is_included_in(o)))
+            } else {
+                false
+            }
+        } else {
+            false
+        }
     }
     fn subtypes(&self, acc: &mut Type) {
         acc.add(Arc::new(self.clone()));
@@ -147,11 +185,23 @@ impl Display for Function {
 }
 impl Display for FunctionT {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match (self.0)(&Type::empty_tuple()) {
-            Ok(t) => write!(f, "Function /* () -> {t} */"),
-            Err(_) => {
-                write!(f, "Function",)
+        match &self.0 {
+            Err(e) => {
+                write!(f, "(")?;
+                for (index, (i, o)) in e.iter().enumerate() {
+                    if index > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{i} -> {o}")?;
+                }
+                write!(f, ")")
             }
+            Ok(_) => match self.o(&Type::empty_tuple()) {
+                Ok(t) => write!(f, "(() -> {t}, ...)"),
+                Err(_) => {
+                    write!(f, "(... -> ...)",)
+                }
+            },
         }
     }
 }

@@ -39,7 +39,7 @@ impl MersStatement for Chain {
                 .as_any()
                 .downcast_ref::<crate::data::function::FunctionT>()
             {
-                match (func.0)(&arg) {
+                match func.o(&arg) {
                     Ok(t) => o.add(Arc::new(t)),
                     Err(e) => {
                         return Err(if let Some(_) = &self.as_part_of_include {

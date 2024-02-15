@@ -53,7 +53,7 @@ impl Config {
                                         .collect::<Option<Vec<_>>>(),
                                 ) {
                                     for f in f {
-                                        let _ret = f.0(&iter)?;
+                                        let _ret = f.o(&iter)?;
                                         // if !ret.is_zero_tuple() {
                                         //     return Err(format!("for_each function must return (), not {ret}").into());
                                         // }
@@ -325,9 +325,9 @@ impl MersData for Iter {
 impl IterT {
     pub fn new(iter: ItersT, data: Type) -> Result<Self, CheckError> {
         let t = match &iter {
-            ItersT::Map(f) => (f.0)(&data)?,
+            ItersT::Map(f) => f.o(&data)?,
             ItersT::Filter(f) => {
-                if (f.0)(&data)?.is_included_in(&data::bool::BoolT) {
+                if f.o(&data)?.is_included_in(&data::bool::BoolT) {
                     data.clone()
                 } else {
                     return Err(format!(
@@ -337,7 +337,7 @@ impl IterT {
                 }
             }
             ItersT::FilterMap(f) => {
-                if let Some(v) = (f.0)(&data)?.one_tuple_possible_content() {
+                if let Some(v) = f.o(&data)?.one_tuple_possible_content() {
                     v
                 } else {
                     return Err(
@@ -346,7 +346,7 @@ impl IterT {
                 }
             }
             ItersT::MapWhile(f) => {
-                if let Some(t) = (f.0)(&data)?.one_tuple_possible_content() {
+                if let Some(t) = f.o(&data)?.one_tuple_possible_content() {
                     t
                 } else {
                     return Err(
