@@ -1,6 +1,6 @@
 # mers
 
-See [mers/README.md]
+See [the mers readme](mers/README.md) for more info.
 
 ---
 
