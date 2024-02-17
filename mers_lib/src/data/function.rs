@@ -23,6 +23,18 @@ pub struct Function {
     )>,
 }
 impl Function {
+    pub fn new(
+        out: impl Fn(&Type) -> Result<Type, CheckError> + Send + Sync + 'static,
+        run: impl Fn(Data) -> Data + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            info: Arc::new(crate::info::Info::neverused()),
+            info_check: Arc::new(Mutex::new(crate::info::Info::neverused())),
+            out: Arc::new(move |a, _| out(a)),
+            run: Arc::new(move |a, _| run(a)),
+            inner_statements: None,
+        }
+    }
     pub fn with_info_run(&self, info: Arc<Info>) -> Self {
         Self {
             info,
