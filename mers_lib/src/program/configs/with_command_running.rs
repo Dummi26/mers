@@ -108,7 +108,7 @@ impl Config {
                         .spawn()
                     {
                         Ok(mut child) => {
-                            let a = child.stdin.take().unwrap();
+                            let a = Some(child.stdin.take().unwrap());
                             let b = BufReader::new(child.stdout.take().unwrap());
                             let c = BufReader::new(child.stderr.take().unwrap());
                             Data::new(ChildProcess(Arc::new(Mutex::new((child, a, b, c)))))
@@ -160,13 +160,14 @@ impl Config {
                             Arc::new(data::tuple::TupleT(vec![])),
                         ]))
                     } else {
-                        return Err(format!("childproc_exited called on non-ChildProcess type {a}").into());
+                        return Err(format!("childproc_await called on non-ChildProcess type {a}").into());
                     }
                 }),
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let child = a.as_any().downcast_ref::<ChildProcess>().unwrap();
                     let mut child = child.0.lock().unwrap();
+                    drop(child.1.take());
                     match child.0.wait() {
                         Ok(s) => if let Some(s) = s.code() {
                             Data::new(data::int::Int(s as _))
@@ -199,7 +200,7 @@ impl Config {
                     let child = child.as_any().downcast_ref::<ChildProcess>().unwrap();
                     let mut child = child.0.lock().unwrap();
                     let buf = bytes.iterable().unwrap().map(|v| v.get().as_any().downcast_ref::<data::int::Int>().unwrap().0.max(0).min(255) as u8).collect::<Vec<_>>();
-                    if child.1.write_all(&buf).is_ok() {
+                    if child.1.as_mut().is_some_and(|v| v.write_all(&buf).is_ok() && v.flush().is_ok()) {
                         Data::new(data::bool::Bool(true))
                     } else {
                         Data::new(data::bool::Bool(false))
@@ -228,7 +229,7 @@ impl Config {
                     let child = child.as_any().downcast_ref::<ChildProcess>().unwrap();
                     let mut child = child.0.lock().unwrap();
                     let buf = string.as_any().downcast_ref::<data::string::String>().unwrap().0.as_bytes();
-                    if child.1.write_all(buf).is_ok() {
+                    if child.1.as_mut().is_some_and(|v| v.write_all(buf).is_ok() && v.flush().is_ok()) {
                         Data::new(data::bool::Bool(true))
                     } else {
                         Data::new(data::bool::Bool(false))
@@ -361,7 +362,7 @@ pub struct ChildProcess(
     Arc<
         Mutex<(
             std::process::Child,
-            ChildStdin,
+            Option<ChildStdin>,
             BufReader<ChildStdout>,
             BufReader<ChildStderr>,
         )>,
