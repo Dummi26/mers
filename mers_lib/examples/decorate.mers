@@ -1,0 +1,2 @@
+// return a function that adds "-= ... =-" decorations to the given text
+text -> ("-= ", text, " =-").concat
