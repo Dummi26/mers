@@ -19,8 +19,8 @@ impl Config {
     /// `gt: fn` returns true if the input keeps decreasing, that is, for (a, b), a > b, for (a, b, c), a > b > c, and so on.
     /// `ltoe: fn` returns true if the input only increases, that is, for (a, b), a <= b, for (a, b, c), a <= b <= c, and so on.
     /// `gtoe: fn` returns true if the input only decreases, that is, for (a, b), a >= b, for (a, b, c), a >= b >= c, and so on.
-    /// `parse_int: fn` parses a string to an int, returns () on failure
-    /// `parse_float: fn` parses a string to an int, returns () on failure
+    /// `parse_int: fn` parses a string to an int, returns () on failure and (Int) otherwise
+    /// `parse_float: fn` parses a string to an int, returns () on failure and (Int) otherwise
     /// TODO!
     /// `as_float: fn` turns integers into floats. returns floats without changing them.
     /// `round: fn` rounds the float and returns an int
@@ -62,7 +62,9 @@ impl Config {
             out: Arc::new(|a, _i| {
                 if a.is_included_in(&Type::new(data::string::StringT)) {
                     Ok(Type::newm(vec![
-                        Arc::new(data::float::FloatT),
+                        Arc::new(data::tuple::TupleT(vec![
+                            Type::new(data::float::FloatT),
+                        ])),
                         Arc::new(data::tuple::TupleT(vec![])),
                     ]))
                 } else {
@@ -71,7 +73,7 @@ impl Config {
             }),
             run: Arc::new(|a, _i| {
                 if let Ok(n) = a.get().as_any().downcast_ref::<data::string::String>().unwrap().0.parse() {
-                    Data::new(data::float::Float(n))
+                    Data::one_tuple(Data::new(data::float::Float(n)))
                 } else {
                     Data::empty_tuple()
                 }
@@ -83,7 +85,9 @@ impl Config {
             out: Arc::new(|a, _i| {
                 if a.is_included_in(&Type::new(data::string::StringT)) {
                     Ok(Type::newm(vec![
-                        Arc::new(data::int::IntT),
+                        Arc::new(data::tuple::TupleT(vec![
+                            Type::new(data::int::IntT),
+                        ])),
                         Arc::new(data::tuple::TupleT(vec![])),
                     ]))
                 } else {
@@ -92,7 +96,7 @@ impl Config {
             }),
             run: Arc::new(|a, _i| {
                 if let Ok(n) = a.get().as_any().downcast_ref::<data::string::String>().unwrap().0.parse() {
-                    Data::new(data::int::Int(n))
+                    Data::one_tuple(Data::new(data::int::Int(n)))
                 } else {
                     Data::empty_tuple()
                 }

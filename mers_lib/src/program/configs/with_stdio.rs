@@ -50,11 +50,12 @@ impl Config {
             Data::new(data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|_a, _i| Ok(Type::empty_tuple())),
+                out: Arc::new(|a, _i| Ok(a.clone())),
                 run: Arc::new(|a, _i| {
-                    let a = a.get();
-                    eprintln!("{} :: {}", a.as_type(), a);
-                    Data::empty_tuple()
+                    let a2 = a.get();
+                    eprintln!("{} :: {}", a2.as_type(), a2);
+                    drop(a2);
+                    a
                 }),
                 inner_statements: None,
             }),
