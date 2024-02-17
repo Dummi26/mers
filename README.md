@@ -8,7 +8,7 @@ See [mers/README.md]
 "Hello, World!".println
 ```
 
-> `Hello, Variable!`
+> `Hello, World!`
 
 ---
 
@@ -32,6 +32,8 @@ my_var.println
 ```
 (1, "2", 3, 4).sum.println
 ```
+
+![err1](https://github.com/Dummi26/mers/assets/67615357/2f113287-1cce-427f-8dcb-577841e40c2c)
 
 ---
 
