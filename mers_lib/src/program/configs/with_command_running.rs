@@ -1,6 +1,6 @@
 use std::{
     fmt::Display,
-    io::{BufRead, BufReader, Read},
+    io::{BufRead, BufReader, Read, Write},
     process::{ChildStderr, ChildStdin, ChildStdout, Command, Stdio},
     sync::{Arc, Mutex},
 };
@@ -137,12 +137,12 @@ impl Config {
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let child = a.as_any().downcast_ref::<ChildProcess>().unwrap();
-                        let mut child = child.0.lock().unwrap();
-                        match child.0.try_wait() {
-                            Ok(Some(_)) => Data::one_tuple(Data::new(data::bool::Bool(true))),
-                            Ok(None) => Data::one_tuple(Data::new(data::bool::Bool(false))),
-                            Err(_) => Data::empty_tuple(),
-                        }
+                    let mut child = child.0.lock().unwrap();
+                    match child.0.try_wait() {
+                        Ok(Some(_)) => Data::one_tuple(Data::new(data::bool::Bool(true))),
+                        Ok(None) => Data::one_tuple(Data::new(data::bool::Bool(false))),
+                        Err(_) => Data::empty_tuple(),
+                    }
                 }),
                 inner_statements: None,
             }),
@@ -166,15 +166,73 @@ impl Config {
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let child = a.as_any().downcast_ref::<ChildProcess>().unwrap();
-                        let mut child = child.0.lock().unwrap();
-                        match child.0.wait() {
-                            Ok(s) => if let Some(s) = s.code() {
-                                Data::new(data::int::Int(s as _))
-                            } else {
-                                Data::new(data::bool::Bool(s.success()))
-                            }
-                            Err(_) => Data::empty_tuple(),
+                    let mut child = child.0.lock().unwrap();
+                    match child.0.wait() {
+                        Ok(s) => if let Some(s) = s.code() {
+                            Data::new(data::int::Int(s as _))
+                        } else {
+                            Data::new(data::bool::Bool(s.success()))
                         }
+                        Err(_) => Data::empty_tuple(),
+                    }
+                }),
+                inner_statements: None,
+            }),
+        )
+        .add_var(
+            "childproc_write_bytes".to_string(),
+            Data::new(data::function::Function {
+                info: Arc::new(program::run::Info::neverused()),
+                info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
+                out: Arc::new(|a, _i| {
+                    if a.types.iter().all(|a| a.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in(&ChildProcessT) && t.0[1].iterable().is_some_and(|i| i.is_included_in(&data::int::IntT)))) {
+                        Ok(Type::new(data::bool::BoolT))
+                    } else {
+                        return Err(format!("childproc_write_bytes called on non-`(ChildProcess, Iter<Int>)` type {a}").into());
+                    }
+                }),
+                run: Arc::new(|a, _i| {
+                    let a = a.get();
+                    let tuple = a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
+                    let child = tuple.0[0].get();
+                    let bytes = tuple.0[1].get();
+                    let child = child.as_any().downcast_ref::<ChildProcess>().unwrap();
+                    let mut child = child.0.lock().unwrap();
+                    let buf = bytes.iterable().unwrap().map(|v| v.get().as_any().downcast_ref::<data::int::Int>().unwrap().0.max(0).min(255) as u8).collect::<Vec<_>>();
+                    if child.1.write_all(&buf).is_ok() {
+                        Data::new(data::bool::Bool(true))
+                    } else {
+                        Data::new(data::bool::Bool(false))
+                    }
+                }),
+                inner_statements: None,
+            }),
+        )
+        .add_var(
+            "childproc_write_string".to_string(),
+            Data::new(data::function::Function {
+                info: Arc::new(program::run::Info::neverused()),
+                info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
+                out: Arc::new(|a, _i| {
+                    if a.is_included_in(&data::tuple::TupleT(vec![Type::new(ChildProcessT), Type::new(data::string::StringT)])) {
+                        Ok(Type::new(data::bool::BoolT))
+                    } else {
+                        return Err(format!("childproc_write_string called on non-`(ChildProcess, String)` type {a}").into());
+                    }
+                }),
+                run: Arc::new(|a, _i| {
+                    let a = a.get();
+                    let tuple = a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
+                    let child = tuple.0[0].get();
+                    let string = tuple.0[1].get();
+                    let child = child.as_any().downcast_ref::<ChildProcess>().unwrap();
+                    let mut child = child.0.lock().unwrap();
+                    let buf = string.as_any().downcast_ref::<data::string::String>().unwrap().0.as_bytes();
+                    if child.1.write_all(buf).is_ok() {
+                        Data::new(data::bool::Bool(true))
+                    } else {
+                        Data::new(data::bool::Bool(false))
+                    }
                 }),
                 inner_statements: None,
             }),
@@ -226,13 +284,13 @@ impl Config {
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let child = a.as_any().downcast_ref::<ChildProcess>().unwrap();
-                        let mut child = child.0.lock().unwrap();
-                        let mut buf = [0];
-                        if child.3.read_exact(&mut buf).is_ok() {
-                            Data::one_tuple(Data::new(data::int::Int(buf[0] as _)))
-                        } else {
-                            Data::empty_tuple()
-                        }
+                    let mut child = child.0.lock().unwrap();
+                    let mut buf = [0];
+                    if child.3.read_exact(&mut buf).is_ok() {
+                        Data::one_tuple(Data::new(data::int::Int(buf[0] as _)))
+                    } else {
+                        Data::empty_tuple()
+                    }
                 }),
                 inner_statements: None,
             }),
@@ -255,13 +313,13 @@ impl Config {
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let child = a.as_any().downcast_ref::<ChildProcess>().unwrap();
-                        let mut child = child.0.lock().unwrap();
-                        let mut buf = String::new();
-                        if child.2.read_line(&mut buf).is_ok() {
-                            Data::one_tuple(Data::new(data::string::String(buf)))
-                        } else {
-                            Data::empty_tuple()
-                        }
+                    let mut child = child.0.lock().unwrap();
+                    let mut buf = String::new();
+                    if child.2.read_line(&mut buf).is_ok() {
+                        Data::one_tuple(Data::new(data::string::String(buf)))
+                    } else {
+                        Data::empty_tuple()
+                    }
                 }),
                 inner_statements: None,
             }),
@@ -284,13 +342,13 @@ impl Config {
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let child = a.as_any().downcast_ref::<ChildProcess>().unwrap();
-                        let mut child = child.0.lock().unwrap();
-                        let mut buf = String::new();
-                        if child.3.read_line(&mut buf).is_ok() {
-                            Data::one_tuple(Data::new(data::string::String(buf)))
-                        } else {
-                            Data::empty_tuple()
-                        }
+                    let mut child = child.0.lock().unwrap();
+                    let mut buf = String::new();
+                    if child.3.read_line(&mut buf).is_ok() {
+                        Data::one_tuple(Data::new(data::string::String(buf)))
+                    } else {
+                        Data::empty_tuple()
+                    }
                 }),
                 inner_statements: None,
             }),
