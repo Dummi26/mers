@@ -1,3 +1,7 @@
-print_sum := iter -> iter.sum.println
-
-(1, 2, 3, "a").print_sum
+// hello
+if some_condition {
+  { ref: &my_var }
+} else {
+  [Int] (by_value)
+}
+// end

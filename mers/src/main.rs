@@ -3,6 +3,7 @@ use mers_lib::prelude_compile::*;
 use std::{path::PathBuf, process::exit, sync::Arc};
 
 mod cfg_globals;
+mod pretty_print;
 
 #[derive(Parser)]
 struct Args {
@@ -31,6 +32,11 @@ enum Command {
     },
     /// Run code, but skip type-checks. Will panic at runtime if code is not valid.
     RunUnchecked {
+        #[command(subcommand)]
+        source: From,
+    },
+    /// Add syntax highlighting to the code
+    PrettyPrint {
         #[command(subcommand)]
         source: From,
     },
@@ -144,6 +150,9 @@ fn main() {
                     }
                 }
             }
+        }
+        Command::PrettyPrint { source } => {
+            pretty_print::pretty_print(get_source(source));
         }
     }
 }

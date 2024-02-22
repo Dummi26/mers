@@ -14,3 +14,4 @@ repository = "https://github.com/Dummi26/mers"
 mers_lib = "0.6.0"
 # mers_lib = { path = "../mers_lib" }
 clap = { version = "4.3.19", features = ["derive"] }
+colored = "2.1.0"
