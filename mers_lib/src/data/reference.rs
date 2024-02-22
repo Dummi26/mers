@@ -7,7 +7,7 @@ use std::{
 use super::{Data, MersData, MersType, Type};
 
 #[derive(Debug, Clone)]
-pub struct Reference(pub Arc<RwLock<Data>>);
+pub struct Reference(pub Arc<RwLock<Data>>, pub Type);
 
 impl MersData for Reference {
     fn is_eq(&self, other: &dyn MersData) -> bool {
@@ -21,7 +21,7 @@ impl MersData for Reference {
         Box::new(Clone::clone(self))
     }
     fn as_type(&self) -> Type {
-        Type::new(ReferenceT(self.0.write().unwrap().get().as_type()))
+        Type::new(ReferenceT(self.1.clone()))
     }
     fn as_any(&self) -> &dyn Any {
         self

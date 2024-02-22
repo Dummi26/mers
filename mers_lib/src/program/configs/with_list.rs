@@ -46,7 +46,7 @@ impl Config {
                                         if let Some(t) = t.0[0].dereference() {
                                             for t in t.types.iter() {
                                                 if let Some(t) = t.as_any().downcast_ref::<ListT>() {
-                                                    out.add(Arc::new(data::reference::ReferenceT(t.0.clone())));
+                                                    out.add(Arc::new(data::tuple::TupleT(vec![Type::new(data::reference::ReferenceT(t.0.clone()))])));
                                                 } else {
                                                     return Err(format!(
                                                         "get_mut: first argument in tuple {t} isn't `&List<_>`."
@@ -75,20 +75,21 @@ impl Config {
                         let t = a.get();
                         let t = t.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
                         let i = t.0[1].get().as_any().downcast_ref::<data::int::Int>().unwrap().0.max(0) as usize;
-                        let o = match t.0[0].get()
+                        let list = t.0[0].get();
+                        let list = &list
                             .as_any()
                             .downcast_ref::<data::reference::Reference>()
-                            .unwrap()
-                            .0
+                            .unwrap().0;
+                        let list = list
                             .read()
-                            .unwrap()
-                            .get()
-                            .as_any()
+                            .unwrap();
+                        let list = list.get();
+                        let list = list.as_any()
                             .downcast_ref::<List>()
-                            .unwrap().0.get(i)
-                        {
+                            .unwrap();
+                        let o = match list.0.get(i) {
                             Some(data) => {
-                                Data::new(data::reference::Reference(Arc::clone(data)))
+                                Data::one_tuple(Data::new(data::reference::Reference(Arc::clone(data), list.inner_type())))
                             }
                             None => Data::empty_tuple(),
                         };
@@ -263,11 +264,7 @@ impl MersData for List {
         Box::new(Clone::clone(self))
     }
     fn as_type(&self) -> Type {
-        let mut t = Type::empty();
-        for el in &self.0 {
-            t.add(Arc::new(el.read().unwrap().get().as_type()));
-        }
-        Type::new(ListT(t))
+        Type::new(ListT(self.inner_type()))
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -330,5 +327,14 @@ impl Display for ListT {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "List<{}>", to_string_literal(&self.0.to_string(), '>'))?;
         Ok(())
+    }
+}
+impl List {
+    pub fn inner_type(&self) -> Type {
+        let mut t = Type::empty();
+        for el in &self.0 {
+            t.add(Arc::new(el.read().unwrap().get().as_type()));
+        }
+        t
     }
 }
