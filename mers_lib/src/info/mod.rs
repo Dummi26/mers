@@ -45,10 +45,10 @@ impl<L: Local> Local for Info<L> {
         self.scopes.last_mut().unwrap().init_var(id, value)
     }
     fn get_var(&self, id: &Self::VariableIdentifier) -> Option<&Self::VariableData> {
-        self.scopes.iter().find_map(|l| l.get_var(id))
+        self.scopes.iter().rev().find_map(|l| l.get_var(id))
     }
     fn get_var_mut(&mut self, id: &Self::VariableIdentifier) -> Option<&mut Self::VariableData> {
-        self.scopes.iter_mut().find_map(|l| l.get_var_mut(id))
+        self.scopes.iter_mut().rev().find_map(|l| l.get_var_mut(id))
     }
     fn duplicate(&self) -> Self {
         Self {

@@ -44,12 +44,12 @@ pub trait MersStatement: Debug + Send + Sync {
     fn run_custom(&self, info: &mut Info) -> Data;
     /// if true, local variables etc. will be contained inside their own scope.
     fn has_scope(&self) -> bool;
-    fn check(&self, info: &mut CheckInfo, assign: Option<&Type>) -> Result<Type, CheckError> {
+    fn check(&self, info: &mut CheckInfo, init_to: Option<&Type>) -> Result<Type, CheckError> {
         info.global.depth += 1;
         if self.has_scope() {
             info.create_scope();
         }
-        let o = self.check_custom(info, assign);
+        let o = self.check_custom(info, init_to);
         if info.global.enable_hooks {
             // Hooks - keep in sync with run/mod.rs/compile() hooks section
             'hook_save_info_at: {

@@ -25,9 +25,15 @@ impl MersStatement for AssignTo {
             return Err("can't init to statement type AssignTo".to_string().into());
         }
         let source = self.source.check(info, None)?;
-        let target = match self.target.check(info, Some(&source)) {
+        let target = match self
+            .target
+            .check(info, if self.is_init { Some(&source) } else { None })
+        {
             Ok(v) => v,
             Err(e) => {
+                if !self.is_init {
+                    return Err(e);
+                }
                 return Err(CheckError::new()
                     .src(vec![
                         (self.pos_in_src.clone(), None),
@@ -35,7 +41,7 @@ impl MersStatement for AssignTo {
                         (self.source.source_range(), Some(error_colors::InitFrom)),
                     ])
                     .msg(format!("Cannot initialize:"))
-                    .err(e))
+                    .err(e));
             }
         };
         if !self.is_init {
