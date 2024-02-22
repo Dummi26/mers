@@ -77,4 +77,4 @@ make_list_maybe_none := (val_1, val_2) -> {
 
 maybe_none_list := ("one", 2).make_list_maybe_none
 maybe_none_list.println
-maybe_none_list // use `--check only` to see the type: `List<String/Int/()>`
+maybe_none_list // use `check` to see the type: `List<String/Int/()>`

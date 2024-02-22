@@ -1,20 +1,20 @@
 is_prime := n -> {
   0.1.sleep // wow, what an inefficient algorithm, oh no
   d := 1
-  ().loop(() -> {
+  loop {
     &d = (d, 1).sum
     if d.lt(n) {
       if n.modulo(d).eq(0) (false)
     } else (true)
-  })
+  }
 }
 
 find_primes := start_at -> {
-  () -> (().loop(() -> {
+  () -> (loop {
     out := if start_at.is_prime (start_at)
     &start_at = (start_at, 1).sum
     out
-  }))
+  })
 }
 
 primes_count := 0
@@ -24,10 +24,10 @@ background_thread := {() ->
 }.thread
 
 // Show status to the user while the background thread works
-().loop(() -> {
+loop {
   0.2.sleep
   (" Found ", primes_count, " primes...\r").concat.print
   if background_thread.thread_finished (())
-})
+}
 
 ("\nPrimes: ", background_thread.thread_await).concat.println

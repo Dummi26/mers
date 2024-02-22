@@ -1,7 +1,7 @@
 fib := n -> {
   // we start with these two values
   v := (0, 1)
-  {() -> {
+  loop {
     // subtract 1 from n
     &n = (n, -1).sum
     // extract the latest values
@@ -17,7 +17,7 @@ fib := n -> {
       // so we break with the latest value
       (r)
     }
-  }}.loop
+  }
 }
 
 ((1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 25, 50, 100), i -> {

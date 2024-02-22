@@ -5,12 +5,12 @@
 
 current := 0.0
 
-().loop(() -> {
+loop {
   ("[ ", current, " ]").concat.println
   input := ().read_line.trim
   num := (input, 1).substring.trim.parse_float.try((
-    () -> 0.0,
-    val -> val
+    (val) -> val
+    () -> 0.0
   ))
   mode := input.substring(0, 1)
   if mode.eq("+") {
@@ -26,4 +26,4 @@ current := 0.0
   } else if (input.eq("exit"), input.eq("")).any {
     (())
   }
-})
+}

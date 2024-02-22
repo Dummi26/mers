@@ -1,53 +1,9 @@
-// if string is a + delim + b, returns (a, b),
-// otherwise returns (). b can contain delim.
-split_once := (s, delim) -> {
-  (
-    (s, delim).index_of,
-    (
-      index -> (
-        (s, 0, index).substring,
-        (s, (index, delim.len).sum).substring
-      )
-      () -> ()
-    )
-  ).try
-}
-
-// repeats split_once until no delim is left and returns a list of strings
-split_ := (s, delim, require_nonempty) -> {
-  out := (s).as_list
-  &out.pop
-  ().loop(
-    () -> s.split_once(delim).try((
-      (s1, s2) -> {
-        &s = s2
-        if s1.len.signum.eq(1)
-          &out.push(s1)
-      }
-      () -> {
-        if s.len.signum.eq(1)
-          &out.push(s)
-        (())
-      }
-    ))
-  )
-  out
-}
-
-split := (s, delim) -> s.split_(delim, true)
-
 parse_matrix_line := input -> {
-  vals := input.split(" ")
+  vals := input.str_split(" ")
   vals_len := vals.len
   // reverse vals
   vals_rev := {() -> &vals.pop}.as_list
-  nums := {() -> &vals_rev.pop.try((
-    () -> ()
-    (v) -> v.parse_float.try((
-      () -> ()
-      v -> (v)
-    ))
-  ))}.as_list
+  nums := vals_rev.filter_map(v -> v.parse_float).as_list
   if nums.len.eq(vals_len)
     if nums.len.signum.eq(1)
       (nums)
@@ -58,15 +14,16 @@ parse_matrix_line := input -> {
 read_matrix_line := width -> {
   ().read_line.trim.parse_matrix_line.try((
     (line) -> {
+      line := [List<Float>] line
       w := width.deref
       if w.eq(0) {
         width = line.len
       } else {
-        ().loop(() ->
+        loop {
           if line.len.subtract(w).signum.eq(-1) {
             &line.push(0.0)
           } else (())
-        )
+        }
       }
       (line)
     }
@@ -89,12 +46,12 @@ matrix_get := (matrix, (line, col)) -> {
 leftpad := (str, l) -> {
   str := (str).concat
   d := l.subtract(str.len)
-  ().loop(() ->
+  loop {
     if d.signum.eq(1) {
       &str = (" ", str).concat
       &d = d.subtract(1)
     } else (())
-  )
+  }
   str
 }
 

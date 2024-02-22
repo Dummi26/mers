@@ -1,5 +1,5 @@
 gcd := vals -> {
-  ().loop(() -> {
+  loop {
     (a, b) := vals
     if a.eq(b)
       (a)
@@ -7,21 +7,17 @@ gcd := vals -> {
       &vals = (a, b.subtract(a))
     else
       &vals = (a.subtract(b), b)
-  })
+  }
 }
 
 get_num := () -> {
-  line := ().read_line.trim
-  (
-    line.parse_float,
-    (
-      () -> {
-        ("error: '", line, "' not a number!").concat.println
-        1.panic
-      }
-      n -> n,
-    )
-  ).try
+  loop {
+    line := ().read_line.trim
+    line.parse_float.try((
+      (n) -> (n)
+      () -> ("Error: '", line, "' not a number!").concat.println
+    ))
+  }
 }
 
 ("gcd of 899 and 2900 is ", (899, 2900).gcd).concat.println // 29

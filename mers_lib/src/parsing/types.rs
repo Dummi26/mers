@@ -60,14 +60,14 @@ pub fn parse_single_type(src: &mut Source, srca: &Arc<Source>) -> Result<ParsedT
                     let t = parse_type(src, srca)?;
                     src.skip_whitespace();
                     match src.peek_char() {
-                        Some(')') => {
-                            src.next_char();
-                            break;
-                        }
-                        Some(',') => {
+                        Some(',' | ')') => {
+                            let last = src.peek_char().is_some_and(|c| c == ')');
                             if inner_f.is_empty() {
                                 inner_t.push(t);
                                 src.next_char();
+                                if last {
+                                    break;
+                                }
                             } else {
                                 let pos1 = src.get_pos();
                                 src.next_char();
