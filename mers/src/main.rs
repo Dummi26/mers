@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand, ValueEnum};
 use mers_lib::prelude_compile::*;
-use std::{fmt::Display, path::PathBuf, process::exit, sync::Arc};
+use std::{path::PathBuf, process::exit, sync::Arc};
 
 mod cfg_globals;
 
@@ -11,53 +11,42 @@ struct Args {
     /// controls availability of features when compiling/running
     #[arg(long, value_enum, default_value_t = Configs::Std)]
     config: Configs,
-    /// perform checks to avoid runtime crashes
-    #[arg(long, default_value_t = Check::Yes)]
-    check: Check,
     /// in error messages, hide comments and only show actual code
     #[arg(long)]
     hide_comments: bool,
 }
 #[derive(Subcommand)]
 enum Command {
+    /// Check if code is valid. If yes, print output type.
+    ///
+    /// Exit status is 20 for parse errors, 24 for compile errors and 28 for check errors (type errors).
+    Check {
+        #[command(subcommand)]
+        source: From,
+    },
+    /// Check and then run code. Exit status is 255 if checks fail.
+    Run {
+        #[command(subcommand)]
+        source: From,
+    },
+    /// Run code, but skip type-checks. Will panic at runtime if code is not valid.
+    RunUnchecked {
+        #[command(subcommand)]
+        source: From,
+    },
+}
+#[derive(Subcommand, Clone)]
+enum From {
     /// runs the file
-    Run { file: PathBuf },
+    File { file: PathBuf },
     /// runs cli argument
-    Exec { source: String },
-}
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-enum Check {
-    No,
-    Yes,
-    Only,
-}
-impl Display for Check {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Self::No => "no",
-                Self::Yes => "yes",
-                Self::Only => "only",
-            }
-        )
-    }
+    Arg { source: String },
 }
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 enum Configs {
     None,
     Base,
     Std,
-}
-impl Display for Configs {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::None => write!(f, "none"),
-            Self::Base => write!(f, "base"),
-            Self::Std => write!(f, "std"),
-        }
-    }
 }
 
 fn main() {
@@ -67,52 +56,93 @@ fn main() {
         Configs::Base => Config::new().bundle_base(),
         Configs::Std => Config::new().bundle_std(),
     });
-    let (mut info_parsed, mut info_run, mut info_check) = config.infos();
-    let mut source = match args.command {
-        Command::Run { file } => match Source::new_from_file(PathBuf::from(&file)) {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!("Can't read file {file:?}: {e}");
-                exit(10);
-            }
-        },
-        Command::Exec { source } => Source::new_from_string(source),
-    };
-    let srca = Arc::new(source.clone());
-    let parsed = match parse(&mut source, &srca) {
-        Ok(v) => v,
-        Err(e) => {
-            eprintln!("{}", e.display().show_comments(!args.hide_comments));
-            exit(20);
-        }
-    };
-    #[cfg(debug_assertions)]
-    dbg!(&parsed);
-    let run = match parsed.compile(&mut info_parsed, Default::default()) {
-        Ok(v) => v,
-        Err(e) => {
-            eprintln!("{}", e.display().show_comments(!args.hide_comments));
-            exit(24);
-        }
-    };
-    #[cfg(debug_assertions)]
-    dbg!(&run);
-    match args.check {
-        Check::No => {
-            run.run(&mut info_run);
-        }
-        Check::Yes | Check::Only => {
-            let return_type = match run.check(&mut info_check, None) {
-                Ok(v) => v,
+    fn get_source(source: From) -> Source {
+        match source {
+            From::File { file } => match Source::new_from_file(PathBuf::from(&file)) {
+                Ok(s) => s,
                 Err(e) => {
-                    eprint!("{}", e.display().show_comments(!args.hide_comments));
-                    exit(28);
+                    eprintln!("Can't read file {file:?}: {e}");
+                    exit(10);
                 }
-            };
-            if args.check == Check::Yes {
-                run.run(&mut info_run);
-            } else {
-                eprintln!("return type is {}", return_type)
+            },
+            From::Arg { source } => Source::new_from_string(source),
+        }
+    }
+    match args.command {
+        Command::Check { source } => {
+            let mut src = get_source(source);
+            let srca = Arc::new(src.clone());
+            match parse(&mut src, &srca) {
+                Err(e) => {
+                    eprintln!("{e}");
+                    exit(20);
+                }
+                Ok(parsed) => {
+                    let (mut i1, _, mut i3) = config.infos();
+                    match parsed.compile(&mut i1, CompInfo::default()) {
+                        Err(e) => {
+                            eprintln!("{e}");
+                            exit(24);
+                        }
+                        Ok(compiled) => match compiled.check(&mut i3, None) {
+                            Err(e) => {
+                                eprintln!("{e}");
+                                exit(28);
+                            }
+                            Ok(output_type) => eprintln!("{output_type}"),
+                        },
+                    }
+                }
+            }
+        }
+        Command::Run { source } => {
+            let mut src = get_source(source);
+            let srca = Arc::new(src.clone());
+            match parse(&mut src, &srca) {
+                Err(e) => {
+                    eprintln!("{e}");
+                    exit(255);
+                }
+                Ok(parsed) => {
+                    let (mut i1, mut i2, mut i3) = config.infos();
+                    match parsed.compile(&mut i1, CompInfo::default()) {
+                        Err(e) => {
+                            eprintln!("{e}");
+                            exit(255);
+                        }
+                        Ok(compiled) => match compiled.check(&mut i3, None) {
+                            Err(e) => {
+                                eprintln!("{e}");
+                                exit(255);
+                            }
+                            Ok(_) => {
+                                compiled.run(&mut i2);
+                            }
+                        },
+                    }
+                }
+            }
+        }
+        Command::RunUnchecked { source } => {
+            let mut src = get_source(source);
+            let srca = Arc::new(src.clone());
+            match parse(&mut src, &srca) {
+                Err(e) => {
+                    eprintln!("{e}");
+                    exit(255);
+                }
+                Ok(parsed) => {
+                    let (mut i1, mut i2, _) = config.infos();
+                    match parsed.compile(&mut i1, CompInfo::default()) {
+                        Err(e) => {
+                            eprintln!("{e}");
+                            exit(255);
+                        }
+                        Ok(compiled) => {
+                            compiled.run(&mut i2);
+                        }
+                    }
+                }
             }
         }
     }

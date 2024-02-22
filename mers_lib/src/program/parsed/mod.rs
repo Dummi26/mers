@@ -28,6 +28,8 @@ pub mod include_mers;
 #[cfg(feature = "parse")]
 pub mod init_to;
 #[cfg(feature = "parse")]
+pub mod r#loop;
+#[cfg(feature = "parse")]
 pub mod object;
 #[cfg(feature = "parse")]
 pub mod tuple;

@@ -137,55 +137,6 @@ impl Config {
                 }),
                 inner_statements: None,
             }),
-        ).add_var(
-            "loop".to_string(),
-            Data::new(data::function::Function {
-                info: Arc::new(Info::neverused()),
-                info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
-                    let mut o = Type::empty();
-                    for t in a.types.iter().flat_map(|v| if let Some(t) = v.as_any().downcast_ref::<data::tuple::TupleT>() {
-                            if let Some(t) = t.0.get(1) {
-                                t.types.iter().collect::<Vec<_>>()
-                            } else { [v].into_iter().collect() }
-                        } else { [v].into_iter().collect() }) {
-                        if let Some(t) = t.as_any().downcast_ref::<data::function::FunctionT>() {
-                            for t in t.o(&Type::empty_tuple())?.types {
-                                if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
-                                    if t.0.len() > 1 {
-                                        return Err(format!("called loop with funcion that might return a tuple of length > 1").into());
-                                    } else if let Some(v) = t.0.first() {
-                                        o.add(Arc::new(v.clone()))
-                                    }
-                                } else {
-                                    return Err(format!("called loop with funcion that might return something other than a tuple").into());
-                                }
-                            }
-                        } else {
-                            return Err(format!("called loop on a non-function").into());
-                        }
-                    }
-                    Ok(o)
-                }),
-                run: Arc::new(|a, _i| {
-                    let a = a.get();
-                    let delay_drop;
-                    let function = if let Some(function) = a.as_any().downcast_ref::<data::function::Function>() {
-                            function
-                    } else if let Some(r) = a.as_any().downcast_ref::<data::tuple::Tuple>() {
-                        delay_drop = r.0[1].get();
-                        delay_drop.as_any().downcast_ref::<data::function::Function>().unwrap()
-                    } else {
-                        unreachable!("called loop on non-function")
-                    };
-                        loop {
-                            if let Some(r) = function.run(Data::empty_tuple()).one_tuple_content() {
-                                break r;
-                            }
-                        }
-                }),
-                inner_statements: None,
-            }),
         )
         .add_var(
             "eq".to_string(),

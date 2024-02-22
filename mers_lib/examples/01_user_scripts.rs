@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use mers_lib::{
-    data::{self, Data, MersType, Type},
+    data::{self, Data, Type},
     errors::CheckError,
     prelude_compile::{parse, CompInfo, Config, Source},
 };

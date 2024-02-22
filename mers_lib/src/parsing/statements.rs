@@ -440,6 +440,23 @@ pub fn parse_no_chain(
                 on_false,
             })
         }
+        "loop" => {
+            src.section_begin("loop".to_string());
+            src.skip_whitespace();
+            let inner = match parse(src, srca) {
+                Ok(Some(v)) => v,
+                Ok(None) => {
+                    return Err(CheckError::new()
+                        .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
+                        .msg(format!("EOF after `loop`")))
+                }
+                Err(e) => return Err(e),
+            };
+            Box::new(program::parsed::r#loop::Loop {
+                pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
+                inner,
+            })
+        }
         "true" => Box::new(program::parsed::value::Value {
             pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
             data: Data::new(crate::data::bool::Bool(true)),
