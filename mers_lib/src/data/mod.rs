@@ -298,13 +298,16 @@ impl Type {
     pub fn add(&mut self, new: Arc<dyn MersType>) {
         let n = new.as_any();
         if let Some(s) = n.downcast_ref::<Self>() {
-            for t in &s.types {
-                self.add(Arc::clone(t));
-            }
+            self.add_all(s);
         } else {
             if !self.types.iter().any(|t| new.is_included_in(t.as_ref())) {
                 self.types.push(new);
             }
+        }
+    }
+    pub fn add_all(&mut self, types: &Self) {
+        for t in &types.types {
+            self.add(Arc::clone(t));
         }
     }
     pub fn dereference(&self) -> Option<Self> {
