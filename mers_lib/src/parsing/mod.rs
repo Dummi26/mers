@@ -30,13 +30,25 @@ pub fn compile(
     statement: &(impl program::parsed::MersStatement + ?Sized),
     mut info: crate::program::parsed::Info,
 ) -> Result<Box<dyn program::run::MersStatement>, CheckError> {
-    statement.compile(&mut info, CompInfo::default())
+    compile_mut(statement, &mut info)
+}
+pub fn compile_mut(
+    statement: &(impl program::parsed::MersStatement + ?Sized),
+    info: &mut crate::program::parsed::Info,
+) -> Result<Box<dyn program::run::MersStatement>, CheckError> {
+    statement.compile(info, CompInfo::default())
 }
 pub fn check(
     statement: &(impl program::run::MersStatement + ?Sized),
     mut info: crate::program::run::CheckInfo,
 ) -> Result<Type, CheckError> {
-    let o = statement.check(&mut info, None)?;
+    check_mut(statement, &mut info)
+}
+pub fn check_mut(
+    statement: &(impl program::run::MersStatement + ?Sized),
+    info: &mut crate::program::run::CheckInfo,
+) -> Result<Type, CheckError> {
+    let o = statement.check(info, None)?;
     let mut err = None;
     for (try_stmt, used) in info.global.unused_try_statements.lock().unwrap().iter() {
         if used.iter().any(|v| v.is_some()) {
