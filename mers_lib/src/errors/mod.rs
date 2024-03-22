@@ -81,6 +81,12 @@ pub mod error_colors {
     pub const BadCharInFunctionType: Color = Color::Red;
     pub const BadTypeFromParsed: Color = Color::Blue;
     pub const TypeAnnotationNoClosingBracket: Color = Color::Blue;
+
+    pub const TryBadSyntax: Color = Color::Red;
+    pub const TryNoFunctionFound: Color = Color::Red;
+    pub const TryNotAFunction: Color = Color::Red;
+    pub const TryUnusedFunction1: Color = Color::Red;
+    pub const TryUnusedFunction2: Color = Color::BrightRed;
 }
 #[derive(Clone)]
 pub enum CheckErrorComponent {
@@ -125,6 +131,7 @@ impl Display for CheckErrorDisplay<'_> {
         )
     }
 }
+#[allow(unused)]
 impl CheckError {
     pub fn new() -> Self {
         CheckError(vec![])
@@ -133,17 +140,33 @@ impl CheckError {
         self.0.push(v);
         self
     }
+    fn add_mut(&mut self, v: CheckErrorComponent) -> &mut Self {
+        self.0.push(v);
+        self
+    }
     pub(crate) fn msg(self, s: String) -> Self {
         self.add(CheckErrorComponent::Message(s))
+    }
+    pub(crate) fn msg_mut(&mut self, s: String) -> &mut Self {
+        self.add_mut(CheckErrorComponent::Message(s))
     }
     pub(crate) fn err(self, e: Self) -> Self {
         self.add(CheckErrorComponent::Error(e))
     }
+    pub(crate) fn err_mut(&mut self, e: Self) -> &mut Self {
+        self.add_mut(CheckErrorComponent::Error(e))
+    }
     pub(crate) fn err_with_diff_src(self, e: CheckError) -> Self {
         self.add(CheckErrorComponent::ErrorWithDifferentSource(e))
     }
+    pub(crate) fn err_with_diff_src_mut(&mut self, e: CheckError) -> &mut Self {
+        self.add_mut(CheckErrorComponent::ErrorWithDifferentSource(e))
+    }
     pub(crate) fn src(self, s: Vec<(SourceRange, Option<colored::Color>)>) -> Self {
         self.add(CheckErrorComponent::Source(s))
+    }
+    pub(crate) fn src_mut(&mut self, s: Vec<(SourceRange, Option<colored::Color>)>) -> &mut Self {
+        self.add_mut(CheckErrorComponent::Source(s))
     }
     #[cfg(feature = "parse")]
     pub fn display<'a>(&'a self) -> CheckErrorDisplay<'a> {

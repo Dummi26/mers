@@ -3,7 +3,7 @@ use std::fmt::Debug;
 #[derive(Clone, Debug)]
 pub struct Info<L: Local> {
     pub scopes: Vec<L>,
-    pub global: L::Global,
+    pub(crate) global: L::Global,
 }
 
 impl<L: Local> Info<L> {

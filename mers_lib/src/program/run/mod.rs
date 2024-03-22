@@ -29,6 +29,8 @@ pub mod r#loop;
 #[cfg(feature = "run")]
 pub mod object;
 #[cfg(feature = "run")]
+pub mod r#try;
+#[cfg(feature = "run")]
 pub mod tuple;
 #[cfg(feature = "run")]
 pub mod value;
@@ -140,6 +142,7 @@ pub struct CheckLocalGlobalInfo {
             )>,
         >,
     >,
+    pub unused_try_statements: Arc<Mutex<Vec<(SourceRange, Vec<Option<SourceRange>>)>>>,
 }
 impl Debug for CheckLocal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

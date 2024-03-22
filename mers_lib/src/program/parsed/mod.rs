@@ -32,6 +32,8 @@ pub mod r#loop;
 #[cfg(feature = "parse")]
 pub mod object;
 #[cfg(feature = "parse")]
+pub mod r#try;
+#[cfg(feature = "parse")]
 pub mod tuple;
 #[cfg(feature = "parse")]
 pub mod value;

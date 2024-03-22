@@ -84,13 +84,13 @@ fn main() {
                     exit(20);
                 }
                 Ok(parsed) => {
-                    let (mut i1, _, mut i3) = config.infos();
-                    match parsed.compile(&mut i1, CompInfo::default()) {
+                    let (i1, _, i3) = config.infos();
+                    match compile(&*parsed, i1) {
                         Err(e) => {
                             eprintln!("{e}");
                             exit(24);
                         }
-                        Ok(compiled) => match compiled.check(&mut i3, None) {
+                        Ok(compiled) => match check(&*compiled, i3) {
                             Err(e) => {
                                 eprintln!("{e}");
                                 exit(28);
@@ -110,13 +110,13 @@ fn main() {
                     exit(255);
                 }
                 Ok(parsed) => {
-                    let (mut i1, mut i2, mut i3) = config.infos();
-                    match parsed.compile(&mut i1, CompInfo::default()) {
+                    let (i1, mut i2, i3) = config.infos();
+                    match compile(&*parsed, i1) {
                         Err(e) => {
                             eprintln!("{e}");
                             exit(255);
                         }
-                        Ok(compiled) => match compiled.check(&mut i3, None) {
+                        Ok(compiled) => match check(&*compiled, i3) {
                             Err(e) => {
                                 eprintln!("{e}");
                                 exit(255);
@@ -138,8 +138,8 @@ fn main() {
                     exit(255);
                 }
                 Ok(parsed) => {
-                    let (mut i1, mut i2, _) = config.infos();
-                    match parsed.compile(&mut i1, CompInfo::default()) {
+                    let (i1, mut i2, _) = config.infos();
+                    match compile(&*parsed, i1) {
                         Err(e) => {
                             eprintln!("{e}");
                             exit(255);

@@ -3,8 +3,12 @@ use std::{fmt::Debug, path::PathBuf, sync::Arc};
 use line_span::{LineSpan, LineSpanExt};
 
 use crate::{
-    errors::{CheckError, SourcePos},
-    program::{self, parsed::block::Block},
+    data::Type,
+    errors::{error_colors, CheckError, SourcePos},
+    program::{
+        self,
+        parsed::{block::Block, CompInfo},
+    },
 };
 
 pub mod statements;
@@ -21,6 +25,70 @@ pub fn parse(
         statements,
     };
     Ok(Box::new(block))
+}
+pub fn compile(
+    statement: &(impl program::parsed::MersStatement + ?Sized),
+    mut info: crate::program::parsed::Info,
+) -> Result<Box<dyn program::run::MersStatement>, CheckError> {
+    statement.compile(&mut info, CompInfo::default())
+}
+pub fn check(
+    statement: &(impl program::run::MersStatement + ?Sized),
+    mut info: crate::program::run::CheckInfo,
+) -> Result<Type, CheckError> {
+    let o = statement.check(&mut info, None)?;
+    let mut err = None;
+    for (try_stmt, used) in info.global.unused_try_statements.lock().unwrap().iter() {
+        if used.iter().any(|v| v.is_some()) {
+            let err = err.get_or_insert_with(|| {
+                CheckError::new().msg(format!(
+                    "There are `.try` statements with unused functions!"
+                ))
+            });
+            let unused = used
+                .into_iter()
+                .enumerate()
+                .filter_map(|v| Some((v.0, v.1.clone()?)))
+                .collect::<Vec<_>>();
+            err.msg_mut(format!(
+                "Here, {}function{} {} {} unused:",
+                if unused.len() == 1 { "the " } else { "" },
+                if unused.len() == 1 { "" } else { "s" },
+                unused
+                    .iter()
+                    .enumerate()
+                    .fold(String::new(), |mut a, (i, (v, _))| {
+                        if i > 0 {
+                            a.push_str(", ");
+                            if i == unused.len() - 1 {
+                                a.push_str("and ");
+                            }
+                        }
+                        a.push_str(&format!("#{}", v + 1));
+                        a
+                    }),
+                if unused.len() == 1 { "is" } else { "are" },
+            ))
+            .src_mut({
+                let mut src = vec![(try_stmt.clone(), None)];
+                for (i, (_, src_range)) in unused.into_iter().enumerate() {
+                    src.push((
+                        src_range,
+                        Some(if i % 2 == 0 {
+                            error_colors::TryUnusedFunction1
+                        } else {
+                            error_colors::TryUnusedFunction2
+                        }),
+                    ));
+                }
+                src
+            });
+        }
+    }
+    if let Some(err) = err {
+        return Err(err);
+    }
+    Ok(o)
 }
 
 pub struct Source {

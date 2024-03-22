@@ -18,8 +18,8 @@ pub struct Function {
     pub out: Arc<dyn Fn(&Type, &mut CheckInfo) -> Result<Type, CheckError> + Send + Sync>,
     pub run: Arc<dyn Fn(Data, &mut crate::program::run::Info) -> Data + Send + Sync>,
     pub inner_statements: Option<(
-        Arc<Box<dyn crate::prelude_compile::RunMersStatement>>,
-        Arc<Box<dyn crate::prelude_compile::RunMersStatement>>,
+        Arc<Box<dyn crate::program::run::MersStatement>>,
+        Arc<Box<dyn crate::program::run::MersStatement>>,
     )>,
 }
 impl Function {

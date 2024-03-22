@@ -168,30 +168,52 @@ pub fn parse(
             let dot_in_src = src.get_pos();
             if let Some('.') = src.peek_char() {
                 src.next_char();
-                let chained = match parse_no_chain(src, srca) {
-                    Ok(Some(v)) => v,
-                    Ok(None) => {
+                src.skip_whitespace();
+                if src.peek_word() == "try" {
+                    src.next_word();
+                    src.skip_whitespace();
+                    if let Some('(') = src.next_char() {
+                        let funcs = parse_tuple_without_open(src, srca)?;
+                        first = Box::new(program::parsed::r#try::Try {
+                            pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
+                            arg: first,
+                            funcs,
+                        });
+                        pos_after_first = src.get_pos();
+                    } else {
                         return Err(CheckError::new()
-                            .src(vec![((dot_in_src, src.get_pos(), srca).into(), None)])
-                            .msg(format!("EOF after `.`")))
+                            .msg(format!("Expected `(` after `.try`"))
+                            .src(vec![(
+                                (dot_in_src, src.get_pos(), srca).into(),
+                                Some(error_colors::TryBadSyntax),
+                            )]));
                     }
-                    Err(e) => return Err(e),
-                };
-                // allow a.f(b, c) syntax (but not f(a, b, c))
-                if let Some('(') = src.peek_char() {
-                    src.next_char();
-                    let elems = parse_multiple(src, srca, ")")?;
-                    first = Box::new(program::parsed::tuple::Tuple {
+                } else {
+                    let chained = match parse_no_chain(src, srca) {
+                        Ok(Some(v)) => v,
+                        Ok(None) => {
+                            return Err(CheckError::new()
+                                .src(vec![((dot_in_src, src.get_pos(), srca).into(), None)])
+                                .msg(format!("EOF after `.`")))
+                        }
+                        Err(e) => return Err(e),
+                    };
+                    // allow a.f(b, c) syntax (but not f(a, b, c))
+                    if let Some('(') = src.peek_char() {
+                        src.next_char();
+                        let elems = parse_multiple(src, srca, ")")?;
+                        first = Box::new(program::parsed::tuple::Tuple {
+                            pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
+                            elems: [first].into_iter().chain(elems).collect(),
+                        });
+                    }
+                    first = Box::new(program::parsed::chain::Chain {
                         pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
-                        elems: [first].into_iter().chain(elems).collect(),
+                        first,
+                        chained,
                     });
+                    pos_after_first = src.get_pos();
                 }
-                first = Box::new(program::parsed::chain::Chain {
-                    pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
-                    first,
-                    chained,
-                });
-                pos_after_first = src.get_pos();
             } else {
                 src.set_pos(pos_after_first);
                 break;
@@ -202,6 +224,12 @@ pub fn parse(
         src.next_char();
     }
     Ok(Some(first))
+}
+pub fn parse_tuple_without_open(
+    src: &mut Source,
+    srca: &Arc<Source>,
+) -> Result<Vec<Box<dyn MersStatement>>, CheckError> {
+    parse_multiple(src, srca, ")")
 }
 pub fn parse_multiple(
     src: &mut Source,
@@ -374,7 +402,7 @@ pub fn parse_no_chain(
         Some('(') => {
             let pos_in_src = src.get_pos();
             src.next_char();
-            let elems = parse_multiple(src, srca, ")")?;
+            let elems = parse_tuple_without_open(src, srca)?;
             return Ok(Some(Box::new(program::parsed::tuple::Tuple {
                 pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
                 elems,

@@ -20,7 +20,7 @@ impl MersStatement for Loop {
         init_to: Option<&Type>,
     ) -> Result<data::Type, CheckError> {
         if init_to.is_some() {
-            return Err("can't init to statement type If".to_string().into());
+            return Err("can't init to statement type Loop".to_string().into());
         }
         let mut t = Type::empty();
         let inner_return_type = self.inner.check(info, None)?;
