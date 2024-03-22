@@ -12,11 +12,12 @@ pub mod program;
 #[cfg(feature = "parse")]
 pub mod prelude_compile {
     pub use crate::parsing::check;
+    pub use crate::parsing::check_mut;
     pub use crate::parsing::compile;
+    pub use crate::parsing::compile_mut;
     pub use crate::parsing::parse;
     pub use crate::parsing::Source;
     pub use crate::program::configs::Config;
-    pub use crate::program::parsed::CompInfo;
 }
 
 /// can be used to extend the mers config.
