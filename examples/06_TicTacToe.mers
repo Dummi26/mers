@@ -9,10 +9,10 @@ f8 := 0
 f9 := 0
 player := false
 
-load_color := clr -> "echo".run_command(("-n", "-e", clr)).try((
+load_color := clr -> "echo".run_command(("-n", "-e", clr)).try(
   (s, o, e) -> o
   e -> ""
-))
+)
 
 c_reset := "\\033[0m".load_color
 c_green := "\\033[92m".load_color
@@ -61,7 +61,7 @@ loop {
   loop {
     (if player c_blue else c_green, "> ", c_gray).concat.print
     input := ().read_line.trim
-    input.parse_int.try((
+    input.parse_int.try(
       (field) -> {
         if (field.gt(0), field.ltoe(9)).all {
           (l, m, r) := if field.gt(6) (&f1, &f2, &f3) else if field.gt(3) (&f4, &f5, &f6) else (&f7, &f8, &f9)
@@ -76,10 +76,10 @@ loop {
         }
       }
       () -> "not a number!".println
-    ))
+    )
   }
   &player = player.eq(false)
-  ().check_board.try((
+  ().check_board.try(
     () -> (),
     winner -> {
       "".println
@@ -93,5 +93,5 @@ loop {
       }
       (())
     }
-  ))
+  )
 }

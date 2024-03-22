@@ -12,7 +12,7 @@ parse_matrix_line := input -> {
 }
 
 read_matrix_line := width -> {
-  ().read_line.trim.parse_matrix_line.try((
+  ().read_line.trim.parse_matrix_line.try(
     (line) -> {
       line := [List<Float>] line
       w := width.deref
@@ -28,19 +28,20 @@ read_matrix_line := width -> {
       (line)
     }
     () -> ()
-  ))
+  )
 }
 
 read_matrix := () -> {
   width := 0
+  if false &width.read_matrix_line
   { () -> &width.read_matrix_line }.as_list
 }
 
 matrix_get := (matrix, (line, col)) -> {
-  matrix.get(line).try((
+  matrix.get(line).try(
     () -> ()
     (line) -> line.get(col)
-  ))
+  )
 }
 
 leftpad := (str, l) -> {
@@ -78,21 +79,21 @@ matrix_print := matrix -> {
   })
 }
 
-fget := v -> v.get.try((
+fget := v -> v.get.try(
   () -> {
     "called fget but get returned ():".println
     v.println
     5.panic
   }
   (v) -> v
-))
+)
 
 matrix_height := a -> a.len
 
-matrix_width := a -> a.get(0).try((
+matrix_width := a -> a.get(0).try(
   () -> 0
   (v) -> v.len
-))
+)
 
 multiply_matrix := (a, b) -> {
   if a.matrix_width.eq(b.matrix_height) {
@@ -123,7 +124,7 @@ a.matrix_print
 b.matrix_print
 
 "A * B = ".print
-a.multiply_matrix(b).try((
+a.multiply_matrix(b).try(
   m -> m.matrix_print
   e -> e.println
-))
+)

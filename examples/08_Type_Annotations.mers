@@ -14,7 +14,7 @@ my_list.println
 // If `statement` isn't included in `type`, this will cause an error.
 
 my_list.for_each(v ->
-  v.try((
+  v.try(
     v -> {
       [Int] v // this won't compile if v is a float
       ("Int: ", v).concat
@@ -23,7 +23,7 @@ my_list.for_each(v ->
       [Float] v
       ("Float: ", v).concat
     }
-  )).println
+  ).println
 )
 
 

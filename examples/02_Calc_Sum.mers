@@ -1,10 +1,10 @@
 total := 0.0
 loop {
   ("Total: ", total, ". Type a number to change.").concat.println
-  ().read_line.trim.parse_float.try((
+  ().read_line.trim.parse_float.try(
     (n) -> &total = (total, n).sum
     // not a number, so return a 1-tuple to break from the loop
     () -> (())
-  ))
+  )
 }
 "Goodbye.".println
