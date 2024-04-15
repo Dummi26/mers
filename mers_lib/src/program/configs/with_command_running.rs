@@ -186,10 +186,10 @@ impl Config {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
-                    if a.types.iter().all(|a| a.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in(&ChildProcessT) && t.0[1].iterable().is_some_and(|i| i.is_included_in(&data::int::IntT)))) {
+                    if a.types.iter().all(|a| a.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in(&ChildProcessT) && t.0[1].iterable().is_some_and(|i| i.is_included_in(&data::byte::ByteT)))) {
                         Ok(Type::new(data::bool::BoolT))
                     } else {
-                        return Err(format!("childproc_write_bytes called on non-`(ChildProcess, Iter<Int>)` type {a}").into());
+                        return Err(format!("childproc_write_bytes called on non-`(ChildProcess, Iter<Byte>)` type {a}").into());
                     }
                 }),
                 run: Arc::new(|a, _i| {
@@ -199,7 +199,7 @@ impl Config {
                     let bytes = tuple.0[1].get();
                     let child = child.as_any().downcast_ref::<ChildProcess>().unwrap();
                     let mut child = child.0.lock().unwrap();
-                    let buf = bytes.iterable().unwrap().map(|v| v.get().as_any().downcast_ref::<data::int::Int>().unwrap().0.max(0).min(255) as u8).collect::<Vec<_>>();
+                    let buf = bytes.iterable().unwrap().map(|v| v.get().as_any().downcast_ref::<data::byte::Byte>().unwrap().0).collect::<Vec<_>>();
                     if child.1.as_mut().is_some_and(|v| v.write_all(&buf).is_ok() && v.flush().is_ok()) {
                         Data::new(data::bool::Bool(true))
                     } else {
@@ -246,7 +246,7 @@ impl Config {
                 out: Arc::new(|a, _i| {
                     if a.is_included_in(&ChildProcessT) {
                         Ok(Type::newm(vec![
-                            Arc::new(data::tuple::TupleT(vec![Type::new(data::int::IntT)])),
+                            Arc::new(data::tuple::TupleT(vec![Type::new(data::byte::ByteT)])),
                             Arc::new(data::tuple::TupleT(vec![])),
                         ]))
                     } else {
@@ -259,7 +259,7 @@ impl Config {
                         let mut child = child.0.lock().unwrap();
                         let mut buf = [0];
                         if child.2.read_exact(&mut buf).is_ok() {
-                            Data::one_tuple(Data::new(data::int::Int(buf[0] as _)))
+                            Data::one_tuple(Data::new(data::byte::Byte(buf[0])))
                         } else {
                             Data::empty_tuple()
                         }
@@ -275,7 +275,7 @@ impl Config {
                 out: Arc::new(|a, _i| {
                     if a.is_included_in(&ChildProcessT) {
                         Ok(Type::newm(vec![
-                            Arc::new(data::tuple::TupleT(vec![Type::new(data::int::IntT)])),
+                            Arc::new(data::tuple::TupleT(vec![Type::new(data::byte::ByteT)])),
                             Arc::new(data::tuple::TupleT(vec![])),
                         ]))
                     } else {
@@ -288,7 +288,7 @@ impl Config {
                     let mut child = child.0.lock().unwrap();
                     let mut buf = [0];
                     if child.3.read_exact(&mut buf).is_ok() {
-                        Data::one_tuple(Data::new(data::int::Int(buf[0] as _)))
+                        Data::one_tuple(Data::new(data::byte::Byte(buf[0])))
                     } else {
                         Data::empty_tuple()
                     }

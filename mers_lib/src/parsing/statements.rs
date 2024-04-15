@@ -519,6 +519,15 @@ pub fn parse_no_chain(
                         data: Data::new(crate::data::int::Int(n)),
                     })
                 }
+            } else if let Some(b) = o
+                .ends_with('b')
+                .then(|| o[0..o.len() - 1].parse().ok())
+                .flatten()
+            {
+                Box::new(program::parsed::value::Value {
+                    pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
+                    data: Data::new(crate::data::byte::Byte(b)),
+                })
             } else {
                 if let Some('&') = o.chars().next() {
                     Box::new(program::parsed::variable::Variable {

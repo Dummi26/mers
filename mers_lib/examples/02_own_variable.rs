@@ -3,7 +3,8 @@ use std::sync::Arc;
 use mers_lib::{
     data::{self, Data, MersType, Type},
     errors::CheckError,
-    prelude_compile::{parse, CompInfo, Config, Source},
+    prelude_compile::{parse, Config, Source},
+    program::parsed::CompInfo,
 };
 
 fn main() {

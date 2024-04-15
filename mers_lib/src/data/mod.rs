@@ -5,6 +5,7 @@ use std::{
 };
 
 pub mod bool;
+pub mod byte;
 pub mod float;
 pub mod function;
 pub mod int;

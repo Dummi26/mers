@@ -2,7 +2,7 @@ use std::{any::Any, fmt::Display, sync::Arc};
 
 use super::{MersData, MersType, Type};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Int(pub isize);
 
 impl MersData for Int {

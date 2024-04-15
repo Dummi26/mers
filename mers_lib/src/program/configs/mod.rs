@@ -74,6 +74,7 @@ impl Config {
             };
         }
         init_d!(data::bool::BoolT);
+        init_d!(data::byte::ByteT);
         init_d!(data::int::IntT);
         init_d!(data::float::FloatT);
         init_d!(data::string::StringT);

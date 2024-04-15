@@ -44,7 +44,7 @@ fn test_examples() {
         let (mut i1, _, mut i3) = prelude_compile::Config::new().bundle_std().infos();
         prelude_compile::parse(&mut src.clone(), &std::sync::Arc::new(src))
             .unwrap()
-            .compile(&mut i1, prelude_compile::CompInfo::default())
+            .compile(&mut i1, program::parsed::CompInfo::default())
             .unwrap()
             .check(&mut i3, None)
             .unwrap();
