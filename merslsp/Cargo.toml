@@ -1,0 +1,10 @@
+[package]
+name = "merslsp"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mers_lib = "0.8.0"
+lspower = "1.5.0"
+tokio = { version = "1.36.0", features = ["full"] }
+line-span = "0.1.5"
