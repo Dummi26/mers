@@ -33,8 +33,8 @@ impl MersStatement for Try {
             .collect::<Result<Vec<_>, CheckError>>()?;
         let mut index_lock = self.index_of_unused_try_statement.lock().unwrap();
         let mut unused_try_statements_lock = info.global.unused_try_statements.lock().unwrap();
-        let used = if let Some(i) = *index_lock {
-            &mut unused_try_statements_lock[i]
+        let my_index = if let Some(i) = *index_lock {
+            i
         } else {
             let my_index = unused_try_statements_lock.len();
             *index_lock = Some(my_index);
@@ -42,8 +42,9 @@ impl MersStatement for Try {
                 self.pos_in_src.clone(),
                 self.funcs.iter().map(|v| Some(v.source_range())).collect(),
             ));
-            &mut unused_try_statements_lock[my_index]
+            my_index
         };
+        drop(unused_try_statements_lock);
         drop(index_lock);
         for arg in arg.subtypes_type().types.iter() {
             let mut found = false;
@@ -79,7 +80,7 @@ impl MersStatement for Try {
                     errs.push(err);
                 } else {
                     // found the function to use
-                    used.1[i] = None;
+                    info.global.unused_try_statements.lock().unwrap()[my_index].1[i] = None;
                     found = true;
                     t.add_all(&func_res);
                     break;
