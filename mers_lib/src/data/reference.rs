@@ -49,9 +49,16 @@ impl MersType for ReferenceT {
         self.is_same_type_as(target)
     }
     fn subtypes(&self, acc: &mut Type) {
-        // we don't call subtypes because (int/string) must stay that so we can assign either
-        // NOTE: this might not be right...?
-        acc.add(Arc::new(self.clone()));
+        // // we don't call subtypes because (int/string) must stay that so we can assign either
+        // // NOTE: this might not be right...?
+        // acc.add(Arc::new(self.clone()));
+        // FOR NOW (until we can put the compile-time type in ReferenceT), add all these types, too
+        // TODO: Figure out how to fix
+        // x := if true 1 else 0.5
+        // &x.debug // prints &Int instead of &{Int/Float} at runtime :(
+        for t in self.0.subtypes_type().types {
+            acc.add(Arc::new(Self(Type::newm(vec![t]))));
+        }
     }
     fn as_any(&self) -> &dyn Any {
         self
