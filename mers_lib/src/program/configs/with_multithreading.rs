@@ -24,7 +24,7 @@ impl Config {
                 let mut src = Source::new_from_string_raw(s.to_owned());
                 let srca = Arc::new(src.clone());
                 let t = crate::parsing::types::parse_type(&mut src, &srca)?;
-                Ok(Arc::new(ThreadT(crate::parsing::types::type_from_parsed(&t, i)?)))
+                Ok(Arc::new(Type::new(ThreadT(crate::parsing::types::type_from_parsed(&t, i)?))))
             })),
         )
         .add_var(
@@ -37,7 +37,7 @@ impl Config {
                     for t in a.types.iter() {
                         if let Some(f) = t.as_any().downcast_ref::<data::function::FunctionT>() {
                             match f.o(&Type::empty_tuple()) {
-                                Ok(t) => out.add(Arc::new(t)),
+                                Ok(t) => out.add_all(&t),
                                 Err(e) => return Err(CheckError::new().msg(format!("Can't call thread on a function which can't be called on an empty tuple: ")).err(e))
                             }
                         } else {
@@ -91,7 +91,7 @@ impl Config {
                     let mut out = Type::empty();
                     for t in a.types.iter() {
                         if let Some(t) = t.as_any().downcast_ref::<ThreadT>() {
-                            out.add(Arc::new(Clone::clone(&t.0)));
+                            out.add_all(&t.0);
                         } else {
                             return Err(CheckError::new().msg(format!("Cannot call thread_await on a value of type {t}, which isn't a thread but part of the argument {a}.")));
                         }
@@ -146,9 +146,9 @@ impl MersType for ThreadT {
             false
         }
     }
-    fn is_included_in_single(&self, target: &dyn MersType) -> bool {
+    fn is_included_in(&self, target: &dyn MersType) -> bool {
         if let Some(target) = target.as_any().downcast_ref::<Self>() {
-            self.0.is_included_in_single(&target.0)
+            self.0.is_included_in(&target.0)
         } else {
             false
         }

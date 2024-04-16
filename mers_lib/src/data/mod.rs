@@ -50,17 +50,7 @@ pub trait MersType: Any + Debug + Display + Send + Sync {
     /// this *must* return false.
     fn is_same_type_as(&self, other: &dyn MersType) -> bool;
     /// This doesn't handle the case where target is Type (is_included_in handles it)
-    fn is_included_in_single(&self, target: &dyn MersType) -> bool;
-    fn is_included_in(&self, target: &dyn MersType) -> bool {
-        if let Some(target) = target.as_any().downcast_ref::<Type>() {
-            target
-                .types
-                .iter()
-                .any(|t| self.is_included_in_single(t.as_ref()))
-        } else {
-            self.is_included_in_single(target)
-        }
-    }
+    fn is_included_in(&self, target: &dyn MersType) -> bool;
     /// Returns all types that can result from the use of this type.
     /// Usually, this is just `acc.add(Arc::new(self.clone()))`
     /// but if there exists one or more inner types, this becomes interesting:
@@ -268,7 +258,7 @@ impl Type {
                 .filter(|v| v.0.len() == 1)
                 .and_then(|v| v.0.get(0))
             {
-                o.add(Arc::new(t.clone()));
+                o.add_all(&t);
             } else {
                 return None;
             }
@@ -287,7 +277,7 @@ impl Type {
                 .and_then(|v| v.0.get(0))
             {
                 nothing = false;
-                o.add(Arc::new(t.clone()));
+                o.add_all(&t);
             }
         }
         if nothing {
@@ -315,7 +305,7 @@ impl Type {
         let mut o = Self::empty();
         for t in &self.types {
             if let Some(t) = t.is_reference_to() {
-                o.add(Arc::new(t.clone()));
+                o.add_all(&t);
             } else {
                 return None;
             }
@@ -334,47 +324,45 @@ impl Type {
 // then repeat with the second type if possible (here not, but for longer tuples, probably?)
 // merge the last existing type in all the collections until we reach the first type again or the last types aren't equal anymore (how to check????)
 
-impl MersType for Type {
-    fn is_same_type_as(&self, other: &dyn MersType) -> bool {
+impl Type {
+    pub fn is_same_type_as(&self, other: &Self) -> bool {
         // TODO! improve
         self.is_included_in(other) && other.is_included_in(self)
     }
-    fn is_included_in_single(&self, target: &dyn MersType) -> bool {
-        self.types.iter().all(|t| t.is_included_in_single(target))
+    pub fn is_included_in(&self, target: &Self) -> bool {
+        self.types
+            .iter()
+            .all(|s| target.types.iter().any(|t| s.is_included_in(&**t)))
     }
-    fn is_included_in(&self, target: &dyn MersType) -> bool {
-        self.types.iter().all(|t| t.is_included_in(target))
+    pub fn is_included_in_single(&self, target: &dyn MersType) -> bool {
+        self.types.iter().all(|s| s.is_included_in(target))
     }
-    fn subtypes(&self, acc: &mut Type) {
+    pub fn subtypes(&self, acc: &mut Type) {
         for t in &self.types {
             t.subtypes(acc);
         }
     }
-    fn as_any(&self) -> &dyn Any {
-        self
+    pub fn subtypes_type(&self) -> Type {
+        let mut acc = Type::empty();
+        self.subtypes(&mut acc);
+        acc
     }
-    fn mut_any(&mut self) -> &mut dyn Any {
-        self
-    }
-    fn to_any(self) -> Box<dyn Any> {
-        Box::new(self)
-    }
-    fn iterable(&self) -> Option<Type> {
+    pub fn iterable(&self) -> Option<Type> {
         let mut o = Self::empty();
         for t in self.types.iter() {
             if let Some(t) = t.iterable() {
-                o.add(Arc::new(t));
+                o.add_all(&t);
             } else {
                 return None;
             }
         }
         Some(o)
     }
-    fn get(&self) -> Option<Type> {
+    pub fn get(&self) -> Option<Type> {
         let mut o = Self::empty();
         for t in self.types.iter() {
             if let Some(t) = t.get() {
-                o.add(Arc::new(t));
+                o.add_all(&t);
             } else {
                 return None;
             }

@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use crate::data::{self, Data, MersType, Type};
+use crate::data::{self, Data, Type};
 
 use super::{util, Config};
 
@@ -44,13 +44,13 @@ impl Config {
                             if t.0.len() != 2 && t.0.len() != 3 {
                                 return Err(format!("cannot call substring with tuple argument of len != 3").into());
                             }
-                            if !t.0[0].is_included_in(&data::string::StringT) {
+                            if !t.0[0].is_included_in_single(&data::string::StringT) {
                                 return Err(format!("cannot call substring with tuple argument that isn't (*string*, int, int)").into());
                             }
-                            if !t.0[1].is_included_in(&data::int::IntT) {
+                            if !t.0[1].is_included_in_single(&data::int::IntT) {
                                 return Err(format!("cannot call substring with tuple argument that isn't (string, *int*, int)").into());
                             }
-                            if t.0.len() > 2 && !t.0[2].is_included_in(&data::int::IntT) {
+                            if t.0.len() > 2 && !t.0[2].is_included_in_single(&data::int::IntT) {
                                 return Err(format!("cannot call substring with tuple argument that isn't (string, int, *int*)").into());
                             }
                         } else {

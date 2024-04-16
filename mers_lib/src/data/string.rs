@@ -36,7 +36,7 @@ impl MersType for StringT {
     fn is_same_type_as(&self, other: &dyn MersType) -> bool {
         other.as_any().downcast_ref::<Self>().is_some()
     }
-    fn is_included_in_single(&self, target: &dyn MersType) -> bool {
+    fn is_included_in(&self, target: &dyn MersType) -> bool {
         self.is_same_type_as(target)
     }
     fn subtypes(&self, acc: &mut Type) {

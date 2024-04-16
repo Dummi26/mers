@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use crate::{
-    data::{self, Data, MersType},
+    data::{self, Data, Type},
     errors::CheckError,
     info::Local,
     program::run::CheckInfo,
@@ -70,7 +70,7 @@ impl Config {
                     .last_mut()
                     .unwrap()
                     .types
-                    .insert(t.to_string(), Ok(Arc::new(t)));
+                    .insert(t.to_string(), Ok(Arc::new(data::Type::new(t))));
             };
         }
         init_d!(data::bool::BoolT);
@@ -106,8 +106,8 @@ impl Config {
         mut self,
         name: String,
         t: Result<
-            Arc<dyn MersType>,
-            Arc<dyn Fn(&str, &CheckInfo) -> Result<Arc<dyn MersType>, CheckError> + Send + Sync>,
+            Arc<Type>,
+            Arc<dyn Fn(&str, &CheckInfo) -> Result<Arc<Type>, CheckError> + Send + Sync>,
         >,
     ) -> Self {
         self.info_check.scopes[0].types.insert(name, t);

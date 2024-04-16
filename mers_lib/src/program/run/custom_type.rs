@@ -1,7 +1,7 @@
 use std::{fmt::Debug, sync::Arc};
 
 use crate::{
-    data::{Data, MersType, Type},
+    data::{Data, Type},
     errors::{CheckError, SourceRange},
 };
 
@@ -15,12 +15,8 @@ pub struct CustomType {
                 &CheckInfo,
             ) -> Result<
                 Result<
-                    Arc<dyn MersType>,
-                    Arc<
-                        dyn Fn(&str, &CheckInfo) -> Result<Arc<dyn MersType>, CheckError>
-                            + Send
-                            + Sync,
-                    >,
+                    Arc<Type>,
+                    Arc<dyn Fn(&str, &CheckInfo) -> Result<Arc<Type>, CheckError> + Send + Sync>,
                 >,
                 CheckError,
             > + Send

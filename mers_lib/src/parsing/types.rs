@@ -208,33 +208,33 @@ pub fn type_from_parsed(
 ) -> Result<Type, CheckError> {
     let mut as_type = Type::empty();
     for t in parsed.iter() {
-        as_type.add(match t {
+        match t {
             ParsedType::Reference(inner) => {
                 let inner = type_from_parsed(inner, info)?;
-                Arc::new(data::reference::ReferenceT(inner))
+                as_type.add(Arc::new(data::reference::ReferenceT(inner)));
             }
-            ParsedType::Tuple(t) => Arc::new(data::tuple::TupleT(
+            ParsedType::Tuple(t) => as_type.add(Arc::new(data::tuple::TupleT(
                 t.iter()
                     .map(|v| type_from_parsed(v, info))
                     .collect::<Result<_, _>>()?,
-            )),
-            ParsedType::Object(o) => Arc::new(data::object::ObjectT(
+            ))),
+            ParsedType::Object(o) => as_type.add(Arc::new(data::object::ObjectT(
                 o.iter()
                     .map(|(s, v)| -> Result<_, CheckError> {
                         Ok((s.clone(), type_from_parsed(v, info)?))
                     })
                     .collect::<Result<_, _>>()?,
-            )),
-            ParsedType::Function(v) => Arc::new(data::function::FunctionT(Err(v
+            ))),
+            ParsedType::Function(v) => as_type.add(Arc::new(data::function::FunctionT(Err(v
                 .iter()
                 .map(|(i, o)| Ok((type_from_parsed(i, info)?, type_from_parsed(o, info)?)))
-                .collect::<Result<_, CheckError>>()?))),
+                .collect::<Result<_, CheckError>>()?)))),
             ParsedType::Type(name) => match info
                 .scopes
                 .iter()
                 .find_map(|scope| scope.types.iter().find(|v| v.0 == name).map(|(_, v)| v))
             {
-                Some(Ok(t)) => Arc::clone(t),
+                Some(Ok(t)) => as_type.add_all(&*t),
                 Some(Err(_)) => {
                     return Err(CheckError::new().msg(format!(
                         "Type: specified type without info, but type needs additional info"
@@ -252,10 +252,10 @@ pub fn type_from_parsed(
                         "Type: specified type with info, but type {t} doesn't need it"
                     )))
                 }
-                Some(Err(f)) => f(&additional_info, info)?,
+                Some(Err(f)) => as_type.add_all(&*f(&additional_info, info)?),
                 None => return Err(CheckError::new().msg(format!("Unknown type '{name}'"))),
             },
-        });
+        }
     }
     Ok(as_type)
 }

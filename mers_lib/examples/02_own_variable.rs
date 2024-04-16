@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use mers_lib::{
-    data::{self, Data, MersType, Type},
+    data::{self, Data, Type},
     errors::CheckError,
     prelude_compile::{parse, Config, Source},
     program::parsed::CompInfo,
@@ -34,7 +34,7 @@ fn run(src: String) -> Result<(), CheckError> {
                 |arg| {
                     // If the input is a string, the output is a string.
                     // Otherwise, the function is used incorrectly.
-                    if arg.is_included_in(&data::string::StringT) {
+                    if arg.is_included_in_single(&data::string::StringT) {
                         Ok(Type::new(data::string::StringT))
                     } else {
                         // Wrong argument type. The code won't compile and this is the error message shown to the user.

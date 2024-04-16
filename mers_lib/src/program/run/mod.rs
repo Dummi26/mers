@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    data::{self, Data, MersType, Type},
+    data::{self, Data, Type},
     errors::{CheckError, SourceRange},
     info,
 };
@@ -121,8 +121,8 @@ pub struct CheckLocal {
     pub types: HashMap<
         String,
         Result<
-            Arc<dyn MersType>,
-            Arc<dyn Fn(&str, &CheckInfo) -> Result<Arc<dyn MersType>, CheckError> + Send + Sync>,
+            Arc<Type>,
+            Arc<dyn Fn(&str, &CheckInfo) -> Result<Arc<Type>, CheckError> + Send + Sync>,
         >,
     >,
 }

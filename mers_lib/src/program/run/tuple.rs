@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, sync::Arc};
+use std::collections::VecDeque;
 
 use colored::Colorize;
 
@@ -29,7 +29,7 @@ impl MersStatement for Tuple {
                 if let Some(t) = t.as_any().downcast_ref::<TupleT>() {
                     if t.0.len() == self.elems.len() {
                         for (i, e) in t.0.iter().enumerate() {
-                            vec[i].add(Arc::new(e.clone()));
+                            vec[i].add_all(&e);
                         }
                     } else {
                         return Err(

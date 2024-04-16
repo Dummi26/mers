@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, sync::Arc};
+use std::collections::VecDeque;
 
 use colored::Colorize;
 
@@ -43,7 +43,7 @@ impl MersStatement for Object {
                                                 }
                                             ).into());
                             }
-                            acc[i].add(Arc::new(t.clone()));
+                            acc[i].add_all(&t);
                         }
                     } else {
                         return Err(format!(

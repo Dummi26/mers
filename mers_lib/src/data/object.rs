@@ -48,7 +48,7 @@ impl MersType for ObjectT {
                     .all(|((s1, t1), (s2, t2))| s1 == s2 && t1.is_same_type_as(t2))
         })
     }
-    fn is_included_in_single(&self, target: &dyn MersType) -> bool {
+    fn is_included_in(&self, target: &dyn MersType) -> bool {
         target
             .as_any()
             .downcast_ref::<Self>()

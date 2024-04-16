@@ -327,7 +327,7 @@ impl IterT {
         let t = match &iter {
             ItersT::Map(f) => f.o(&data)?,
             ItersT::Filter(f) => {
-                if f.o(&data)?.is_included_in(&data::bool::BoolT) {
+                if f.o(&data)?.is_included_in_single(&data::bool::BoolT) {
                     data.clone()
                 } else {
                     return Err(format!(
@@ -381,7 +381,7 @@ impl MersType for IterT {
             false
         }
     }
-    fn is_included_in_single(&self, target: &dyn MersType) -> bool {
+    fn is_included_in(&self, target: &dyn MersType) -> bool {
         if let Some(target) = target.as_any().downcast_ref::<Self>() {
             self.2.is_included_in(&target.2)
         } else {
@@ -440,7 +440,7 @@ fn genfunc_iter_in_val_out(
         info_check: Arc::new(Mutex::new(crate::info::Info::neverused())),
         out: Arc::new(move |a, _i| {
             if let Some(iter_over) = a.iterable() {
-                if iter_over.is_included_in(&iter_type) {
+                if iter_over.is_included_in_single(&iter_type) {
                     Ok(out_type.clone())
                 } else {
                     Err(format!("Cannot call function {name} on iterator over type {a}, which isn't {iter_type}.").into())

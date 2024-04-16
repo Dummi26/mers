@@ -121,7 +121,7 @@ impl MersType for FunctionT {
                     if t.0.len() > 1 {
                         return None;
                     } else if let Some(t) = t.0.first() {
-                        out.add(Arc::new(t.clone()))
+                        out.add_all(&t);
                     }
                 } else {
                     return None;
@@ -153,7 +153,7 @@ impl MersType for FunctionT {
             false
         }
     }
-    fn is_included_in_single(&self, target: &dyn MersType) -> bool {
+    fn is_included_in(&self, target: &dyn MersType) -> bool {
         if let Some(target) = target.as_any().downcast_ref::<Self>() {
             if let Err(s) = &target.0 {
                 s.iter()

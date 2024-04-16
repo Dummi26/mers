@@ -44,7 +44,7 @@ impl MersType for ReferenceT {
             false
         }
     }
-    fn is_included_in_single(&self, target: &dyn MersType) -> bool {
+    fn is_included_in(&self, target: &dyn MersType) -> bool {
         // &int isn't included in &(int/float), otherwise we could assign a float to it
         self.is_same_type_as(target)
     }

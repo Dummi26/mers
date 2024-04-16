@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    data::{self, Data, MersType, Type},
+    data::{self, Data, Type},
     program::{self, run::CheckInfo},
 };
 
@@ -22,7 +22,7 @@ impl Config {
                             if t.0.len() != 2 {
                                 return Err(format!("called get on tuple with len != 2").into());
                             }
-                            if !t.0[1].is_included_in(&data::int::IntT) {
+                            if !t.0[1].is_included_in_single(&data::int::IntT) {
                                 return Err(format!(
                                     "called get with non-int index of type {}",
                                     t.0[1]
@@ -30,7 +30,7 @@ impl Config {
                                 .into());
                             }
                             if let Some(v) = t.0[0].get() {
-                                out.add(Arc::new(v));
+                                out.add_all(&v);
                             } else {
                                 return Err(format!(
                                     "called get on non-gettable type {t}, part of {a}"

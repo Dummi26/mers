@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    data::{self, Data, MersType, Type},
+    data::{self, Data, Type},
     errors::CheckError,
     program::run::{CheckInfo, Info},
 };
@@ -101,7 +101,7 @@ impl Config {
             .add_var("panic".to_string(), Data::new(data::function::Function {
                 info: Arc::new(Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-            out: Arc::new(|a, _i| if a.is_included_in(&data::int::IntT) {
+            out: Arc::new(|a, _i| if a.is_included_in_single(&data::int::IntT) {
                 Ok(Type::empty())
             } else {
                 Err(format!("cannot call exit with non-int argument").into())

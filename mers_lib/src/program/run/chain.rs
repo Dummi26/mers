@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use colored::Colorize;
 
 use crate::{
@@ -40,7 +38,7 @@ impl MersStatement for Chain {
                 .downcast_ref::<crate::data::function::FunctionT>()
             {
                 match func.o(&arg) {
-                    Ok(t) => o.add(Arc::new(t)),
+                    Ok(t) => o.add_all(&t),
                     Err(e) => {
                         return Err(if let Some(_) = &self.as_part_of_include {
                             CheckError::new()

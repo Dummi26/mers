@@ -20,15 +20,15 @@ impl Config {
     /// returns (int/(), string, string) on success (status code, stdout, stderr)
     pub fn with_command_running(self) -> Self {
         self
-            .add_type("RunCommandError".to_owned(), Ok(Arc::new(RunCommandErrorT)))
-            .add_type("ChildProcess".to_owned(), Ok(Arc::new(ChildProcessT)))
+            .add_type("RunCommandError".to_owned(), Ok(Arc::new(Type::new(RunCommandErrorT))))
+            .add_type("ChildProcess".to_owned(), Ok(Arc::new(Type::new(ChildProcessT))))
             .add_var(
             "run_command".to_string(),
             Data::new(data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
-                    if a.types.iter().all(|t| t.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in(&data::string::StringT) && t.0[1].iterable().is_some_and(|t| t.is_included_in(&data::string::StringT)))) {
+                    if a.types.iter().all(|t| t.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in_single(&data::string::StringT) && t.0[1].iterable().is_some_and(|t| t.is_included_in_single(&data::string::StringT)))) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![
                                 Type::newm(vec![Arc::new(data::int::IntT), Arc::new(data::bool::BoolT)]),
@@ -82,7 +82,7 @@ impl Config {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
-                    if a.types.iter().all(|t| t.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in(&data::string::StringT) && t.0[1].iterable().is_some_and(|t| t.is_included_in(&data::string::StringT)))) {
+                    if a.types.iter().all(|t| t.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in_single(&data::string::StringT) && t.0[1].iterable().is_some_and(|t| t.is_included_in_single(&data::string::StringT)))) {
                         Ok(Type::newm(vec![
                             Arc::new(ChildProcessT),
                             Arc::new(RunCommandErrorT)
@@ -125,7 +125,7 @@ impl Config {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
-                    if a.is_included_in(&ChildProcessT) {
+                    if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![Type::new(data::bool::BoolT)])),
                             Arc::new(data::tuple::TupleT(vec![])),
@@ -153,7 +153,7 @@ impl Config {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
-                    if a.is_included_in(&ChildProcessT) {
+                    if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
                             Arc::new(data::int::IntT),
                             Arc::new(data::bool::BoolT),
@@ -186,7 +186,7 @@ impl Config {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
-                    if a.types.iter().all(|a| a.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in(&ChildProcessT) && t.0[1].iterable().is_some_and(|i| i.is_included_in(&data::byte::ByteT)))) {
+                    if a.types.iter().all(|a| a.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in_single(&ChildProcessT) && t.0[1].iterable().is_some_and(|i| i.is_included_in_single(&data::byte::ByteT)))) {
                         Ok(Type::new(data::bool::BoolT))
                     } else {
                         return Err(format!("childproc_write_bytes called on non-`(ChildProcess, Iter<Byte>)` type {a}").into());
@@ -215,7 +215,7 @@ impl Config {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
-                    if a.is_included_in(&data::tuple::TupleT(vec![Type::new(ChildProcessT), Type::new(data::string::StringT)])) {
+                    if a.is_included_in_single(&data::tuple::TupleT(vec![Type::new(ChildProcessT), Type::new(data::string::StringT)])) {
                         Ok(Type::new(data::bool::BoolT))
                     } else {
                         return Err(format!("childproc_write_string called on non-`(ChildProcess, String)` type {a}").into());
@@ -244,7 +244,7 @@ impl Config {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
-                    if a.is_included_in(&ChildProcessT) {
+                    if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![Type::new(data::byte::ByteT)])),
                             Arc::new(data::tuple::TupleT(vec![])),
@@ -273,7 +273,7 @@ impl Config {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
-                    if a.is_included_in(&ChildProcessT) {
+                    if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![Type::new(data::byte::ByteT)])),
                             Arc::new(data::tuple::TupleT(vec![])),
@@ -302,7 +302,7 @@ impl Config {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
-                    if a.is_included_in(&ChildProcessT) {
+                    if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![Type::new(data::string::StringT)])),
                             Arc::new(data::tuple::TupleT(vec![])),
@@ -331,7 +331,7 @@ impl Config {
                 info: Arc::new(program::run::Info::neverused()),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
-                    if a.is_included_in(&ChildProcessT) {
+                    if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![Type::new(data::string::StringT)])),
                             Arc::new(data::tuple::TupleT(vec![])),
@@ -414,7 +414,7 @@ impl MersType for ChildProcessT {
     fn is_same_type_as(&self, other: &dyn MersType) -> bool {
         other.as_any().is::<Self>()
     }
-    fn is_included_in_single(&self, target: &dyn MersType) -> bool {
+    fn is_included_in(&self, target: &dyn MersType) -> bool {
         target.as_any().is::<Self>()
     }
     fn subtypes(&self, acc: &mut Type) {
@@ -468,7 +468,7 @@ impl MersType for RunCommandErrorT {
     fn is_same_type_as(&self, other: &dyn MersType) -> bool {
         other.as_any().downcast_ref::<Self>().is_some()
     }
-    fn is_included_in_single(&self, target: &dyn MersType) -> bool {
+    fn is_included_in(&self, target: &dyn MersType) -> bool {
         self.is_same_type_as(target)
     }
     fn subtypes(&self, acc: &mut Type) {

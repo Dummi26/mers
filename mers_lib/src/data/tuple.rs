@@ -48,7 +48,7 @@ impl MersType for TupleT {
     fn iterable(&self) -> Option<Type> {
         let mut o = Type::empty();
         for t in self.0.iter() {
-            o.add(Arc::new(t.clone()));
+            o.add_all(&t);
         }
         Some(o)
     }
@@ -64,7 +64,7 @@ impl MersType for TupleT {
             false
         }
     }
-    fn is_included_in_single(&self, target: &dyn MersType) -> bool {
+    fn is_included_in(&self, target: &dyn MersType) -> bool {
         if let Some(target) = target.as_any().downcast_ref::<Self>() {
             self.0.len() == target.0.len()
                 && self

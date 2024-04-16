@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    data::{self, Data, MersType, Type},
+    data::{self, Data, Type},
     errors::CheckError,
     program::{self, run::CheckInfo},
 };

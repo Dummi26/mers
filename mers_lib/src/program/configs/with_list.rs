@@ -29,7 +29,7 @@ impl Config {
                 let mut src = Source::new_from_string_raw(s.to_owned());
                 let srca = Arc::new(src.clone());
                 let t = crate::parsing::types::parse_type(&mut src, &srca)?;
-                Ok(Arc::new(ListT(crate::parsing::types::type_from_parsed(&t, i)?)))})))
+                Ok(Arc::new(Type::new(ListT(crate::parsing::types::type_from_parsed(&t, i)?))))})))
             .add_var("get_mut".to_string(), Data::new(data::function::Function {
                     info: Arc::new(program::run::Info::neverused()),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
@@ -107,7 +107,7 @@ impl Config {
                             let mut out = Type::empty();
                             for t in a.types.iter() {
                                 if let Some(t) = t.as_any().downcast_ref::<ListT>() {
-                                    out.add(Arc::new(t.0.clone()));
+                                    out.add_all(&t.0);
                                 } else {
                                     return Err(format!(
                                         "pop: found a reference to {t}, which is not a list"
@@ -115,8 +115,8 @@ impl Config {
                                 }
                             }
                             Ok(Type::newm(vec![
-                                Arc::new(Type::new(data::tuple::TupleT(vec![out]))),
-                                Arc::new(Type::empty_tuple())
+                                Arc::new(data::tuple::TupleT(vec![out])),
+                                Arc::new(data::tuple::TupleT(vec![]))
                             ]))
                         } else {
                             return Err(format!("pop: not a reference: {a}").into());
@@ -286,7 +286,7 @@ impl MersType for ListT {
             .downcast_ref::<Self>()
             .is_some_and(|v| self.0.is_same_type_as(&v.0))
     }
-    fn is_included_in_single(&self, target: &dyn MersType) -> bool {
+    fn is_included_in(&self, target: &dyn MersType) -> bool {
         target
             .as_any()
             .downcast_ref::<Self>()
@@ -333,7 +333,7 @@ impl List {
     pub fn inner_type(&self) -> Type {
         let mut t = Type::empty();
         for el in &self.0 {
-            t.add(Arc::new(el.read().unwrap().get().as_type()));
+            t.add_all(&el.read().unwrap().get().as_type());
         }
         t
     }

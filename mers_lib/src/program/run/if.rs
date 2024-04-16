@@ -3,7 +3,7 @@ use std::sync::Arc;
 use colored::Colorize;
 
 use crate::{
-    data::{self, Data, MersType, Type},
+    data::{self, tuple::TupleT, Data, Type},
     errors::{error_colors, CheckError, SourceRange},
 };
 
@@ -27,7 +27,7 @@ impl MersStatement for If {
             return Err("can't init to statement type If".to_string().into());
         }
         let cond_return_type = self.condition.check(info, None)?;
-        if !cond_return_type.is_included_in(&data::bool::BoolT) {
+        if !cond_return_type.is_included_in_single(&data::bool::BoolT) {
             return Err(CheckError::new()
                 .src(vec![
                     (self.pos_in_src.clone(), None),
@@ -46,9 +46,9 @@ impl MersStatement for If {
         }
         let mut t = self.on_true.check(info, None)?;
         if let Some(f) = &self.on_false {
-            t.add(Arc::new(f.check(info, None)?));
+            t.add_all(&f.check(info, None)?);
         } else {
-            t.add(Arc::new(Type::empty_tuple()));
+            t.add(Arc::new(TupleT(vec![])));
         }
         Ok(t)
     }

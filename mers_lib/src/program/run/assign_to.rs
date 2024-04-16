@@ -1,7 +1,7 @@
 use colored::Colorize;
 
 use crate::{
-    data::{self, Data, MersType, Type},
+    data::{self, Data, Type},
     errors::{error_colors, CheckError, SourceRange},
 };
 
