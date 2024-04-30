@@ -80,16 +80,16 @@ impl Config {
                             .as_any()
                             .downcast_ref::<data::reference::Reference>()
                             .unwrap().0;
-                        let list = list
-                            .read()
+                        let mut list = list
+                            .write()
                             .unwrap();
-                        let list = list.get();
+                        let list = list.get_mut();
                         let list = list.as_any()
                             .downcast_ref::<List>()
                             .unwrap();
                         let o = match list.0.get(i) {
                             Some(data) => {
-                                Data::one_tuple(Data::new(data::reference::Reference(Arc::clone(data), list.inner_type())))
+                                Data::one_tuple(Data::new(data::reference::Reference(Arc::clone(data))))
                             }
                             None => Data::empty_tuple(),
                         };
@@ -235,8 +235,18 @@ impl Config {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct List(pub Vec<Arc<RwLock<Data>>>);
+impl Clone for List {
+    fn clone(&self) -> Self {
+        Self(
+            self.0
+                .iter()
+                .map(|v| Arc::new(RwLock::new(v.read().unwrap().clone())))
+                .collect(),
+        )
+    }
+}
 #[derive(Debug)]
 pub struct ListT(pub Type);
 impl MersData for List {

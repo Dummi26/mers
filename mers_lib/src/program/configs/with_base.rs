@@ -1,5 +1,5 @@
 use std::{
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock},
     time::Duration,
 };
 
@@ -13,6 +13,7 @@ use super::Config;
 
 impl Config {
     /// `deref: fn` clones the value from a reference
+    /// `mkref: fn` returns a reference to a copy of the value
     /// `eq: fn` returns true if all the values are equal, otherwise false.
     /// `loop: fn` runs a function until it returns (T) instead of (), then returns T. Also works with ((), f) instead of f for ().loop(() -> { ... }) syntax, which may be more readable
     /// `try: fn` runs the first valid function with the argument. usage: (arg, (f1, f2, f3)).try
@@ -169,6 +170,18 @@ impl Config {
                     } else {
                         false
                     }))
+                }),
+                inner_statements: None,
+            }),
+        )
+        .add_var(
+            "mkref".to_string(),
+            Data::new(data::function::Function {
+                info: Arc::new(Info::neverused()),
+                info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                out: Arc::new(|a, _i| Ok(Type::new(data::reference::ReferenceT(a.clone())))),
+                run: Arc::new(|a, _i| {
+                    Data::new(data::reference::Reference(Arc::new(RwLock::new(a.clone()))))
                 }),
                 inner_statements: None,
             }),
