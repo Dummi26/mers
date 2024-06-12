@@ -276,20 +276,28 @@ impl CheckError {
                             if first_line_nr == last_line_nr {
                                 writeln!(
                                     f,
-                                    "{}Line {first_line_nr} ({}..{}){}",
-                                    indent!(true, false),
-                                    start_with_comments + 1 - first_line_start,
-                                    end_with_comments - last_line_start,
-                                    src_from,
+                                    "{}",
+                                    format!(
+                                        "{}Line {first_line_nr} ({}..{}){}",
+                                        indent!(true, false),
+                                        start_with_comments + 1 - first_line_start,
+                                        end_with_comments - last_line_start,
+                                        src_from,
+                                    )
+                                    .bright_black()
                                 )?;
                             } else {
                                 writeln!(
                                     f,
-                                    "{}Lines {first_line_nr}-{last_line_nr} ({}..{}){}",
-                                    indent!(true, false),
-                                    start_with_comments + 1 - first_line_start,
-                                    end_with_comments - last_line_start,
-                                    src_from,
+                                    "{}",
+                                    format!(
+                                        "{}Lines {first_line_nr}-{last_line_nr} ({}..{}){}",
+                                        indent!(true, false),
+                                        start_with_comments + 1 - first_line_start,
+                                        end_with_comments - last_line_start,
+                                        src_from,
+                                    )
+                                    .bright_black()
                                 )?;
                             }
                             let lines = if cfg.show_comments {

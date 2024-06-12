@@ -1,5 +1,7 @@
 use std::{fmt::Debug, sync::Arc};
 
+use colored::Colorize;
+
 use crate::{
     data::{Data, Type},
     errors::{CheckError, SourceRange},
@@ -33,12 +35,25 @@ impl MersStatement for CustomType {
         if init_to.is_some() {
             return Err("can't init to `type` statement".to_string().into());
         }
-        let t = (self.source)(info)?;
-        info.scopes
-            .last_mut()
-            .unwrap()
-            .types
-            .insert(self.name.clone(), t);
+        let t = (self.source)(info);
+        if self.name != "_" {
+            info.scopes
+                .last_mut()
+                .unwrap()
+                .types
+                .insert(self.name.clone(), t?);
+        } else {
+            if let Err(e) = t {
+                return Err(CheckError::new()
+                    .msg(format!(
+                        " {} {} {} (`[[_] := ...]` indicates that `...` must be type-correct)",
+                        "<<".bright_red(),
+                        "Custom type-test failed!".bright_red(),
+                        ">>".bright_red(),
+                    ))
+                    .err(e));
+            }
+        }
         Ok(Type::empty_tuple())
     }
     fn run_custom(&self, _info: &mut Info) -> Data {
