@@ -19,8 +19,9 @@ impl Config {
     /// `RunCommandError` holds the error if the command can't be executed
     /// returns (int/(), string, string) on success (status code, stdout, stderr)
     pub fn with_command_running(self) -> Self {
+        // data::object::ObjectT(vec![("run_command_error".to_owned(), Type::new(data::string::StringT))])
+        // data::object::Object(vec![("run_command_error".to_owned(), Data::new(data::string::String(e.to_string())))])
         self
-            .add_type("RunCommandError".to_owned(), Ok(Arc::new(Type::new(RunCommandErrorT))))
             .add_type("ChildProcess".to_owned(), Ok(Arc::new(Type::new(ChildProcessT))))
             .add_var(
             "run_command".to_string(),
@@ -35,7 +36,7 @@ impl Config {
                                 Type::new(data::string::StringT),
                                 Type::new(data::string::StringT),
                             ])),
-                            Arc::new(RunCommandErrorT)
+                            Arc::new(data::object::ObjectT(vec![("run_command_error".to_owned(), Type::new(data::string::StringT))]))
                         ]))
                     } else {
                         return Err(format!("run_command called with invalid arguments (must be (String, Iter<String>))").into());
@@ -70,7 +71,7 @@ impl Config {
                                 Data::new(data::string::String(stderr)),
                             ]))
                         }
-                        Err(e) => Data::new(RunCommandError(e.to_string())),
+                        Err(e) => Data::new(data::object::Object(vec![("run_command_error".to_owned(), Data::new(data::string::String(e.to_string())))])),
                     }
                 }),
                 inner_statements: None,
@@ -85,7 +86,7 @@ impl Config {
                     if a.types.iter().all(|t| t.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in_single(&data::string::StringT) && t.0[1].iterable().is_some_and(|t| t.is_included_in_single(&data::string::StringT)))) {
                         Ok(Type::newm(vec![
                             Arc::new(ChildProcessT),
-                            Arc::new(RunCommandErrorT)
+                            Arc::new(data::object::ObjectT(vec![("run_command_error".to_owned(), Type::new(data::string::StringT))]))
                         ]))
                     } else {
                         return Err(format!("spawn_command called with invalid arguments (must be (String, Iter<String>))").into());
@@ -113,7 +114,7 @@ impl Config {
                             let c = BufReader::new(child.stderr.take().unwrap());
                             Data::new(ChildProcess(Arc::new(Mutex::new((child, a, b, c)))))
                         }
-                        Err(e) => Data::new(RunCommandError(e.to_string())),
+                        Err(e) => Data::new(data::object::Object(vec![("run_command_error".to_owned(), Data::new(data::string::String(e.to_string())))])),
                     }
                 }),
                 inner_statements: None,
@@ -433,64 +434,5 @@ impl MersType for ChildProcessT {
 impl Display for ChildProcessT {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "ChildProcess")
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct RunCommandError(String);
-#[derive(Debug, Clone)]
-pub struct RunCommandErrorT;
-impl MersData for RunCommandError {
-    fn is_eq(&self, other: &dyn MersData) -> bool {
-        if let Some(other) = other.as_any().downcast_ref::<Self>() {
-            other.0 == self.0
-        } else {
-            false
-        }
-    }
-    fn clone(&self) -> Box<dyn MersData> {
-        Box::new(Clone::clone(self))
-    }
-    fn as_type(&self) -> data::Type {
-        Type::new(RunCommandErrorT)
-    }
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-    fn mut_any(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-    fn to_any(self) -> Box<dyn std::any::Any> {
-        Box::new(self)
-    }
-}
-impl MersType for RunCommandErrorT {
-    fn is_same_type_as(&self, other: &dyn MersType) -> bool {
-        other.as_any().downcast_ref::<Self>().is_some()
-    }
-    fn is_included_in(&self, target: &dyn MersType) -> bool {
-        self.is_same_type_as(target)
-    }
-    fn subtypes(&self, acc: &mut Type) {
-        acc.add(Arc::new(self.clone()));
-    }
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-    fn mut_any(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-    fn to_any(self) -> Box<dyn std::any::Any> {
-        Box::new(self)
-    }
-}
-impl Display for RunCommandError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-impl Display for RunCommandErrorT {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "RunCommandError")
     }
 }
