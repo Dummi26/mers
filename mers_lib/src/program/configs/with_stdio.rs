@@ -28,7 +28,10 @@ impl Config {
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     if a.is_zero_tuple() {
-                        Ok(Type::new(data::string::StringT))
+                        Ok(Type::newm(vec![Arc::new(data::tuple::TupleT(vec![
+                            Type::new(data::string::StringT),
+                            Type::empty_tuple(),
+                        ]))]))
                     } else {
                         Err(format!(
                             "expected (), got {}",
@@ -39,8 +42,11 @@ impl Config {
                 }),
                 run: Arc::new(|_a, _i| {
                     let mut line = String::new();
-                    _ = std::io::stdin().read_line(&mut line);
-                    Data::new(data::string::String(line))
+                    if std::io::stdin().read_line(&mut line).is_err() && line.is_empty() {
+                        Data::empty_tuple()
+                    } else {
+                        Data::one_tuple(Data::new(data::string::String(line)))
+                    }
                 }),
                 inner_statements: None,
             }),
