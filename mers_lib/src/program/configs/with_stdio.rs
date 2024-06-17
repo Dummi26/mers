@@ -28,10 +28,10 @@ impl Config {
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     if a.is_zero_tuple() {
-                        Ok(Type::newm(vec![Arc::new(data::tuple::TupleT(vec![
-                            Type::new(data::string::StringT),
-                            Type::empty_tuple(),
-                        ]))]))
+                        Ok(Type::newm(vec![
+                            Arc::new(data::tuple::TupleT(vec![Type::new(data::string::StringT)])),
+                            Arc::new(data::tuple::TupleT(vec![])),
+                        ]))
                     } else {
                         Err(format!(
                             "expected (), got {}",
