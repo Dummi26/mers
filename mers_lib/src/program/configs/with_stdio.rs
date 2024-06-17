@@ -41,11 +41,10 @@ impl Config {
                     }
                 }),
                 run: Arc::new(|_a, _i| {
-                    let mut line = String::new();
-                    if std::io::stdin().read_line(&mut line).is_err() && line.is_empty() {
-                        Data::empty_tuple()
-                    } else {
+                    if let Some(Ok(line)) = std::io::stdin().lines().next() {
                         Data::one_tuple(Data::new(data::string::String(line)))
+                    } else {
+                        Data::empty_tuple()
                     }
                 }),
                 inner_statements: None,
