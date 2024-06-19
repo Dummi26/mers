@@ -80,7 +80,7 @@ loop {
           () -> "not a number!".println
         )
       }
-      () -> (())
+      () -> ()
     )
   }
   &player = player.eq(false)
