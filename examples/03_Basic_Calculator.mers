@@ -1,29 +1,37 @@
 "- Calculator -".println
 "Type =<num> to set the value to that number.".println
 "Type +<num>, -<num>, *<num> or /<num> to change the value.".println
-"Type exit to exit.".println
+"Type exit or press CTRL+D to exit.".println
 
 current := 0.0
 
 loop {
   ("[ ", current, " ]").concat.println
-  input := ().read_line.trim
-  num := (input, 1).substring.trim.parse_float.try(
-    (val) -> val
-    () -> 0.0
+  ().read_line.try(
+    (line) -> {
+      input := line.trim
+      num := (input, 1).substring.trim.parse_float.try(
+        (val) -> val
+        () -> 0.0
+      )
+      mode := input.substring(0, 1)
+      if mode.eq("+") {
+        &current = (current, num).sum
+      } else if mode.eq("-") {
+        &current = (current, (num, -1).product).sum
+      } else if mode.eq("*") {
+        &current = (current, num).product
+      } else if mode.eq("/") {
+        &current = (current, num).div
+      } else if mode.eq("=") {
+        &current = num
+      } else if input.eq("exit") {
+        (())
+      } else {
+        "Expected one of +-*/= followed by a number".eprintln
+      }
+    }
+    // CTRL+D
+    () -> (())
   )
-  mode := input.substring(0, 1)
-  if mode.eq("+") {
-    &current = (current, num).sum
-  } else if mode.eq("-") {
-    &current = (current, (num, -1).product).sum
-  } else if mode.eq("*") {
-    &current = (current, num).product
-  } else if mode.eq("/") {
-    &current = (current, num).div
-  } else if mode.eq("=") {
-    &current = num
-  } else if (input.eq("exit"), input.eq("")).any {
-    (())
-  }
 }

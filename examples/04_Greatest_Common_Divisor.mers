@@ -12,7 +12,7 @@ gcd := vals -> {
 
 get_num := () -> {
   loop {
-    line := ().read_line.trim
+    line := ().read_line.try((line) -> line.trim, () -> "")
     line.parse_float.try(
       (n) -> (n)
       () -> ("Error: '", line, "' not a number!").concat.println

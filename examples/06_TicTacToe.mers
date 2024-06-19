@@ -60,22 +60,27 @@ loop {
   ().print_board
   loop {
     (if player c_blue else c_green, "> ", c_gray).concat.print
-    input := ().read_line.trim
-    input.parse_int.try(
-      (field) -> {
-        if (field.gt(0), field.ltoe(9)).all {
-          (l, m, r) := if field.gt(6) (&f1, &f2, &f3) else if field.gt(3) (&f4, &f5, &f6) else (&f7, &f8, &f9)
-          col := field.subtract(1).modulo(3)
-          f := if col.eq(0) l else if col.eq(1) m else r
-          if f.deref.eq(0) {
-            f = if player 1 else -1
-            (())
-          } else "field already occupied".println
-        } else {
-          "number must be 1 <= n <= 9".println
-        }
+    ().read_line.try(
+      (line) -> {
+        input := line.trim
+        input.parse_int.try(
+          (field) -> {
+            if (field.gt(0), field.ltoe(9)).all {
+              (l, m, r) := if field.gt(6) (&f1, &f2, &f3) else if field.gt(3) (&f4, &f5, &f6) else (&f7, &f8, &f9)
+              col := field.subtract(1).modulo(3)
+              f := if col.eq(0) l else if col.eq(1) m else r
+              if f.deref.eq(0) {
+                f = if player 1 else -1
+                (())
+              } else "field already occupied".println
+            } else {
+              "number must be 1 <= n <= 9".println
+            }
+          }
+          () -> "not a number!".println
+        )
       }
-      () -> "not a number!".println
+      () -> (())
     )
   }
   &player = player.eq(false)

@@ -2,8 +2,8 @@ parse_matrix_line := input -> {
   vals := input.str_split(" ")
   vals_len := vals.len
   // reverse vals
-  vals_rev := {() -> &vals.pop}.as_list
-  nums := vals_rev.filter_map(v -> v.parse_float).as_list
+  // vals_rev := {() -> &vals.pop}.as_list
+  nums := vals.filter_map(v -> v.parse_float).as_list
   if nums.len.eq(vals_len)
     if nums.len.signum.eq(1)
       (nums)
@@ -12,7 +12,7 @@ parse_matrix_line := input -> {
 }
 
 read_matrix_line := width -> {
-  ().read_line.trim.parse_matrix_line.try(
+  ().read_line.try((line) -> line.trim, () -> "").parse_matrix_line.try(
     (line) -> {
       line := [List<Float>] line
       w := width.deref
@@ -81,9 +81,7 @@ matrix_print := matrix -> {
 
 fget := v -> v.get.try(
   () -> {
-    "called fget but get returned ():".println
-    v.println
-    5.panic
+    ("called fget but get returned (): ", v).concat.panic
   }
   (v) -> v
 )
