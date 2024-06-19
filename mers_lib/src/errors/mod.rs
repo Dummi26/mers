@@ -395,6 +395,11 @@ impl From<String> for CheckError {
         Self::new().msg(value)
     }
 }
+impl From<&str> for CheckError {
+    fn from(value: &str) -> Self {
+        Self::new().msg(value.to_owned())
+    }
+}
 impl Debug for CheckError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{self}")

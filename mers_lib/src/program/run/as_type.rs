@@ -66,7 +66,7 @@ impl MersStatement for AsType {
             return_type
         })
     }
-    fn run_custom(&self, info: &mut super::Info) -> Data {
+    fn run_custom(&self, info: &mut super::Info) -> Result<Data, CheckError> {
         self.statement.run(info)
     }
     fn has_scope(&self) -> bool {

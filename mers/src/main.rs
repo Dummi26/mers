@@ -122,7 +122,10 @@ fn main() {
                                 exit(255);
                             }
                             Ok(_) => {
-                                compiled.run(&mut i2);
+                                if let Err(e) = compiled.run(&mut i2) {
+                                    eprintln!("Error while running: {}", e);
+                                    std::process::exit(1);
+                                }
                             }
                         },
                     }
@@ -145,7 +148,10 @@ fn main() {
                             exit(255);
                         }
                         Ok(compiled) => {
-                            compiled.run(&mut i2);
+                            if let Err(e) = compiled.run(&mut i2) {
+                                eprintln!("Error while running: {}", e);
+                                std::process::exit(1);
+                            }
                         }
                     }
                 }

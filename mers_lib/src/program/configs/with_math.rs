@@ -72,11 +72,11 @@ impl Config {
                 }
             }),
             run: Arc::new(|a, _i| {
-                if let Ok(n) = a.get().as_any().downcast_ref::<data::string::String>().unwrap().0.parse() {
+                Ok(if let Ok(n) = a.get().as_any().downcast_ref::<data::string::String>().unwrap().0.parse() {
                     Data::one_tuple(Data::new(data::float::Float(n)))
                 } else {
                     Data::empty_tuple()
-                }
+                })
             }),
                 inner_statements: None,
         })).add_var("parse_int".to_string(), Data::new(data::function::Function {
@@ -95,11 +95,11 @@ impl Config {
                 }
             }),
             run: Arc::new(|a, _i| {
-                if let Ok(n) = a.get().as_any().downcast_ref::<data::string::String>().unwrap().0.parse() {
+                Ok(if let Ok(n) = a.get().as_any().downcast_ref::<data::string::String>().unwrap().0.parse() {
                     Data::one_tuple(Data::new(data::int::Int(n)))
                 } else {
                     Data::empty_tuple()
-                }
+                })
             }),
                 inner_statements: None,
         })).add_var("signum".to_string(), Data::new(data::function::Function {
@@ -113,7 +113,7 @@ impl Config {
                 }
             }),
             run: Arc::new(|a, _i| {
-                Data::new(data::int::Int(if let Some(n) = a.get().as_any().downcast_ref::<data::int::Int>() {
+                Ok(Data::new(data::int::Int(if let Some(n) = a.get().as_any().downcast_ref::<data::int::Int>() {
                     n.0.signum()
                 } else
                 if let Some(n) = a.get().as_any().downcast_ref::<data::float::Float>() {
@@ -123,7 +123,7 @@ impl Config {
                         -1
                     } else { 0
                     }
-                } else { unreachable!("called signum on non-number type")}))
+                } else { unreachable!("called signum on non-number type")})))
             }),
                 inner_statements: None,
         }))            .add_var("div".to_string(), Data::new(data::function::Function {
@@ -137,10 +137,10 @@ impl Config {
                     match (left.downcast_ref::<data::int::Int>(), left.downcast_ref::<data::float::Float>(),
                         right.downcast_ref::<data::int::Int>(), right.downcast_ref::<data::float::Float>()
                     ) {
-                        (Some(data::int::Int(l)), None, Some(data::int::Int(r)), None) => Data::new(data::int::Int(l / r)),
-                        (Some(data::int::Int(l)), None, None, Some(data::float::Float(r))) => Data::new(data::float::Float(*l as f64 / r)),
-                        (None, Some(data::float::Float(l)), Some(data::int::Int(r)), None) => Data::new(data::float::Float(l / *r as f64)),
-                        (None, Some(data::float::Float(l)), None, Some(data::float::Float(r))) => Data::new(data::float::Float(l / r)),
+                        (Some(data::int::Int(l)), None, Some(data::int::Int(r)), None) => Ok(Data::new(data::int::Int(l / r))),
+                        (Some(data::int::Int(l)), None, None, Some(data::float::Float(r))) => Ok(Data::new(data::float::Float(*l as f64 / r))),
+                        (None, Some(data::float::Float(l)), Some(data::int::Int(r)), None) => Ok(Data::new(data::float::Float(l / *r as f64))),
+                        (None, Some(data::float::Float(l)), None, Some(data::float::Float(r))) => Ok(Data::new(data::float::Float(l / r))),
                         _ => unreachable!(),
                     }
                 } else { unreachable!() }),
@@ -156,10 +156,10 @@ impl Config {
                     match (left.downcast_ref::<data::int::Int>(), left.downcast_ref::<data::float::Float>(),
                         right.downcast_ref::<data::int::Int>(), right.downcast_ref::<data::float::Float>()
                     ) {
-                        (Some(data::int::Int(l)), None, Some(data::int::Int(r)), None) => Data::new(data::int::Int(l % r)),
-                        (Some(data::int::Int(l)), None, None, Some(data::float::Float(r))) => Data::new(data::float::Float(*l as f64 % r)),
-                        (None, Some(data::float::Float(l)), Some(data::int::Int(r)), None) => Data::new(data::float::Float(l % *r as f64)),
-                        (None, Some(data::float::Float(l)), None, Some(data::float::Float(r))) => Data::new(data::float::Float(l % r)),
+                        (Some(data::int::Int(l)), None, Some(data::int::Int(r)), None) => Ok(Data::new(data::int::Int(l % r))),
+                        (Some(data::int::Int(l)), None, None, Some(data::float::Float(r))) => Ok(Data::new(data::float::Float(*l as f64 % r))),
+                        (None, Some(data::float::Float(l)), Some(data::int::Int(r)), None) => Ok(Data::new(data::float::Float(l % *r as f64))),
+                        (None, Some(data::float::Float(l)), None, Some(data::float::Float(r))) => Ok(Data::new(data::float::Float(l % r))),
                         _ => unreachable!(),
                     }
                 } else { unreachable!() }),
@@ -206,20 +206,22 @@ impl Config {
                         let mut sumf = 0.0;
                         let mut usef = false;
                         for val in i {
-                            if let Some(i) = val.get().as_any().downcast_ref::<data::int::Int>() {
+                            let val = val?;
+                            let o = if let Some(i) = val.get().as_any().downcast_ref::<data::int::Int>() {
                                 sumi += i.0;
                             } else if let Some(i) =
                                 val.get().as_any().downcast_ref::<data::float::Float>()
                             {
                                 sumf += i.0;
                                 usef = true;
-                            }
+                            };
+                            o
                         }
-                        if usef {
+                        Ok(if usef {
                             Data::new(data::float::Float(sumi as f64 + sumf))
                         } else {
                             Data::new(data::int::Int(sumi))
-                        }
+                        })
                     } else {
                         unreachable!("sum called on non-tuple")
                     }
@@ -269,6 +271,7 @@ impl Config {
                         let mut sumf = 0.0;
                         let mut usef = false;
                         for val in i {
+                            let val = val?;
                             if let Some(i) = val.get().as_any().downcast_ref::<data::int::Int>() {
                                 if first {
                                     sumi = i.0;
@@ -289,11 +292,11 @@ impl Config {
                                 first = false;
                             }
                         }
-                        if usef {
+                        Ok(if usef {
                             Data::new(data::float::Float(sumi as f64 + sumf))
                         } else {
                             Data::new(data::int::Int(sumi))
-                        }
+                        })
                     } else {
                         unreachable!("sum called on non-tuple")
                     }
@@ -342,20 +345,22 @@ impl Config {
                         let mut prodf = 1.0;
                         let mut usef = false;
                         for val in i {
-                            if let Some(i) = val.get().as_any().downcast_ref::<data::int::Int>() {
+                            let val = val?;
+                            let o = if let Some(i) = val.get().as_any().downcast_ref::<data::int::Int>() {
                                 prodi *= i.0;
                             } else if let Some(i) =
                                 val.get().as_any().downcast_ref::<data::float::Float>()
                             {
                                 prodf *= i.0;
                                 usef = true;
-                            }
+                            };
+                            o
                         }
-                        if usef {
+                        Ok(if usef {
                             Data::new(data::float::Float(prodi as f64 * prodf))
                         } else {
                             Data::new(data::int::Int(prodi))
-                        }
+                        })
                     } else {
                         unreachable!("product called on non-tuple")
                     }
@@ -424,6 +429,7 @@ fn ltgtoe_function(
         run: Arc::new(move |a, _i| {
             let mut prev = IntOrFloatOrNothing::Nothing;
             for item in a.get().iterable().unwrap() {
+                let item = item?;
                 let item = item.get();
                 let new = if let Some(data::int::Int(v)) = item.as_any().downcast_ref() {
                     IntOrFloatOrNothing::Int(*v)
@@ -435,10 +441,10 @@ fn ltgtoe_function(
                 if op(prev, new) {
                     prev = new;
                 } else {
-                    return Data::new(data::bool::Bool(false));
+                    return Ok(Data::new(data::bool::Bool(false)));
                 }
             }
-            Data::new(data::bool::Bool(true))
+            Ok(Data::new(data::bool::Bool(true)))
         }),
         inner_statements: None,
     }

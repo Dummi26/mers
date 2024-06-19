@@ -52,20 +52,22 @@ impl MersStatement for If {
         }
         Ok(t)
     }
-    fn run_custom(&self, info: &mut super::Info) -> crate::data::Data {
-        if let Some(data::bool::Bool(true)) = self
-            .condition
-            .run(info)
-            .get()
-            .as_any()
-            .downcast_ref::<data::bool::Bool>()
-        {
-            self.on_true.run(info)
-        } else if let Some(on_false) = &self.on_false {
-            on_false.run(info)
-        } else {
-            Data::empty_tuple()
-        }
+    fn run_custom(&self, info: &mut super::Info) -> Result<Data, CheckError> {
+        Ok(
+            if let Some(data::bool::Bool(true)) = self
+                .condition
+                .run(info)?
+                .get()
+                .as_any()
+                .downcast_ref::<data::bool::Bool>()
+            {
+                self.on_true.run(info)?
+            } else if let Some(on_false) = &self.on_false {
+                on_false.run(info)?
+            } else {
+                Data::empty_tuple()
+            },
+        )
     }
     fn has_scope(&self) -> bool {
         true

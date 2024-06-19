@@ -29,10 +29,20 @@ impl Config {
     pub fn with_iters(self) -> Self {
         self
             .add_var("any".to_string(), Data::new(genfunc_iter_in_val_out("all".to_string(), data::bool::BoolT, Type::new(data::bool::BoolT), |a, _i| {
-                Data::new(data::bool::Bool(a.get().iterable().unwrap().any(|v| v.get().as_any().downcast_ref::<data::bool::Bool>().is_some_and(|v| v.0))))
+                for v in a.get().iterable().unwrap().map(|v| v.map(|v| v.get().as_any().downcast_ref::<data::bool::Bool>().is_some_and(|v| v.0))) {
+                    if v? {
+                        return Ok(Data::new(data::bool::Bool(true)));
+                    }
+                }
+                Ok(Data::new(data::bool::Bool(false)))
             })))
             .add_var("all".to_string(), Data::new(genfunc_iter_in_val_out("all".to_string(), data::bool::BoolT, Type::new(data::bool::BoolT), |a, _i| {
-                Data::new(data::bool::Bool(a.get().iterable().unwrap().all(|v| v.get().as_any().downcast_ref::<data::bool::Bool>().is_some_and(|v| v.0))))
+                for v in a.get().iterable().unwrap().map(|v| v.map(|v| v.get().as_any().downcast_ref::<data::bool::Bool>().is_some_and(|v| v.0))) {
+                    if !v? {
+                        return Ok(Data::new(data::bool::Bool(false)));
+                    }
+                }
+                Ok(Data::new(data::bool::Bool(true)))
             })))
             .add_var(
             "for_each".to_string(),
@@ -83,9 +93,9 @@ impl Config {
                                 f.get().as_any().downcast_ref::<data::function::Function>(),
                             ) {
                                 for v in iter {
-                                    f.run(v);
+                                    f.run(v?)?;
                                 }
-                                Data::empty_tuple()
+                                Ok(Data::empty_tuple())
                             } else {
                                 unreachable!(
                                     "for_each called on tuple not containing iterable and function"
@@ -133,7 +143,7 @@ impl Config {
                     };
                     Ok(Type::new(IterT::new(ItersT::Enumerate, data)?))
                 }),
-                run: Arc::new(|a, _i| Data::new(Iter(Iters::Enumerate, a.clone()))),
+                run: Arc::new(|a, _i| Ok(Data::new(Iter(Iters::Enumerate, a.clone())))),
                 inner_statements: None,
             }),
         )
@@ -150,7 +160,7 @@ impl Config {
                     };
                     Ok(Type::new(IterT::new(ItersT::Chained, data)?))
                 }),
-                run: Arc::new(|a, _i| Data::new(Iter(Iters::Chained, a.clone()))),
+                run: Arc::new(|a, _i| Ok(Data::new(Iter(Iters::Chained, a.clone())))),
                 inner_statements: None,
             }),
         )
@@ -211,7 +221,7 @@ fn genfunc_iter_and_arg<T: MersType, D: MersData>(
             if let Some(tuple) = a.get().as_any().downcast_ref::<data::tuple::Tuple>() {
                 if let (Some(v), Some(f)) = (tuple.get(0), tuple.get(1)) {
                     if let Some(f) = f.get().as_any().downcast_ref::<D>() {
-                        Data::new(Iter(fd(f), v.clone()))
+                        Ok(Data::new(Iter(fd(f), v.clone())))
                     } else {
                         unreachable!("{name} called on tuple not containing function")
                     }
@@ -254,55 +264,76 @@ impl MersData for Iter {
     fn is_eq(&self, _other: &dyn MersData) -> bool {
         false
     }
-    fn iterable(&self) -> Option<Box<dyn Iterator<Item = Data>>> {
+    fn iterable(&self) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
         Some(match &self.0 {
             Iters::Map(f) => {
                 let f = Clone::clone(f);
-                Box::new(self.1.get().iterable()?.map(move |v| f.run(v)))
+                Box::new(self.1.get().iterable()?.map(move |v| f.run(v?)))
             }
             Iters::Filter(f) => {
                 let f = Clone::clone(f);
-                Box::new(self.1.get().iterable()?.filter(move |v| {
-                    f.run(v.clone())
-                        .get()
-                        .as_any()
-                        .downcast_ref::<data::bool::Bool>()
-                        .is_some_and(|b| b.0)
+                Box::new(self.1.get().iterable()?.filter_map(move |v| {
+                    match v {
+                        Ok(v) => match f.run(v.clone()) {
+                            Ok(f) => {
+                                if f.get()
+                                    .as_any()
+                                    .downcast_ref::<data::bool::Bool>()
+                                    .is_some_and(|b| b.0)
+                                {
+                                    Some(Ok(v))
+                                } else {
+                                    None
+                                }
+                            }
+                            Err(e) => Some(Err(e)),
+                        },
+                        Err(e) => Some(Err(e)),
+                    }
                 }))
             }
             Iters::FilterMap(f) => {
                 let f = Clone::clone(f);
-                Box::new(
-                    self.1
-                        .get()
-                        .iterable()?
-                        .filter_map(move |v| f.run(v).one_tuple_content()),
-                )
+                Box::new(self.1.get().iterable()?.filter_map(move |v| match v {
+                    Ok(v) => match f.run(v) {
+                        Ok(r) => Some(Ok(r.one_tuple_content()?)),
+                        Err(e) => Some(Err(e)),
+                    },
+                    Err(e) => Some(Err(e)),
+                }))
             }
             Iters::MapWhile(f) => {
                 let f = Clone::clone(f);
-                Box::new(
-                    self.1
-                        .get()
-                        .iterable()?
-                        .map_while(move |v| f.run(v).one_tuple_content()),
-                )
+                Box::new(self.1.get().iterable()?.map_while(move |v| match v {
+                    Ok(v) => match f.run(v) {
+                        Ok(r) => Some(Ok(r.one_tuple_content()?)),
+                        Err(e) => Some(Err(e)),
+                    },
+                    Err(e) => Some(Err(e)),
+                }))
             }
             Iters::Take(limit) => Box::new(self.1.get().iterable()?.take(*limit)),
-            Iters::Enumerate => Box::new(self.1.get().iterable()?.enumerate().map(|(i, v)| {
-                Data::new(data::tuple::Tuple(vec![
-                    Data::new(data::int::Int(i as _)),
-                    v,
-                ]))
-            })),
+            Iters::Enumerate => {
+                Box::new(self.1.get().iterable()?.enumerate().map(|(i, v)| match v {
+                    Ok(v) => Ok(Data::new(data::tuple::Tuple(vec![
+                        Data::new(data::int::Int(i as _)),
+                        v,
+                    ]))),
+                    Err(e) => Err(e),
+                }))
+            }
             Iters::Chained => {
-                let iters = self
+                match self
                     .1
                     .get()
                     .iterable()?
-                    .map(|v| v.get().iterable())
-                    .collect::<Option<Vec<_>>>()?;
-                Box::new(iters.into_iter().flatten())
+                    .map(|v| Ok(v?.get().iterable()))
+                    .collect::<Result<Option<Vec<_>>, CheckError>>()
+                {
+                    Ok(Some(iters)) => Box::new(iters.into_iter().flatten()),
+                    Ok(None) => return None,
+                    Err(e) => Box::new([Err(e)].into_iter()),
+                }
             }
         })
     }
@@ -433,7 +464,10 @@ fn genfunc_iter_in_val_out(
     name: String,
     iter_type: impl MersType + 'static,
     out_type: Type,
-    run: impl Fn(Data, &mut crate::info::Info<program::run::Local>) -> Data + Send + Sync + 'static,
+    run: impl Fn(Data, &mut crate::info::Info<program::run::Local>) -> Result<Data, CheckError>
+        + Send
+        + Sync
+        + 'static,
 ) -> Function {
     Function {
         info: Arc::new(crate::info::Info::neverused()),

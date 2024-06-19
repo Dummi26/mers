@@ -2,7 +2,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::{
     data::{self, Data, Type},
-    errors::SourceRange,
+    errors::{CheckError, SourceRange},
 };
 
 use super::MersStatement;
@@ -50,7 +50,7 @@ impl MersStatement for Variable {
         };
         Ok(val)
     }
-    fn run_custom(&self, info: &mut super::Info) -> Data {
+    fn run_custom(&self, info: &mut super::Info) -> Result<Data, CheckError> {
         if self.is_init {
             if self.is_ref_not_ignore {
                 let nothing = Arc::new(RwLock::new(Data::new(data::bool::Bool(false))));
@@ -60,12 +60,12 @@ impl MersStatement for Variable {
                 info.scopes[self.var.0].vars[self.var.1] = nothing;
             } else {
                 // (reference to) data which will never be referenced again
-                return Data::new(data::reference::Reference(Arc::new(RwLock::new(
-                    Data::empty_tuple(),
+                return Ok(Data::new(data::reference::Reference(Arc::new(
+                    RwLock::new(Data::empty_tuple()),
                 ))));
             }
         }
-        if self.is_ref_not_ignore {
+        Ok(if self.is_ref_not_ignore {
             let v = &info.scopes[self.var.0].vars[self.var.1];
             Data::new(data::reference::Reference(Arc::clone(v)))
         } else {
@@ -73,7 +73,7 @@ impl MersStatement for Variable {
                 .write()
                 .unwrap()
                 .clone()
-        }
+        })
     }
     fn source_range(&self) -> SourceRange {
         self.pos_in_src.clone()

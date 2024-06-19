@@ -77,11 +77,11 @@ impl MersStatement for AssignTo {
         }
         Ok(Type::empty_tuple())
     }
-    fn run_custom(&self, info: &mut super::Info) -> crate::data::Data {
-        let source = self.source.run(info);
-        let target = self.target.run(info);
+    fn run_custom(&self, info: &mut super::Info) -> Result<Data, CheckError> {
+        let source = self.source.run(info)?;
+        let target = self.target.run(info)?;
         data::defs::assign(&source, &target);
-        Data::empty_tuple()
+        Ok(Data::empty_tuple())
     }
     fn has_scope(&self) -> bool {
         false

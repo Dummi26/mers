@@ -7,6 +7,7 @@ use std::{
 
 use crate::{
     data::{self, Data, MersData, MersType, Type},
+    errors::CheckError,
     program::{self, run::CheckInfo},
 };
 
@@ -51,8 +52,9 @@ impl Config {
                         cmd.as_any().downcast_ref::<data::string::String>().unwrap(),
                         args.get().iterable().unwrap(),
                     );
+                    let args = args.map(|v| v.map(|v| v.get().to_string())).collect::<Result<Vec<_>, _>>()?;
                     match Command::new(&cmd.0)
-                        .args(args.map(|v| v.get().to_string()))
+                        .args(args)
                         .output()
                     {
                         Ok(output) => {
@@ -65,13 +67,13 @@ impl Config {
                                 String::from_utf8_lossy(&output.stdout).into_owned();
                             let stderr =
                                 String::from_utf8_lossy(&output.stderr).into_owned();
-                            Data::new(data::tuple::Tuple(vec![
+                            Ok(Data::new(data::tuple::Tuple(vec![
                                 status,
                                 Data::new(data::string::String(stdout)),
                                 Data::new(data::string::String(stderr)),
-                            ]))
+                            ])))
                         }
-                        Err(e) => Data::new(data::object::Object(vec![("run_command_error".to_owned(), Data::new(data::string::String(e.to_string())))])),
+                        Err(e) => Ok(Data::new(data::object::Object(vec![("run_command_error".to_owned(), Data::new(data::string::String(e.to_string())))]))),
                     }
                 }),
                 inner_statements: None,
@@ -101,8 +103,9 @@ impl Config {
                         cmd.as_any().downcast_ref::<data::string::String>().unwrap(),
                         args.get().iterable().unwrap(),
                     );
+                    let args = args.map(|v| v.map(|v| v.get().to_string())).collect::<Result<Vec<_>, _>>()?;
                     match Command::new(&cmd.0)
-                        .args(args.map(|v| v.get().to_string()))
+                        .args(args)
                         .stdin(Stdio::piped())
                         .stdout(Stdio::piped())
                         .stderr(Stdio::piped())
@@ -112,9 +115,9 @@ impl Config {
                             let a = Some(child.stdin.take().unwrap());
                             let b = BufReader::new(child.stdout.take().unwrap());
                             let c = BufReader::new(child.stderr.take().unwrap());
-                            Data::new(ChildProcess(Arc::new(Mutex::new((child, a, b, c)))))
+                            Ok(Data::new(ChildProcess(Arc::new(Mutex::new((child, a, b, c))))))
                         }
-                        Err(e) => Data::new(data::object::Object(vec![("run_command_error".to_owned(), Data::new(data::string::String(e.to_string())))])),
+                        Err(e) => Ok(Data::new(data::object::Object(vec![("run_command_error".to_owned(), Data::new(data::string::String(e.to_string())))]))),
                     }
                 }),
                 inner_statements: None,
@@ -139,11 +142,11 @@ impl Config {
                     let a = a.get();
                     let child = a.as_any().downcast_ref::<ChildProcess>().unwrap();
                     let mut child = child.0.lock().unwrap();
-                    match child.0.try_wait() {
+                    Ok(match child.0.try_wait() {
                         Ok(Some(_)) => Data::one_tuple(Data::new(data::bool::Bool(true))),
                         Ok(None) => Data::one_tuple(Data::new(data::bool::Bool(false))),
                         Err(_) => Data::empty_tuple(),
-                    }
+                    })
                 }),
                 inner_statements: None,
             }),
@@ -169,14 +172,14 @@ impl Config {
                     let child = a.as_any().downcast_ref::<ChildProcess>().unwrap();
                     let mut child = child.0.lock().unwrap();
                     drop(child.1.take());
-                    match child.0.wait() {
+                    Ok(match child.0.wait() {
                         Ok(s) => if let Some(s) = s.code() {
                             Data::new(data::int::Int(s as _))
                         } else {
                             Data::new(data::bool::Bool(s.success()))
                         }
                         Err(_) => Data::empty_tuple(),
-                    }
+                    })
                 }),
                 inner_statements: None,
             }),
@@ -200,12 +203,12 @@ impl Config {
                     let bytes = tuple.0[1].get();
                     let child = child.as_any().downcast_ref::<ChildProcess>().unwrap();
                     let mut child = child.0.lock().unwrap();
-                    let buf = bytes.iterable().unwrap().map(|v| v.get().as_any().downcast_ref::<data::byte::Byte>().unwrap().0).collect::<Vec<_>>();
-                    if child.1.as_mut().is_some_and(|v| v.write_all(&buf).is_ok() && v.flush().is_ok()) {
+                    let buf = bytes.iterable().unwrap().map(|v| v.map(|v| v.get().as_any().downcast_ref::<data::byte::Byte>().unwrap().0)).collect::<Result<Vec<_>, _>>()?;
+                    Ok(if child.1.as_mut().is_some_and(|v| v.write_all(&buf).is_ok() && v.flush().is_ok()) {
                         Data::new(data::bool::Bool(true))
                     } else {
                         Data::new(data::bool::Bool(false))
-                    }
+                    })
                 }),
                 inner_statements: None,
             }),
@@ -230,11 +233,11 @@ impl Config {
                     let child = child.as_any().downcast_ref::<ChildProcess>().unwrap();
                     let mut child = child.0.lock().unwrap();
                     let buf = string.as_any().downcast_ref::<data::string::String>().unwrap().0.as_bytes();
-                    if child.1.as_mut().is_some_and(|v| v.write_all(buf).is_ok() && v.flush().is_ok()) {
+                    Ok(if child.1.as_mut().is_some_and(|v| v.write_all(buf).is_ok() && v.flush().is_ok()) {
                         Data::new(data::bool::Bool(true))
                     } else {
                         Data::new(data::bool::Bool(false))
-                    }
+                    })
                 }),
                 inner_statements: None,
             }),
@@ -259,11 +262,11 @@ impl Config {
                     let child = a.as_any().downcast_ref::<ChildProcess>().unwrap();
                         let mut child = child.0.lock().unwrap();
                         let mut buf = [0];
-                        if child.2.read_exact(&mut buf).is_ok() {
+                        Ok(if child.2.read_exact(&mut buf).is_ok() {
                             Data::one_tuple(Data::new(data::byte::Byte(buf[0])))
                         } else {
                             Data::empty_tuple()
-                        }
+                        })
                 }),
                 inner_statements: None,
             }),
@@ -288,11 +291,11 @@ impl Config {
                     let child = a.as_any().downcast_ref::<ChildProcess>().unwrap();
                     let mut child = child.0.lock().unwrap();
                     let mut buf = [0];
-                    if child.3.read_exact(&mut buf).is_ok() {
+                    Ok(if child.3.read_exact(&mut buf).is_ok() {
                         Data::one_tuple(Data::new(data::byte::Byte(buf[0])))
                     } else {
                         Data::empty_tuple()
-                    }
+                    })
                 }),
                 inner_statements: None,
             }),
@@ -317,11 +320,11 @@ impl Config {
                     let child = a.as_any().downcast_ref::<ChildProcess>().unwrap();
                     let mut child = child.0.lock().unwrap();
                     let mut buf = String::new();
-                    if child.2.read_line(&mut buf).is_ok() {
+                    Ok(if child.2.read_line(&mut buf).is_ok() {
                         Data::one_tuple(Data::new(data::string::String(buf)))
                     } else {
                         Data::empty_tuple()
-                    }
+                    })
                 }),
                 inner_statements: None,
             }),
@@ -346,11 +349,11 @@ impl Config {
                     let child = a.as_any().downcast_ref::<ChildProcess>().unwrap();
                     let mut child = child.0.lock().unwrap();
                     let mut buf = String::new();
-                    if child.3.read_line(&mut buf).is_ok() {
+                    Ok(if child.3.read_line(&mut buf).is_ok() {
                         Data::one_tuple(Data::new(data::string::String(buf)))
                     } else {
                         Data::empty_tuple()
-                    }
+                    })
                 }),
                 inner_statements: None,
             }),
@@ -372,10 +375,10 @@ pub struct ChildProcess(
 #[derive(Clone, Debug)]
 pub struct ChildProcessT;
 impl MersData for ChildProcess {
-    fn iterable(&self) -> Option<Box<dyn Iterator<Item = Data>>> {
+    fn iterable(&self) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
         None
     }
-    fn get(&self, _i: usize) -> Option<Data> {
+    fn get(&self, _i: usize) -> Option<Result<Data, CheckError>> {
         None
     }
     fn is_eq(&self, other: &dyn MersData) -> bool {

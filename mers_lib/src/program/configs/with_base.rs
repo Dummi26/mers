@@ -70,10 +70,10 @@ impl Config {
                     let mut arg = arg_ref.0.write().unwrap();
                     let func = a.0[1].get();
                     let func = func.as_any().downcast_ref::<data::function::Function>().unwrap();
-                    *arg = func.run(arg.clone());
-                    Data::empty_tuple()
+                    *arg = func.run(arg.clone())?;
+                    Ok(Data::empty_tuple())
                 }),
-            inner_statements: None,
+                inner_statements: None,
             }))
             .add_var("sleep".to_string(), Data::new(data::function::Function {
                 info: Arc::new(Info::neverused()),
@@ -95,11 +95,11 @@ impl Config {
                     } else {
                         unreachable!("sleep called on non-int/non-float")
                     });
-                    Data::empty_tuple()
+                    Ok(Data::empty_tuple())
                 }),
                 inner_statements: None,
             }))
-            .add_var("panic".to_string(), Data::new(data::function::Function {
+            .add_var("exit".to_string(), Data::new(data::function::Function {
                 info: Arc::new(Info::neverused()),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
             out: Arc::new(|a, _i| if a.is_included_in_single(&data::int::IntT) {
@@ -109,6 +109,26 @@ impl Config {
             }),
             run: Arc::new(|a, _i|  {
                 std::process::exit(a.get().as_any().downcast_ref::<data::int::Int>().map(|i| i.0 as _).unwrap_or(1));
+            }),
+            inner_statements: None,
+        }))
+            .add_var("panic".to_string(), Data::new(data::function::Function {
+                info: Arc::new(Info::neverused()),
+                info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+            out: Arc::new(|a, _i| if a.is_included_in_single(&data::string::StringT) {
+                Ok(Type::empty())
+            } else {
+                Err(format!("cannot call panic with non-string argument").into())
+            }),
+            run: Arc::new(|a, _i|  {
+                Err(
+                    a
+                        .get()
+                        .as_any()
+                        .downcast_ref::<data::string::String>()
+                        .map(|i| i.0.to_owned())
+                        .unwrap_or_else(String::new).into()
+                )
             }),
             inner_statements: None,
         }))
@@ -126,7 +146,7 @@ impl Config {
                     Ok(Type::new(data::int::IntT))
                 }),
                 run: Arc::new(|a, _i| {
-                    Data::new(data::int::Int(if let Some(t) = a.get().as_any().downcast_ref::<data::tuple::Tuple>() {
+                    Ok(Data::new(data::int::Int(if let Some(t) = a.get().as_any().downcast_ref::<data::tuple::Tuple>() {
                         t.0.len() as _
                     } else if let Some(s) = a.get().as_any().downcast_ref::<data::string::String>() {
                         s.0.len() as _
@@ -135,7 +155,7 @@ impl Config {
                             i.take(isize::MAX as usize + 1).count() as isize
                     } else {
                         unreachable!("called len on {a:?}, which isn't a tuple or a string")
-                    }))
+                    })))
                 }),
                 inner_statements: None,
             }),
@@ -154,10 +174,12 @@ impl Config {
                         Ok(Type::new(data::bool::BoolT))
                     }),
                 run: Arc::new(|a, _i| {
-                    Data::new(data::bool::Bool(if let Some(mut i) = a.get().iterable() {
+                    Ok(Data::new(data::bool::Bool(if let Some(mut i) = a.get().iterable() {
                         if let Some(f) = i.next() {
+                            let f = f?;
                             let mut o = true;
                             for el in i {
+                                let el = el?;
                                 if el != f {
                                     o = false;
                                     break;
@@ -169,7 +191,7 @@ impl Config {
                         }
                     } else {
                         false
-                    }))
+                    })))
                 }),
                 inner_statements: None,
             }),
@@ -181,7 +203,7 @@ impl Config {
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, _i| Ok(Type::new(data::reference::ReferenceT(a.clone())))),
                 run: Arc::new(|a, _i| {
-                    Data::new(data::reference::Reference(Arc::new(RwLock::new(a.clone()))))
+                    Ok(Data::new(data::reference::Reference(Arc::new(RwLock::new(a.clone())))))
                 }),
                 inner_statements: None,
             }),
@@ -199,9 +221,9 @@ impl Config {
                         .as_any()
                         .downcast_ref::<data::reference::Reference>()
                     {
-                        r.0.write().unwrap().clone()
+                        Ok(r.0.write().unwrap().clone())
                     } else {
-                        unreachable!("called deref on non-reference")
+                        Err("called deref on non-reference".into())
                     }
                 }),
                 inner_statements: None,

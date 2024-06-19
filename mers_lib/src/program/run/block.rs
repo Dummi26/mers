@@ -1,5 +1,5 @@
 use crate::{
-    data::Type,
+    data::{self, Data, Type},
     errors::{CheckError, SourceRange},
 };
 
@@ -25,12 +25,12 @@ impl MersStatement for Block {
         }
         Ok(o)
     }
-    fn run_custom(&self, info: &mut super::Info) -> crate::data::Data {
+    fn run_custom(&self, info: &mut super::Info) -> Result<Data, CheckError> {
         self.statements
             .iter()
             .map(|s| s.run(info))
             .last()
-            .unwrap_or_else(|| crate::data::Data::new(crate::data::tuple::Tuple(vec![])))
+            .unwrap_or_else(|| Ok(Data::new(data::tuple::Tuple(vec![]))))
     }
     fn has_scope(&self) -> bool {
         true

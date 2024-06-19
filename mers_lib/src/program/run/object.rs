@@ -119,13 +119,13 @@ impl MersStatement for Object {
                 .collect::<Result<_, _>>()?,
         )))
     }
-    fn run_custom(&self, info: &mut super::Info) -> crate::data::Data {
-        Data::new(data::object::Object(
+    fn run_custom(&self, info: &mut super::Info) -> Result<Data, CheckError> {
+        Ok(Data::new(data::object::Object(
             self.elems
                 .iter()
-                .map(|(n, s)| (n.clone(), s.run(info)))
-                .collect(),
-        ))
+                .map(|(n, s)| Ok::<_, CheckError>((n.clone(), s.run(info)?)))
+                .collect::<Result<_, _>>()?,
+        )))
     }
     fn has_scope(&self) -> bool {
         false

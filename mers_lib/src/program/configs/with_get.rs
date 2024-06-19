@@ -49,21 +49,24 @@ impl Config {
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     if let (Some(v), Some(i)) = (a.get(0), a.get(1)) {
-                        if let Some(i) = i.get().as_any().downcast_ref::<data::int::Int>() {
-                            if let Ok(i) = i.0.try_into() {
+                        let (v, i2) = (v?, i?);
+                        let o = if let Some(i3) = i2.get().as_any().downcast_ref::<data::int::Int>()
+                        {
+                            if let Ok(i) = i3.0.try_into() {
                                 if let Some(v) = v.get().get(i) {
-                                    Data::one_tuple(v)
+                                    Ok(Data::one_tuple(v?))
                                 } else {
-                                    Data::empty_tuple()
+                                    Ok(Data::empty_tuple())
                                 }
                             } else {
-                                Data::empty_tuple()
+                                Ok(Data::empty_tuple())
                             }
                         } else {
-                            unreachable!("get called with non-int index")
-                        }
+                            Err("get called with non-int index".into())
+                        };
+                        o
                     } else {
-                        unreachable!("get called with less than 2 args")
+                        Err("get called with less than 2 args".into())
                     }
                 }),
                 inner_statements: None,

@@ -43,7 +43,7 @@ impl MersStatement for Function {
                     Ok(run2.check(i, None)?)
                 }),
                 run: Arc::new(move |arg, info| {
-                    data::defs::assign(&arg, &arg_target.run(info));
+                    data::defs::assign(&arg, &arg_target.run(info)?);
                     run.run(info)
                 }),
                 inner_statements: Some((arg3, run3)),

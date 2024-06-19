@@ -25,8 +25,10 @@ impl MersStatement for Function {
         self.func_no_info.with_info_check(info.clone());
         Ok(self.func_no_info.as_type())
     }
-    fn run_custom(&self, info: &mut super::Info) -> Data {
-        Data::new(self.func_no_info.with_info_run(Arc::new(info.clone())))
+    fn run_custom(&self, info: &mut super::Info) -> Result<Data, CheckError> {
+        Ok(Data::new(
+            self.func_no_info.with_info_run(Arc::new(info.clone())),
+        ))
     }
     fn has_scope(&self) -> bool {
         true

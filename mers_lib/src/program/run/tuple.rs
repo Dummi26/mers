@@ -4,7 +4,7 @@ use colored::Colorize;
 
 use crate::{
     data::{self, tuple::TupleT, Data, Type},
-    errors::{error_colors, SourceRange},
+    errors::{error_colors, CheckError, SourceRange},
 };
 
 use super::MersStatement;
@@ -82,10 +82,13 @@ impl MersStatement for Tuple {
                 .collect::<Result<_, _>>()?,
         )))
     }
-    fn run_custom(&self, info: &mut super::Info) -> crate::data::Data {
-        Data::new(data::tuple::Tuple(
-            self.elems.iter().map(|s| s.run(info)).collect(),
-        ))
+    fn run_custom(&self, info: &mut super::Info) -> Result<Data, CheckError> {
+        Ok(Data::new(data::tuple::Tuple(
+            self.elems
+                .iter()
+                .map(|s| Ok(s.run(info)?))
+                .collect::<Result<_, CheckError>>()?,
+        )))
     }
     fn has_scope(&self) -> bool {
         false

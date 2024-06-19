@@ -25,17 +25,17 @@ impl Config {
             .add_var("ends_with".to_string(), Data::new(util::to_mers_func_concrete_string_string_to_bool(|v, p| v.ends_with(p))))
             .add_var("str_split_once".to_string(), Data::new(util::to_mers_func_concrete_string_string_to_opt_string_string(|v, p| v.split_once(p).map(|(a, b)| (a.to_owned(), b.to_owned())))))
             .add_var("str_split_once_rev".to_string(), Data::new(util::to_mers_func_concrete_string_string_to_opt_string_string(|v, p| v.rsplit_once(p).map(|(a, b)| (a.to_owned(), b.to_owned())))))
-            .add_var("str_split".to_string(), Data::new(util::to_mers_func_concrete_string_string_to_any(Type::new(super::with_list::ListT(Type::new(data::string::StringT))), |v, p| Data::new(super::with_list::List(v.split(p).map(|v| Arc::new(RwLock::new(Data::new(data::string::String(v.to_owned()))))).collect())))))
+            .add_var("str_split".to_string(), Data::new(util::to_mers_func_concrete_string_string_to_any(Type::new(super::with_list::ListT(Type::new(data::string::StringT))), |v, p| Ok(Data::new(super::with_list::List(v.split(p).map(|v| Arc::new(RwLock::new(Data::new(data::string::String(v.to_owned()))))).collect()))))))
             .add_var("concat".to_string(), Data::new(util::to_mers_func(
                 |a| if a.iterable().is_some() {
                     Ok(Type::new(data::string::StringT))
                 } else {
                     Err(format!("concat called on non-iterable type {a}").into())
                 },
-                |a| Data::new(data::string::String(a.get().iterable().unwrap().map(|v| v.get().to_string()).collect()))),
+                |a| Ok(Data::new(data::string::String(a.get().iterable().unwrap().map(|v| v.map(|v| v.get().to_string())).collect::<Result<_, _>>()?)))),
             ))
             .add_var("to_string".to_string(), Data::new(util::to_mers_func(|_a| Ok(Type::new(data::string::StringT)),
-                |a| Data::new(data::string::String(a.get().to_string()))
+                |a| Ok(Data::new(data::string::String(a.get().to_string())))
             )))
             .add_var("substring".to_string(), Data::new(util::to_mers_func(
                 |a| {
@@ -79,9 +79,9 @@ impl Config {
                         .unwrap_or(usize::MAX);
                     let end = end.min(s.len());
                     if end < start {
-                        return Data::new(data::string::String(String::new()));
+                        return Ok(Data::new(data::string::String(String::new())));
                     }
-                    Data::new(data::string::String(s[start..end].to_owned()))
+                    Ok(Data::new(data::string::String(s[start..end].to_owned())))
                 })
             ))
     }

@@ -53,9 +53,9 @@ impl Config {
                         .downcast_ref::<data::function::Function>()
                         .cloned()
                     {
-                        Data::new(Thread(Arc::new(Mutex::new(Ok(std::thread::spawn(
+                        Ok(Data::new(Thread(Arc::new(Mutex::new(Ok(std::thread::spawn(
                             move || f.run(Data::empty_tuple()),
-                        ))))))
+                        )))))))
                     } else {
                         unreachable!("thread called, but arg wasn't a function");
                     }
@@ -77,10 +77,10 @@ impl Config {
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let t = a.as_any().downcast_ref::<Thread>().unwrap().0.lock().unwrap();
-                    Data::new(data::bool::Bool(match &*t {
+                    Ok(Data::new(data::bool::Bool(match &*t {
                         Ok(t) => t.is_finished(),
                         Err(_d) => true,
-                    }))
+                    })))
                 }),
                 inner_statements: None,
             }))
@@ -101,7 +101,7 @@ impl Config {
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let mut t = a.as_any().downcast_ref::<Thread>().unwrap().0.lock().unwrap();
-                    let d = match std::mem::replace(&mut *t, Err(Data::empty_tuple())) {
+                    let d = match std::mem::replace(&mut *t, Err(Err(CheckError::new()))) {
                         Ok(t) => t.join().unwrap(),
                         Err(d) => d,
                     };
@@ -114,7 +114,9 @@ impl Config {
 }
 
 #[derive(Clone)]
-pub struct Thread(pub Arc<Mutex<Result<JoinHandle<Data>, Data>>>);
+pub struct Thread(
+    pub Arc<Mutex<Result<JoinHandle<Result<Data, CheckError>>, Result<Data, CheckError>>>>,
+);
 #[derive(Debug, Clone)]
 pub struct ThreadT(pub Type);
 

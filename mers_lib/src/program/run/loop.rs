@@ -47,10 +47,10 @@ impl MersStatement for Loop {
         }
         Ok(t)
     }
-    fn run_custom(&self, info: &mut Info) -> Data {
+    fn run_custom(&self, info: &mut Info) -> Result<Data, CheckError> {
         loop {
-            if let Some(v) = self.inner.run(info).one_tuple_content() {
-                return v;
+            if let Some(v) = self.inner.run(info)?.one_tuple_content() {
+                return Ok(v);
             }
         }
     }

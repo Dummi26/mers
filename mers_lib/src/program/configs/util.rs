@@ -8,7 +8,7 @@ use crate::{
 
 pub fn to_mers_func(
     out: impl Fn(&Type) -> Result<Type, CheckError> + Send + Sync + 'static,
-    run: impl Fn(Data) -> Data + Send + Sync + 'static,
+    run: impl Fn(Data) -> Result<Data, CheckError> + Send + Sync + 'static,
 ) -> data::function::Function {
     data::function::Function {
         info: Arc::new(Info::neverused()),
@@ -22,7 +22,7 @@ pub fn to_mers_func(
 pub fn to_mers_func_with_in_type(
     in_type: Type,
     out: impl Fn(&Type) -> Result<Type, CheckError> + Send + Sync + 'static,
-    run: impl Fn(Data) -> Data + Send + Sync + 'static,
+    run: impl Fn(Data) -> Result<Data, CheckError> + Send + Sync + 'static,
 ) -> data::function::Function {
     to_mers_func(
         move |a| {
@@ -39,7 +39,7 @@ pub fn to_mers_func_with_in_type(
 pub fn to_mers_func_with_in_out_types(
     in_type: Type,
     out_type: Type,
-    run: impl Fn(Data) -> Data + Send + Sync + 'static,
+    run: impl Fn(Data) -> Result<Data, CheckError> + Send + Sync + 'static,
 ) -> data::function::Function {
     to_mers_func(
         move |a| {
@@ -55,7 +55,7 @@ pub fn to_mers_func_with_in_out_types(
 
 pub fn to_mers_func_concrete_string_to_any(
     out_type: Type,
-    f: impl Fn(&str) -> Data + Send + Sync + 'static,
+    f: impl Fn(&str) -> Result<Data, CheckError> + Send + Sync + 'static,
 ) -> data::function::Function {
     to_mers_func_with_in_out_types(Type::new(data::string::StringT), out_type, move |a| {
         f(a.get()
@@ -70,13 +70,13 @@ pub fn to_mers_func_concrete_string_to_string(
     f: impl Fn(&str) -> String + Send + Sync + 'static,
 ) -> data::function::Function {
     to_mers_func_concrete_string_to_any(Type::new(data::string::StringT), move |a| {
-        Data::new(data::string::String(f(a)))
+        Ok(Data::new(data::string::String(f(a))))
     })
 }
 
 pub fn to_mers_func_concrete_string_string_to_any(
     out_type: Type,
-    f: impl Fn(&str, &str) -> Data + Send + Sync + 'static,
+    f: impl Fn(&str, &str) -> Result<Data, CheckError> + Send + Sync + 'static,
 ) -> data::function::Function {
     to_mers_func_with_in_out_types(
         Type::new(data::tuple::TupleT(vec![
@@ -109,13 +109,13 @@ pub fn to_mers_func_concrete_string_string_to_opt_int(
 ) -> data::function::Function {
     to_mers_func_concrete_string_string_to_any(
         Type::newm(vec![
+            Arc::new(data::tuple::TupleT(vec![Type::new(data::int::IntT)])),
             Arc::new(data::tuple::TupleT(vec![])),
-            Arc::new(data::int::IntT),
         ]),
         move |a, b| {
-            f(a, b)
-                .map(|v| Data::new(data::int::Int(v)))
-                .unwrap_or_else(|| Data::empty_tuple())
+            Ok(f(a, b)
+                .map(|v| Data::one_tuple(Data::new(data::int::Int(v))))
+                .unwrap_or_else(|| Data::empty_tuple()))
         },
     )
 }
@@ -123,7 +123,7 @@ pub fn to_mers_func_concrete_string_string_to_bool(
     f: impl Fn(&str, &str) -> bool + Send + Sync + 'static,
 ) -> data::function::Function {
     to_mers_func_concrete_string_string_to_any(Type::new(data::bool::BoolT), move |a, b| {
-        Data::new(data::bool::Bool(f(a, b)))
+        Ok(Data::new(data::bool::Bool(f(a, b))))
     })
 }
 pub fn to_mers_func_concrete_string_string_to_opt_string_string(
@@ -138,14 +138,14 @@ pub fn to_mers_func_concrete_string_string_to_opt_string_string(
             ])),
         ]),
         move |a, b| {
-            f(a, b)
+            Ok(f(a, b)
                 .map(|(a, b)| {
                     Data::new(data::tuple::Tuple(vec![
                         Data::new(data::string::String(a)),
                         Data::new(data::string::String(b)),
                     ]))
                 })
-                .unwrap_or_else(|| Data::empty_tuple())
+                .unwrap_or_else(|| Data::empty_tuple()))
         },
     )
 }

@@ -88,12 +88,42 @@ impl MersStatement for Chain {
         }
         Ok(o)
     }
-    fn run_custom(&self, info: &mut super::Info) -> Data {
-        let f = self.first.run(info);
-        let c = self.chained.run(info);
+    fn run_custom(&self, info: &mut super::Info) -> Result<Data, CheckError> {
+        let f = self.first.run(info)?;
+        let c = self.chained.run(info)?;
         let c = c.get();
         if let Some(func) = c.as_any().downcast_ref::<crate::data::function::Function>() {
-            func.run(f)
+            match func.run(f) {
+                Ok(v) => Ok(v),
+                Err(e) => Err(if let Some(_) = &self.as_part_of_include {
+                    CheckError::new()
+                        .src(vec![(
+                            self.pos_in_src.clone(),
+                            Some(error_colors::HashIncludeErrorInIncludedFile),
+                        )])
+                        .msg(
+                            "Error in #include:"
+                                .color(error_colors::HashIncludeErrorInIncludedFile)
+                                .to_string(),
+                        )
+                        .err_with_diff_src(e)
+                } else {
+                    CheckError::new()
+                        .src(vec![
+                            (self.pos_in_src.clone(), None),
+                            (
+                                self.first.source_range(),
+                                Some(error_colors::FunctionArgument),
+                            ),
+                            (self.chained.source_range(), Some(error_colors::Function)),
+                        ])
+                        .msg(format!(
+                            "Error in {}:",
+                            "this function".color(error_colors::Function)
+                        ))
+                        .err(e)
+                }),
+            }
         } else {
             todo!("err: not a function");
         }

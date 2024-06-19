@@ -5,6 +5,7 @@ use std::{
 
 use crate::{
     data::{self, Data, MersData, MersType, Type},
+    errors::CheckError,
     parsing::{statements::to_string_literal, Source},
     program::{self, run::CheckInfo},
 };
@@ -93,7 +94,7 @@ impl Config {
                             }
                             None => Data::empty_tuple(),
                         };
-                        o
+                        Ok(o)
                     }),
                 inner_statements: None,
             }))
@@ -123,7 +124,7 @@ impl Config {
                         }
                     }),
                     run: Arc::new(|a, _i| {
-                        match a
+                        Ok(match a
                             .get()
                             .as_any()
                             .downcast_ref::<data::reference::Reference>()
@@ -140,7 +141,7 @@ impl Config {
                         {
                             Some(data) => Data::one_tuple(data.read().unwrap().clone()),
                             None => Data::empty_tuple(),
-                        }
+                        })
                     }),
                 inner_statements: None,
                 }),
@@ -203,7 +204,7 @@ impl Config {
                             .unwrap()
                             .0
                             .push(Arc::new(RwLock::new(tuple.0[1].clone())));
-                            Data::empty_tuple()
+                            Ok(Data::empty_tuple())
                     }),
                 inner_statements: None,
                 }),
@@ -224,9 +225,9 @@ impl Config {
                     }),
                     run: Arc::new(|a, _i| {
                         if let Some(i) = a.get().iterable() {
-                            Data::new(List(i.map(|v| Arc::new(RwLock::new(v))).collect()))
+                            Ok(Data::new(List(i.map(|v| Ok::<_, CheckError>(Arc::new(RwLock::new(v?)))).collect::<Result<_, _>>()?)))
                         } else {
-                            unreachable!("as_list called on non-iterable")
+                            Err("as_list called on non-iterable".into())
                         }
                     }),
                 inner_statements: None,
@@ -262,12 +263,12 @@ impl MersData for List {
             false
         }
     }
-    fn iterable(&self) -> Option<Box<dyn Iterator<Item = Data>>> {
+    fn iterable(&self) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
         Some(Box::new(
             self.0
                 .clone()
                 .into_iter()
-                .map(|v| v.read().unwrap().clone()),
+                .map(|v| Ok(v.read().unwrap().clone())),
         ))
     }
     fn clone(&self) -> Box<dyn MersData> {

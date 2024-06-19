@@ -103,8 +103,8 @@ impl MersStatement for Try {
         }
         Ok(t)
     }
-    fn run_custom(&self, info: &mut Info) -> Data {
-        let arg = self.arg.run(info);
+    fn run_custom(&self, info: &mut Info) -> Result<Data, CheckError> {
+        let arg = self.arg.run(info)?;
         let ar = arg.get();
         let a = ar.as_ref();
         let arg_type = a.as_type();
@@ -112,14 +112,16 @@ impl MersStatement for Try {
             .funcs
             .iter()
             .map(|v| {
-                v.run(info)
-                    .get()
-                    .as_any()
-                    .downcast_ref::<data::function::Function>()
-                    .unwrap()
-                    .clone()
+                Ok::<_, CheckError>(
+                    v.run(info)?
+                        .get()
+                        .as_any()
+                        .downcast_ref::<data::function::Function>()
+                        .unwrap()
+                        .clone(),
+                )
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, _>>()?;
         let mut found = None;
         for (i, func) in functions.iter().enumerate() {
             match func.get_as_type().o(&arg_type) {

@@ -16,7 +16,8 @@ pub struct Function {
     pub info: Arc<Info>,
     pub info_check: Arc<Mutex<CheckInfo>>,
     pub out: Arc<dyn Fn(&Type, &mut CheckInfo) -> Result<Type, CheckError> + Send + Sync>,
-    pub run: Arc<dyn Fn(Data, &mut crate::program::run::Info) -> Data + Send + Sync>,
+    pub run:
+        Arc<dyn Fn(Data, &mut crate::program::run::Info) -> Result<Data, CheckError> + Send + Sync>,
     pub inner_statements: Option<(
         Arc<Box<dyn crate::program::run::MersStatement>>,
         Arc<Box<dyn crate::program::run::MersStatement>>,
@@ -25,7 +26,7 @@ pub struct Function {
 impl Function {
     pub fn new(
         out: impl Fn(&Type) -> Result<Type, CheckError> + Send + Sync + 'static,
-        run: impl Fn(Data) -> Data + Send + Sync + 'static,
+        run: impl Fn(Data) -> Result<Data, CheckError> + Send + Sync + 'static,
     ) -> Self {
         Self {
             info: Arc::new(crate::info::Info::neverused()),
@@ -56,7 +57,7 @@ impl Function {
         drop(lock);
         (self.out)(arg, &mut info)
     }
-    pub fn run(&self, arg: Data) -> Data {
+    pub fn run(&self, arg: Data) -> Result<Data, CheckError> {
         (self.run)(arg, &mut self.info.as_ref().clone())
     }
     pub fn get_as_type(&self) -> FunctionT {
@@ -72,10 +73,19 @@ impl Function {
 }
 
 impl MersData for Function {
-    fn iterable(&self) -> Option<Box<dyn Iterator<Item = Data>>> {
+    fn iterable(&self) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
         let s = Clone::clone(self);
         Some(Box::new(std::iter::from_fn(move || {
-            s.run(Data::empty_tuple()).one_tuple_content()
+            match s.run(Data::empty_tuple()) {
+                Err(e) => Some(Err(e)),
+                Ok(v) => {
+                    if let Some(v) = v.one_tuple_content() {
+                        Some(Ok(v))
+                    } else {
+                        None
+                    }
+                }
+            }
         })))
     }
     fn is_eq(&self, _other: &dyn MersData) -> bool {

@@ -4,6 +4,8 @@ use std::{
     sync::{atomic::AtomicUsize, Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
+use crate::errors::CheckError;
+
 pub mod bool;
 pub mod byte;
 pub mod float;
@@ -17,12 +19,12 @@ pub mod tuple;
 pub mod defs;
 
 pub trait MersData: Any + Debug + Display + Send + Sync {
-    fn iterable(&self) -> Option<Box<dyn Iterator<Item = Data>>> {
+    fn iterable(&self) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
         None
     }
     /// By default, uses `iterable` to get an iterator and `nth` to retrieve the nth element.
     /// Should have a custom implementation for better performance on most types
-    fn get(&self, i: usize) -> Option<Data> {
+    fn get(&self, i: usize) -> Option<Result<Data, CheckError>> {
         self.iterable()?.nth(i)
     }
     /// If self and other are different types (`other.as_any().downcast_ref::<Self>().is_none()`),

@@ -41,11 +41,11 @@ impl Config {
                     }
                 }),
                 run: Arc::new(|_a, _i| {
-                    if let Some(Ok(line)) = std::io::stdin().lines().next() {
+                    Ok(if let Some(Ok(line)) = std::io::stdin().lines().next() {
                         Data::one_tuple(Data::new(data::string::String(line)))
                     } else {
                         Data::empty_tuple()
-                    }
+                    })
                 }),
                 inner_statements: None,
             }),
@@ -60,7 +60,7 @@ impl Config {
                     let a2 = a.get();
                     eprintln!("{} :: {}", a2.as_type(), a2);
                     drop(a2);
-                    a
+                    Ok(a)
                 }),
                 inner_statements: None,
             }),
@@ -74,7 +74,7 @@ impl Config {
                 run: Arc::new(|a, _i| {
                     eprint!("{}", a.get());
                     _ = std::io::stderr().lock().flush();
-                    Data::empty_tuple()
+                    Ok(Data::empty_tuple())
                 }),
                 inner_statements: None,
             }),
@@ -87,7 +87,7 @@ impl Config {
                 out: Arc::new(|_a, _i| Ok(Type::empty_tuple())),
                 run: Arc::new(|a, _i| {
                     eprintln!("{}", a.get());
-                    Data::empty_tuple()
+                    Ok(Data::empty_tuple())
                 }),
                 inner_statements: None,
             }),
@@ -101,7 +101,7 @@ impl Config {
                 run: Arc::new(|a, _i| {
                     print!("{}", a.get());
                     _ = std::io::stdout().lock().flush();
-                    Data::empty_tuple()
+                    Ok(Data::empty_tuple())
                 }),
                 inner_statements: None,
             }),
@@ -114,7 +114,7 @@ impl Config {
                 out: Arc::new(|_a, _i| Ok(Type::empty_tuple())),
                 run: Arc::new(|a, _i| {
                     println!("{}", a.get());
-                    Data::empty_tuple()
+                    Ok(Data::empty_tuple())
                 }),
                 inner_statements: None,
             }),

@@ -1,6 +1,6 @@
 use crate::{
     data::{Data, Type},
-    errors::SourceRange,
+    errors::{CheckError, SourceRange},
 };
 
 use super::{CheckInfo, MersStatement};
@@ -25,8 +25,8 @@ impl MersStatement for Value {
         }
         Ok(self.val.get().as_type())
     }
-    fn run_custom(&self, _info: &mut super::Info) -> Data {
-        self.val.clone()
+    fn run_custom(&self, _info: &mut super::Info) -> Result<Data, CheckError> {
+        Ok(self.val.clone())
     }
     fn source_range(&self) -> SourceRange {
         self.pos_in_src.clone()

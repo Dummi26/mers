@@ -48,7 +48,7 @@ fn run(src: String) -> Result<(), CheckError> {
                         .downcast_ref::<data::string::String>()
                         .unwrap()
                         .0;
-                    Data::new(data::string::String(arg.chars().rev().collect()))
+                    Ok(Data::new(data::string::String(arg.chars().rev().collect())))
                 },
             )),
         )
@@ -56,6 +56,6 @@ fn run(src: String) -> Result<(), CheckError> {
 
     let compiled = parsed.compile(&mut i1, CompInfo::default())?;
     compiled.check(&mut i3, None)?;
-    compiled.run(&mut i2);
+    compiled.run(&mut i2)?;
     Ok(())
 }

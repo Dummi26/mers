@@ -56,8 +56,8 @@ impl MersStatement for CustomType {
         }
         Ok(Type::empty_tuple())
     }
-    fn run_custom(&self, _info: &mut Info) -> Data {
-        Data::empty_tuple()
+    fn run_custom(&self, _info: &mut Info) -> Result<Data, CheckError> {
+        Ok(Data::empty_tuple())
     }
     fn has_scope(&self) -> bool {
         false

@@ -43,7 +43,7 @@ fn parse_compile_check_run(src: String) -> Result<(Type, Data), CheckError> {
     // check (this step is optional, but if it is skipped when it would have returned an error, `run` will likely panic)
     let output_type = compiled.check(&mut i3, None)?;
     // run
-    let output_value = compiled.run(&mut i2);
+    let output_value = compiled.run(&mut i2)?;
     // check that the predicted output type was correct
     assert!(output_value.get().as_type().is_included_in(&output_type));
     // return the produced value

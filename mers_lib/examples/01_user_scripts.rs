@@ -23,7 +23,7 @@ fn main() -> Result<(), CheckError> {
 
     // use the function to decorate these 3 test strings
     for input in ["my test string", "Main Menu", "O.o"] {
-        let result = func.run(Data::new(data::string::String(input.to_owned())));
+        let result = func.run(Data::new(data::string::String(input.to_owned())))?;
         let result = result.get();
         let result = &result
             .as_any()
@@ -44,6 +44,6 @@ fn parse_compile_check_run(src: String) -> Result<(Type, Data), CheckError> {
     let (mut i1, mut i2, mut i3) = Config::new().bundle_std().infos();
     let compiled = parsed.compile(&mut i1, CompInfo::default())?;
     let output_type = compiled.check(&mut i3, None)?;
-    let output_value = compiled.run(&mut i2);
+    let output_value = compiled.run(&mut i2)?;
     Ok((output_type, output_value))
 }

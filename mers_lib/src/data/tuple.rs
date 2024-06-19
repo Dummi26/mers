@@ -1,5 +1,7 @@
 use std::{any::Any, fmt::Display, sync::Arc};
 
+use crate::errors::CheckError;
+
 use super::{Data, MersData, MersType, Type};
 
 #[derive(Debug, Clone)]
@@ -22,8 +24,8 @@ impl MersData for Tuple {
             false
         }
     }
-    fn iterable(&self) -> Option<Box<dyn Iterator<Item = Data>>> {
-        Some(Box::new(self.0.clone().into_iter()))
+    fn iterable(&self) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
+        Some(Box::new(self.0.clone().into_iter().map(Ok)))
     }
     fn clone(&self) -> Box<dyn MersData> {
         Box::new(Clone::clone(self))

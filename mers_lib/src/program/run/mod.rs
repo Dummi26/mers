@@ -43,7 +43,7 @@ pub trait MersStatement: Debug + Send + Sync {
         info: &mut CheckInfo,
         init_to: Option<&Type>,
     ) -> Result<Type, CheckError>;
-    fn run_custom(&self, info: &mut Info) -> Data;
+    fn run_custom(&self, info: &mut Info) -> Result<Data, CheckError>;
     /// if true, local variables etc. will be contained inside their own scope.
     fn has_scope(&self) -> bool;
     fn check(&self, info: &mut CheckInfo, init_to: Option<&Type>) -> Result<Type, CheckError> {
@@ -93,7 +93,7 @@ pub trait MersStatement: Debug + Send + Sync {
         info.global.depth -= 1;
         o
     }
-    fn run(&self, info: &mut Info) -> Data {
+    fn run(&self, info: &mut Info) -> Result<Data, CheckError> {
         if self.has_scope() {
             info.create_scope();
         }
