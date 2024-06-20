@@ -97,15 +97,15 @@ impl Config {
                                 }
                                 Ok(Data::empty_tuple())
                             } else {
-                                unreachable!(
-                                    "for_each called on tuple not containing iterable and function"
-                                )
+                                return Err(
+                                    "for_each called on tuple not containing iterable and function".into()
+                                );
                             }
                         } else {
-                            unreachable!("for_each called on tuple with len < 2")
+                            return Err("for_each called on tuple with len < 2".into());
                         }
                     } else {
-                        unreachable!("for_each called on non-tuple")
+                        return Err("for_each called on non-tuple".into());
                     }
                 }),
                 inner_statements: None,
@@ -223,13 +223,13 @@ fn genfunc_iter_and_arg<T: MersType, D: MersData>(
                     if let Some(f) = f.get().as_any().downcast_ref::<D>() {
                         Ok(Data::new(Iter(fd(f), v.clone())))
                     } else {
-                        unreachable!("{name} called on tuple not containing function")
+                        return Err("{name} called on tuple not containing function".into());
                     }
                 } else {
-                    unreachable!("{name} called on tuple with len < 2")
+                    return Err("{name} called on tuple with len < 2".into());
                 }
             } else {
-                unreachable!("{name} called on non-tuple")
+                return Err("{name} called on non-tuple".into());
             }
         }),
         inner_statements: None,

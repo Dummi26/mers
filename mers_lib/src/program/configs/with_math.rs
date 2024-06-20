@@ -123,7 +123,7 @@ impl Config {
                         -1
                     } else { 0
                     }
-                } else { unreachable!("called signum on non-number type")})))
+                } else { return Err("called signum on non-number type".into()); })))
             }),
                 inner_statements: None,
         }))            .add_var("div".to_string(), Data::new(data::function::Function {
@@ -141,9 +141,9 @@ impl Config {
                         (Some(data::int::Int(l)), None, None, Some(data::float::Float(r))) => Ok(Data::new(data::float::Float(*l as f64 / r))),
                         (None, Some(data::float::Float(l)), Some(data::int::Int(r)), None) => Ok(Data::new(data::float::Float(l / *r as f64))),
                         (None, Some(data::float::Float(l)), None, Some(data::float::Float(r))) => Ok(Data::new(data::float::Float(l / r))),
-                        _ => unreachable!(),
+                        _ => return Err("at least one of the arguments to div were neither an int nor a float".into()),
                     }
-                } else { unreachable!() }),
+                } else { return Err("argument to div was not a tuple".into()); }),
                 inner_statements: None,
             })).add_var("modulo".to_string(), Data::new(data::function::Function {
                 info: Arc::new(program::run::Info::neverused()),
@@ -160,9 +160,9 @@ impl Config {
                         (Some(data::int::Int(l)), None, None, Some(data::float::Float(r))) => Ok(Data::new(data::float::Float(*l as f64 % r))),
                         (None, Some(data::float::Float(l)), Some(data::int::Int(r)), None) => Ok(Data::new(data::float::Float(l % *r as f64))),
                         (None, Some(data::float::Float(l)), None, Some(data::float::Float(r))) => Ok(Data::new(data::float::Float(l % r))),
-                        _ => unreachable!(),
+                        _ => return Err("at least one of the arguments to modulo were neither an int nor a float".into()),
                     }
-                } else { unreachable!() }),
+                } else { return Err("argument to modulo was not a tuple".into()) }),
                 inner_statements: None,
             }))
             .add_var(
@@ -223,7 +223,7 @@ impl Config {
                             Data::new(data::int::Int(sumi))
                         })
                     } else {
-                        unreachable!("sum called on non-tuple")
+                        return Err("sum called on non-tuple".into());
                     }
                 }),
                 inner_statements: None,
@@ -298,7 +298,7 @@ impl Config {
                             Data::new(data::int::Int(sumi))
                         })
                     } else {
-                        unreachable!("sum called on non-tuple")
+                        return Err("sum called on non-tuple".into());
                     }
                 }),
                 inner_statements: None,
@@ -362,7 +362,7 @@ impl Config {
                             Data::new(data::int::Int(prodi))
                         })
                     } else {
-                        unreachable!("product called on non-tuple")
+                        return Err("product called on non-tuple".into());
                     }
                 }),
                 inner_statements: None,
@@ -436,7 +436,9 @@ fn ltgtoe_function(
                 } else if let Some(data::float::Float(v)) = item.as_any().downcast_ref() {
                     IntOrFloatOrNothing::Float(*v)
                 } else {
-                    unreachable!()
+                    return Err(
+                        "one of the (l/g)t[oe] function argument iterator elements were neither int nor float".into(),
+                    );
                 };
                 if op(prev, new) {
                     prev = new;

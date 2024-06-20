@@ -93,7 +93,7 @@ impl Config {
                     } else if let Some(data::float::Float(n)) = a.as_any().downcast_ref() {
                         Duration::from_secs_f64(*n)
                     } else {
-                        unreachable!("sleep called on non-int/non-float")
+                        return Err("sleep called on non-int/non-float".into());
                     });
                     Ok(Data::empty_tuple())
                 }),
@@ -154,7 +154,7 @@ impl Config {
                             // -1 if more elements than isize can represent
                             i.take(isize::MAX as usize + 1).count() as isize
                     } else {
-                        unreachable!("called len on {a:?}, which isn't a tuple or a string")
+                        return Err("called len on {a:?}, which isn't a tuple or a string".into());
                     })))
                 }),
                 inner_statements: None,
@@ -394,7 +394,7 @@ impl Config {
 //                     return func.run(arg.clone());
 //                 }
 //             }
-//             unreachable!("try: no function found")
+//             unreacha ble!("try: no function found")
 //         }),
 //         inner_statements: None,
 //     })

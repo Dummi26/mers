@@ -57,7 +57,7 @@ impl Config {
                             move || f.run(Data::empty_tuple()),
                         )))))))
                     } else {
-                        unreachable!("thread called, but arg wasn't a function");
+                        return Err("thread called, but arg wasn't a function".into());
                     }
                 }),
                 inner_statements: None,
