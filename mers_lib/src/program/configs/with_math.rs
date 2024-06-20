@@ -137,7 +137,7 @@ impl Config {
                     match (left.downcast_ref::<data::int::Int>(), left.downcast_ref::<data::float::Float>(),
                         right.downcast_ref::<data::int::Int>(), right.downcast_ref::<data::float::Float>()
                     ) {
-                        (Some(data::int::Int(l)), None, Some(data::int::Int(r)), None) => Ok(Data::new(data::int::Int(l / r))),
+                        (Some(data::int::Int(l)), None, Some(data::int::Int(r)), None) => Ok(Data::new(data::int::Int(l.checked_div(*r).ok_or_else(|| CheckError::from("attempted to divide by zero"))?))),
                         (Some(data::int::Int(l)), None, None, Some(data::float::Float(r))) => Ok(Data::new(data::float::Float(*l as f64 / r))),
                         (None, Some(data::float::Float(l)), Some(data::int::Int(r)), None) => Ok(Data::new(data::float::Float(l / *r as f64))),
                         (None, Some(data::float::Float(l)), None, Some(data::float::Float(r))) => Ok(Data::new(data::float::Float(l / r))),
