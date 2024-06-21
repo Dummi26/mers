@@ -123,7 +123,7 @@ fn main() {
                             }
                             Ok(_) => {
                                 if let Err(e) = compiled.run(&mut i2) {
-                                    eprintln!("Error while running: {}", e);
+                                    eprintln!("Error while running:\n{e}");
                                     std::process::exit(1);
                                 }
                             }
@@ -149,7 +149,7 @@ fn main() {
                         }
                         Ok(compiled) => {
                             if let Err(e) = compiled.run(&mut i2) {
-                                eprintln!("Error while running: {}", e);
+                                eprintln!("Error while running:\n{e}");
                                 std::process::exit(1);
                             }
                         }

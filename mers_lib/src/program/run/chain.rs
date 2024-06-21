@@ -96,32 +96,15 @@ impl MersStatement for Chain {
             match func.run(f) {
                 Ok(v) => Ok(v),
                 Err(e) => Err(if let Some(_) = &self.as_part_of_include {
-                    CheckError::new()
-                        .src(vec![(
-                            self.pos_in_src.clone(),
-                            Some(error_colors::HashIncludeErrorInIncludedFile),
-                        )])
-                        .msg(
-                            "Error in #include:"
-                                .color(error_colors::HashIncludeErrorInIncludedFile)
-                                .to_string(),
-                        )
-                        .err_with_diff_src(e)
+                    CheckError::new().err_with_diff_src(e).src(vec![(
+                        self.pos_in_src.clone(),
+                        Some(error_colors::StacktraceDescendHashInclude),
+                    )])
                 } else {
-                    CheckError::new()
-                        .src(vec![
-                            (self.pos_in_src.clone(), None),
-                            (
-                                self.first.source_range(),
-                                Some(error_colors::FunctionArgument),
-                            ),
-                            (self.chained.source_range(), Some(error_colors::Function)),
-                        ])
-                        .msg(format!(
-                            "Error in {}:",
-                            "this function".color(error_colors::Function)
-                        ))
-                        .err(e)
+                    CheckError::new().err(e).src(vec![
+                        (self.pos_in_src.clone(), None),
+                        (self.source_range(), Some(error_colors::StacktraceDescend)),
+                    ])
                 }),
             }
         } else {

@@ -1,0 +1,4 @@
+add_one := x -> x.sum(1)
+do_twice := func -> x -> x.func.func
+add_two := [(Int -> Int, Float -> Float)] add_one.do_twice
+"not a number".add_two

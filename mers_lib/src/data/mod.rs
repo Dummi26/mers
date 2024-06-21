@@ -352,11 +352,7 @@ impl Type {
     pub fn iterable(&self) -> Option<Type> {
         let mut o = Self::empty();
         for t in self.types.iter() {
-            if let Some(t) = t.iterable() {
-                o.add_all(&t);
-            } else {
-                return None;
-            }
+            o.add_all(&t.iterable()?);
         }
         Some(o)
     }
