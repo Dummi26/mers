@@ -1,6 +1,6 @@
 use std::{
     sync::{Arc, Mutex, RwLock},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use crate::{
@@ -86,15 +86,20 @@ impl Config {
                 } else {
                         Err(format!("cannot call sleep with non-int or non-float argument.").into())
                     }),
-                run: Arc::new(|a, _i| {
+                run: Arc::new(|a, i| {
                     let a = a.get();
-                    std::thread::sleep(if let Some(data::int::Int(n)) = a.as_any().downcast_ref() {
+                    let mut sleep_dur = if let Some(data::int::Int(n)) = a.as_any().downcast_ref() {
                         Duration::from_secs(*n as _)
                     } else if let Some(data::float::Float(n)) = a.as_any().downcast_ref() {
                         Duration::from_secs_f64(*n)
                     } else {
                         return Err("sleep called on non-int/non-float".into());
-                    });
+                    };
+                    // limit how long sleep can take
+                    if let Some(cutoff) = i.global.limit_runtime {
+                        sleep_dur = sleep_dur.min(cutoff.saturating_duration_since(Instant::now()));
+                    }
+                    std::thread::sleep(sleep_dur);
                     Ok(Data::empty_tuple())
                 }),
                 inner_statements: None,

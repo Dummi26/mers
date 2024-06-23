@@ -2,11 +2,12 @@ use std::{
     collections::HashMap,
     fmt::Debug,
     sync::{Arc, Mutex, RwLock},
+    time::Instant,
 };
 
 use crate::{
     data::{self, Data, Type},
-    errors::{CheckError, SourceRange},
+    errors::{error_colors, CheckError, SourceRange},
     info,
 };
 
@@ -94,6 +95,16 @@ pub trait MersStatement: Debug + Send + Sync {
         o
     }
     fn run(&self, info: &mut Info) -> Result<Data, CheckError> {
+        if let Some(cutoff) = info.global.limit_runtime {
+            if Instant::now() >= cutoff {
+                return Err(CheckError::new()
+                    .msg("maximum runtime exceeded".to_owned())
+                    .src(vec![(
+                        self.source_range(),
+                        Some(error_colors::MaximumRuntimeExceeded),
+                    )]));
+            }
+        }
         if self.has_scope() {
             info.create_scope();
         }
@@ -108,12 +119,17 @@ pub trait MersStatement: Debug + Send + Sync {
     fn as_any(&self) -> &dyn std::any::Any;
 }
 
-pub type Info = info::Info<Local>;
+pub type Info = info::Info<RunLocal>;
 pub type CheckInfo = info::Info<CheckLocal>;
 
 #[derive(Default, Clone, Debug)]
-pub struct Local {
+pub struct RunLocal {
     pub vars: Vec<Arc<RwLock<Data>>>,
+}
+#[derive(Default, Clone, Debug)]
+pub struct RunLocalGlobalInfo {
+    /// if set, if `Instant::now()` is equal to or after the set `Instant`, stop the program with an error.
+    pub limit_runtime: Option<Instant>,
 }
 #[derive(Default, Clone)]
 pub struct CheckLocal {
@@ -149,10 +165,10 @@ impl Debug for CheckLocal {
         write!(f, "CheckLocal {:?}, {:?}", self.vars, self.types.keys())
     }
 }
-impl info::Local for Local {
+impl info::Local for RunLocal {
     type VariableIdentifier = usize;
     type VariableData = Arc<RwLock<Data>>;
-    type Global = ();
+    type Global = RunLocalGlobalInfo;
     fn init_var(&mut self, id: Self::VariableIdentifier, value: Self::VariableData) {
         let nothing = Arc::new(RwLock::new(Data::new(data::bool::Bool(false))));
         while self.vars.len() <= id {

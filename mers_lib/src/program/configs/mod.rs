@@ -22,12 +22,6 @@ pub mod with_string;
 /// bundle_* for bundles (combines multiple groups or even bundles)
 /// with_* for usage-oriented groups
 /// add_* to add custom things
-///
-/// For doc-comments:
-/// Description
-/// `bundle_std()`
-/// `type` - description
-/// `var: type` - description
 pub struct Config {
     globals: usize,
     info_parsed: super::parsed::Info,
@@ -37,25 +31,32 @@ pub struct Config {
 
 impl Config {
     /// standard utilitis used in many programs
-    /// `bundle_base()`
-    /// `with_stdio()`
-    /// `with_list()`
-    /// `with_string()`
-    /// `with_command_running()`
-    /// `with_multithreading()`
+    ///
+    /// - `bundle_pure()`
+    /// - `with_stdio()`
+    /// - `with_command_running()`
+    /// - `with_multithreading()`
     pub fn bundle_std(self) -> Self {
         self.with_multithreading()
             .with_command_running()
-            .with_string()
-            .with_list()
             .with_stdio()
-            .bundle_base()
+            .bundle_pure()
+    }
+    /// standard utilities, but don't allow code to do any I/O.
+    /// (multithreading can be added using `.with_multithreading()`)
+    ///
+    /// - `bundle_base()`
+    /// - `with_list()`
+    /// - `with_string()`
+    pub fn bundle_pure(self) -> Self {
+        self.with_string().with_list().bundle_base()
     }
     /// base utilities used in most programs
-    /// `with_base()`
-    /// `with_math()`
-    /// `with_get()`
-    /// `with_iters()`
+    ///
+    /// - `with_base()`
+    /// - `with_math()`
+    /// - `with_get()`
+    /// - `with_iters()`
     pub fn bundle_base(self) -> Self {
         self.with_iters().with_get().with_math().with_base()
     }
@@ -86,6 +87,7 @@ impl Config {
         }
     }
 
+    /// Add a variable. Its type will be that of the value stored in `val`.
     pub fn add_var(self, name: String, val: Data) -> Self {
         let t = val.get().as_type();
         self.add_var_arc(name, Arc::new(RwLock::new(val)), t)

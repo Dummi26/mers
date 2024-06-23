@@ -464,7 +464,7 @@ fn genfunc_iter_in_val_out(
     name: String,
     iter_type: impl MersType + 'static,
     out_type: Type,
-    run: impl Fn(Data, &mut crate::info::Info<program::run::Local>) -> Result<Data, CheckError>
+    run: impl Fn(Data, &mut crate::info::Info<program::run::RunLocal>) -> Result<Data, CheckError>
         + Send
         + Sync
         + 'static,

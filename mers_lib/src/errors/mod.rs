@@ -90,6 +90,8 @@ pub mod error_colors {
 
     pub const StacktraceDescend: Color = Color::Yellow;
     pub const StacktraceDescendHashInclude: Color = Color::Red;
+
+    pub const MaximumRuntimeExceeded: Color = Color::BrightYellow;
 }
 #[derive(Clone)]
 pub enum CheckErrorComponent {

@@ -52,6 +52,7 @@ enum From {
 enum Configs {
     None,
     Base,
+    Pure,
     Std,
 }
 
@@ -60,6 +61,7 @@ fn main() {
     let config = cfg_globals::add_general(match args.config {
         Configs::None => Config::new(),
         Configs::Base => Config::new().bundle_base(),
+        Configs::Pure => Config::new().bundle_pure(),
         Configs::Std => Config::new().bundle_std(),
     });
     fn get_source(source: From) -> Source {
