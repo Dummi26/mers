@@ -141,58 +141,64 @@ pub struct TermDefaultTheme;
 impl Theme<String> for TermDefaultTheme {
     fn color(&self, text: &str, color: EColor, t: &mut String) {
         use colored::{Color, Colorize};
-        t.push_str(&text.color(match color {
-            EColor::Indent(n) => match n % 6 {
-                0 => Color::Red,
-                1 => Color::Green,
-                2 => Color::Yellow,
-                3 => Color::Blue,
-                4 => Color::Magenta,
-                _ => Color::Cyan,
-            },
+        t.push_str(
+            &text
+                .color(match color {
+                    EColor::Indent(n) => match n % 6 {
+                        0 => Color::Red,
+                        1 => Color::Green,
+                        2 => Color::Yellow,
+                        3 => Color::Blue,
+                        4 => Color::Magenta,
+                        _ => Color::Cyan,
+                    },
 
-            EColor::UnknownVariable => Color::Red,
+                    EColor::UnknownVariable => Color::Red,
 
-            EColor::WhitespaceAfterHashtag => Color::Red,
-            EColor::HashUnknown => Color::Red,
-            EColor::HashIncludeCantLoadFile => Color::Red,
-            EColor::HashIncludeNotAString => Color::Red,
-            EColor::HashIncludeErrorInIncludedFile => Color::Red,
+                    EColor::WhitespaceAfterHashtag => Color::Red,
+                    EColor::HashUnknown => Color::Red,
+                    EColor::HashIncludeCantLoadFile => Color::Red,
+                    EColor::HashIncludeNotAString => Color::Red,
+                    EColor::HashIncludeErrorInIncludedFile => Color::Red,
 
-            EColor::BackslashEscapeUnknown => Color::Red,
-            EColor::BackslashEscapeEOF => Color::Red,
-            EColor::StringEOF => Color::Red,
+                    EColor::BackslashEscapeUnknown => Color::Red,
+                    EColor::BackslashEscapeEOF => Color::Red,
+                    EColor::StringEOF => Color::Red,
 
-            EColor::IfConditionNotBool => Color::Red,
-            EColor::ChainWithNonFunction => Color::Yellow,
+                    EColor::IfConditionNotBool => Color::Red,
+                    EColor::ChainWithNonFunction => Color::Yellow,
 
-            EColor::Function => Color::BrightMagenta,
-            EColor::FunctionArgument => Color::BrightBlue,
+                    EColor::Function => Color::BrightMagenta,
+                    EColor::FunctionArgument => Color::BrightBlue,
 
-            EColor::InitFrom | EColor::AssignFrom | EColor::AsTypeStatementWithTooBroadType => {
-                Color::BrightCyan
-            }
-            EColor::InitTo | EColor::AssignTo | EColor::AsTypeTypeAnnotation => Color::Green,
-            EColor::AssignTargetNonReference => Color::BrightYellow,
+                    EColor::InitFrom
+                    | EColor::AssignFrom
+                    | EColor::AsTypeStatementWithTooBroadType => Color::BrightCyan,
+                    EColor::InitTo | EColor::AssignTo | EColor::AsTypeTypeAnnotation => {
+                        Color::Green
+                    }
+                    EColor::AssignTargetNonReference => Color::BrightYellow,
 
-            EColor::BadCharInTupleType => Color::Red,
-            EColor::BadCharInFunctionType => Color::Red,
-            EColor::BadTypeFromParsed => Color::Blue,
-            EColor::TypeAnnotationNoClosingBracket => Color::Blue,
+                    EColor::BadCharInTupleType => Color::Red,
+                    EColor::BadCharInFunctionType => Color::Red,
+                    EColor::BadTypeFromParsed => Color::Blue,
+                    EColor::TypeAnnotationNoClosingBracket => Color::Blue,
 
-            EColor::TryBadSyntax => Color::Red,
-            EColor::TryNoFunctionFound => Color::Red,
-            EColor::TryNotAFunction => Color::Red,
-            EColor::TryUnusedFunction1 => Color::Red,
-            EColor::TryUnusedFunction2 => Color::BrightRed,
-            EColor::CustomTypeTestFailed => Color::BrightRed,
+                    EColor::TryBadSyntax => Color::Red,
+                    EColor::TryNoFunctionFound => Color::Red,
+                    EColor::TryNotAFunction => Color::Red,
+                    EColor::TryUnusedFunction1 => Color::Red,
+                    EColor::TryUnusedFunction2 => Color::BrightRed,
+                    EColor::CustomTypeTestFailed => Color::BrightRed,
 
-            EColor::StacktraceDescend => Color::Yellow,
-            EColor::StacktraceDescendHashInclude => Color::Red,
-            EColor::MaximumRuntimeExceeded => Color::BrightYellow,
+                    EColor::StacktraceDescend => Color::Yellow,
+                    EColor::StacktraceDescendHashInclude => Color::Red,
+                    EColor::MaximumRuntimeExceeded => Color::BrightYellow,
 
-            EColor::InCodePositionLine => Color::BrightBlack,
-        }));
+                    EColor::InCodePositionLine => Color::BrightBlack,
+                })
+                .to_string(),
+        );
     }
 }
 #[derive(Clone)]
