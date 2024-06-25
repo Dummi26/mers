@@ -1,5 +1,5 @@
 use crate::{
-    errors::{error_colors, CheckError, SourceRange},
+    errors::{CheckError, EColor, SourceRange},
     info::Local,
     program::{self},
 };
@@ -50,9 +50,9 @@ impl MersStatement for Variable {
                 return Err(CheckError::new()
                     .src(vec![(
                         self.pos_in_src.clone(),
-                        Some(error_colors::UnknownVariable),
+                        Some(EColor::UnknownVariable),
                     )])
-                    .msg(format!("No variable named '{}' found!", self.var)));
+                    .msg_str(format!("No variable named '{}' found!", self.var)));
             },
         }))
     }

@@ -1,10 +1,8 @@
 use std::sync::Arc;
 
-use colored::Colorize;
-
 use crate::{
     data::{self, tuple::TupleT, Data, Type},
-    errors::{error_colors, CheckError, SourceRange},
+    errors::{CheckError, EColor, SourceRange},
 };
 
 use super::MersStatement;
@@ -33,16 +31,21 @@ impl MersStatement for If {
                     (self.pos_in_src.clone(), None),
                     (
                         self.condition.source_range(),
-                        Some(error_colors::IfConditionNotBool),
+                        Some(EColor::IfConditionNotBool),
                     ),
                 ])
-                .msg(format!(
-                    "The {} in an if-statement must return bool, not {}",
-                    "condition".color(error_colors::IfConditionNotBool),
-                    cond_return_type
-                        .to_string()
-                        .color(error_colors::IfConditionNotBool),
-                )));
+                .msg(vec![
+                    ("The ".to_owned(), None),
+                    ("condition".to_owned(), Some(EColor::IfConditionNotBool)),
+                    (
+                        " in an if-statement must return bool, not ".to_owned(),
+                        None,
+                    ),
+                    (
+                        cond_return_type.to_string(),
+                        Some(EColor::IfConditionNotBool),
+                    ),
+                ]));
         }
         let mut t = self.on_true.check(info, None)?;
         if let Some(f) = &self.on_false {

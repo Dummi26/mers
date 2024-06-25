@@ -3,6 +3,7 @@ use mers_lib::prelude_compile::*;
 use std::{path::PathBuf, process::exit, sync::Arc};
 
 mod cfg_globals;
+#[cfg(feature = "colored-output")]
 mod pretty_print;
 
 #[derive(Parser)]
@@ -35,7 +36,14 @@ enum Command {
         #[command(subcommand)]
         source: From,
     },
+    /// Not available, because the colored-output default feature was disabled when building mers!
+    #[cfg(not(feature = "colored-output"))]
+    PrettyPrint {
+        #[command(subcommand)]
+        source: From,
+    },
     /// Add syntax highlighting to the code
+    #[cfg(feature = "colored-output")]
     PrettyPrint {
         #[command(subcommand)]
         source: From,
@@ -82,19 +90,19 @@ fn main() {
             let srca = Arc::new(src.clone());
             match parse(&mut src, &srca) {
                 Err(e) => {
-                    eprintln!("{e}");
+                    eprintln!("{e:?}");
                     exit(20);
                 }
                 Ok(parsed) => {
                     let (i1, _, i3) = config.infos();
                     match compile(&*parsed, i1) {
                         Err(e) => {
-                            eprintln!("{e}");
+                            eprintln!("{e:?}");
                             exit(24);
                         }
                         Ok(compiled) => match check(&*compiled, i3) {
                             Err(e) => {
-                                eprintln!("{e}");
+                                eprintln!("{e:?}");
                                 exit(28);
                             }
                             Ok(output_type) => eprintln!("{output_type}"),
@@ -108,24 +116,24 @@ fn main() {
             let srca = Arc::new(src.clone());
             match parse(&mut src, &srca) {
                 Err(e) => {
-                    eprintln!("{e}");
+                    eprintln!("{e:?}");
                     exit(255);
                 }
                 Ok(parsed) => {
                     let (i1, mut i2, i3) = config.infos();
                     match compile(&*parsed, i1) {
                         Err(e) => {
-                            eprintln!("{e}");
+                            eprintln!("{e:?}");
                             exit(255);
                         }
                         Ok(compiled) => match check(&*compiled, i3) {
                             Err(e) => {
-                                eprintln!("{e}");
+                                eprintln!("{e:?}");
                                 exit(255);
                             }
                             Ok(_) => {
                                 if let Err(e) = compiled.run(&mut i2) {
-                                    eprintln!("Error while running:\n{e}");
+                                    eprintln!("Error while running:\n{e:?}");
                                     std::process::exit(1);
                                 }
                             }
@@ -139,19 +147,19 @@ fn main() {
             let srca = Arc::new(src.clone());
             match parse(&mut src, &srca) {
                 Err(e) => {
-                    eprintln!("{e}");
+                    eprintln!("{e:?}");
                     exit(255);
                 }
                 Ok(parsed) => {
                     let (i1, mut i2, _) = config.infos();
                     match compile(&*parsed, i1) {
                         Err(e) => {
-                            eprintln!("{e}");
+                            eprintln!("{e:?}");
                             exit(255);
                         }
                         Ok(compiled) => {
                             if let Err(e) = compiled.run(&mut i2) {
-                                eprintln!("Error while running:\n{e}");
+                                eprintln!("Error while running:\n{e:?}");
                                 std::process::exit(1);
                             }
                         }
@@ -159,8 +167,14 @@ fn main() {
                 }
             }
         }
+        #[cfg(feature = "colored-output")]
         Command::PrettyPrint { source } => {
             pretty_print::pretty_print(get_source(source));
+        }
+        #[cfg(not(feature = "colored-output"))]
+        Command::PrettyPrint { source: _ } => {
+            eprintln!("feature colored-output must be enabled when compiling mers if you want to use pretty-print!");
+            std::process::exit(180);
         }
     }
 }

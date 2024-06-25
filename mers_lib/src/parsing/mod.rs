@@ -4,7 +4,7 @@ use line_span::{LineSpan, LineSpanExt};
 
 use crate::{
     data::Type,
-    errors::{error_colors, CheckError, SourcePos},
+    errors::{CheckError, EColor, SourcePos},
     program::{
         self,
         parsed::{block::Block, CompInfo},
@@ -53,7 +53,7 @@ pub fn check_mut(
     for (try_stmt, used) in info.global.unused_try_statements.lock().unwrap().iter() {
         if used.iter().any(|v| v.is_some()) {
             let err = err.get_or_insert_with(|| {
-                CheckError::new().msg(format!(
+                CheckError::from(format!(
                     "There are `.try` statements with unused functions!"
                 ))
             });
@@ -62,7 +62,7 @@ pub fn check_mut(
                 .enumerate()
                 .filter_map(|v| Some((v.0, v.1.clone()?)))
                 .collect::<Vec<_>>();
-            err.msg_mut(format!(
+            err.msg_mut_str(format!(
                 "Here, {}function{} {} {} unused:",
                 if unused.len() == 1 { "the " } else { "" },
                 if unused.len() == 1 { "" } else { "s" },
@@ -87,9 +87,9 @@ pub fn check_mut(
                     src.push((
                         src_range,
                         Some(if i % 2 == 0 {
-                            error_colors::TryUnusedFunction1
+                            EColor::TryUnusedFunction1
                         } else {
-                            error_colors::TryUnusedFunction2
+                            EColor::TryUnusedFunction2
                         }),
                     ));
                 }

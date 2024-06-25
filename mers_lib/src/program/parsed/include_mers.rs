@@ -1,10 +1,8 @@
 use std::sync::{Arc, Mutex};
 
-use colored::Colorize;
-
 use crate::{
     data::{self, Data},
-    errors::{error_colors, CheckError, SourceRange},
+    errors::{CheckError, EColor, SourceRange},
     info::{self, Local},
     parsing::Source,
     program::{self},
@@ -36,13 +34,13 @@ impl MersStatement for IncludeMers {
                     return Err(CheckError::new()
                         .src(vec![(
                             self.pos_in_src.clone(),
-                            Some(error_colors::HashIncludeErrorInIncludedFile),
+                            Some(EColor::HashIncludeErrorInIncludedFile),
                         )])
-                        .msg(
+                        .msg(vec![(
                             "Error in #include! (note: inner errors may refer to a different file)"
-                                .color(error_colors::HashIncludeErrorInIncludedFile)
-                                .to_string(),
-                        )
+                                .to_owned(),
+                            Some(EColor::HashIncludeErrorInIncludedFile),
+                        )])
                         .err_with_diff_src(e))
                 }
             };

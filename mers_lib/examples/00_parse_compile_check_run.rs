@@ -24,7 +24,7 @@ fn show(src: String) {
     );
     eprintln!("{src}");
     match parse_compile_check_run(src) {
-        Err(e) => eprintln!("{e}"),
+        Err(e) => eprintln!("{e:?}"),
         Ok((t, v)) => eprintln!("Returned `{}` :: `{t}`", v.get()),
     }
 }

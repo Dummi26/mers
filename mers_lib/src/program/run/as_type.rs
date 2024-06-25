@@ -1,8 +1,6 @@
-use colored::Colorize;
-
 use crate::{
     data::{Data, Type},
-    errors::{error_colors, CheckError, SourceRange},
+    errors::{CheckError, EColor, SourceRange},
     parsing::types::ParsedType,
 };
 
@@ -33,7 +31,7 @@ impl MersStatement for AsType {
                 CheckError::new()
                     .src(vec![(
                         self.type_pos_in_src.clone(),
-                        Some(error_colors::BadTypeFromParsed),
+                        Some(EColor::BadTypeFromParsed),
                     )])
                     .err(e)
             })?;
@@ -43,22 +41,23 @@ impl MersStatement for AsType {
                     (self.pos_in_src.clone(), None),
                     (
                         self.type_pos_in_src.clone(),
-                        Some(error_colors::AsTypeTypeAnnotation),
+                        Some(EColor::AsTypeTypeAnnotation),
                     ),
                     (
                         self.statement.source_range(),
-                        Some(error_colors::AsTypeStatementWithTooBroadType),
+                        Some(EColor::AsTypeStatementWithTooBroadType),
                     ),
                 ])
-                .msg(format!(
-                    "Type must be included in {}, but the actual type {} isn't.",
-                    as_type
-                        .to_string()
-                        .color(error_colors::AsTypeTypeAnnotation),
-                    return_type
-                        .to_string()
-                        .color(error_colors::AsTypeStatementWithTooBroadType)
-                )));
+                .msg(vec![
+                    ("Type must be included in ".to_owned(), None),
+                    (as_type.to_string(), Some(EColor::AsTypeTypeAnnotation)),
+                    (", but the actual type ".to_owned(), None),
+                    (
+                        return_type.to_string(),
+                        Some(EColor::AsTypeStatementWithTooBroadType),
+                    ),
+                    (" isn't.".to_owned(), None),
+                ]));
         }
         Ok(if self.expand_type {
             as_type.clone()

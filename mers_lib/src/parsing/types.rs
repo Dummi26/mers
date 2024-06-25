@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     data::{self, Type},
-    errors::{error_colors, CheckError},
+    errors::{CheckError, EColor},
 };
 
 use super::Source;
@@ -35,7 +35,7 @@ pub fn parse_single_type(src: &mut Source, srca: &Arc<Source>) -> Result<ParsedT
                     } else {
                         format!("EOF")
                     };
-                    return Err(CheckError::new().msg(format!(
+                    return Err(CheckError::new().msg_str(format!(
                         "No closing ] in reference type with opening [! Found {nc} instead"
                     )));
                 }
@@ -75,10 +75,10 @@ pub fn parse_single_type(src: &mut Source, srca: &Arc<Source>) -> Result<ParsedT
                                     ((pos_in_src, src.get_pos(), srca).into(), None),
                                     (
                                         (pos1, src.get_pos(), srca).into(),
-                                        Some(error_colors::BadCharInFunctionType),
+                                        Some(EColor::BadCharInFunctionType),
                                     ),
-                                ]).msg(format!("Unexpected character in function type, expected arrow `->` but found `,`."))
-                                .msg(format!("If you wanted this to be a tuple type instead, you may have used `Input -> Output` instead of `(Input -> Output)` for a function type somewhere.")));
+                                ]).msg_str(format!("Unexpected character in function type, expected arrow `->` but found `,`."))
+                                .msg_str(format!("If you wanted this to be a tuple type instead, you may have used `Input -> Output` instead of `(Input -> Output)` for a function type somewhere.")));
                             }
                         }
                         Some('-') if src.peek_word() == "->" => {
@@ -92,8 +92,8 @@ pub fn parse_single_type(src: &mut Source, srca: &Arc<Source>) -> Result<ParsedT
                                     Some(')') => break,
                                     _ => return Err(CheckError::new().src(vec![
                                         ((pos_in_src, src.get_pos(), srca).into(), None),
-                                        ((pos2, src.get_pos(), srca).into(), Some(error_colors::BadCharInFunctionType)),
-                                    ]).msg(format!("Expected comma `,` after `In -> Out` part of function type")))
+                                        ((pos2, src.get_pos(), srca).into(), Some(EColor::BadCharInFunctionType)),
+                                    ]).msg_str(format!("Expected comma `,` after `In -> Out` part of function type")))
                                 }
                             } else {
                                 let pos1 = src.get_pos();
@@ -102,10 +102,10 @@ pub fn parse_single_type(src: &mut Source, srca: &Arc<Source>) -> Result<ParsedT
                                     ((pos_in_src, src.get_pos(), srca).into(), None),
                                     (
                                         (pos1, src.get_pos(), srca).into(),
-                                        Some(error_colors::BadCharInTupleType),
+                                        Some(EColor::BadCharInTupleType),
                                     ),
-                                ]).msg(format!("Unexpected character in tuple type, expected comma `,` but found arrow `->`."))
-                                .msg(format!("If you wanted to write a function type, use `(Input -> Output)` instead of `Input -> Output`.")));
+                                ]).msg_str(format!("Unexpected character in tuple type, expected comma `,` but found arrow `->`."))
+                                .msg_str(format!("If you wanted to write a function type, use `(Input -> Output)` instead of `Input -> Output`.")));
                             }
                         }
                         _ => {
@@ -116,10 +116,10 @@ pub fn parse_single_type(src: &mut Source, srca: &Arc<Source>) -> Result<ParsedT
                                     ((pos_in_src, src.get_pos(), srca).into(), None),
                                     (
                                         (ppos, src.get_pos(), srca).into(),
-                                        Some(error_colors::BadCharInTupleType),
+                                        Some(EColor::BadCharInTupleType),
                                     ),
                                 ])
-                                .msg(format!(
+                                .msg_str(format!(
                                 "Unexpected character in tuple type, expected comma ',' or ')'."
                             )));
                         }
@@ -150,7 +150,7 @@ pub fn parse_single_type(src: &mut Source, srca: &Arc<Source>) -> Result<ParsedT
                     if src.next_char() != Some(':') {
                         return Err(CheckError::new()
                             .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
-                            .msg(format!("Expected colon ':' in object type")));
+                            .msg_str(format!("Expected colon ':' in object type")));
                     }
                     src.skip_whitespace();
                     inner.push((field, parse_type(src, srca)?));
@@ -236,11 +236,11 @@ pub fn type_from_parsed(
             {
                 Some(Ok(t)) => as_type.add_all(&*t),
                 Some(Err(_)) => {
-                    return Err(CheckError::new().msg(format!(
+                    return Err(CheckError::new().msg_str(format!(
                         "Type: specified type without info, but type needs additional info"
                     )))
                 }
-                None => return Err(CheckError::new().msg(format!("Unknown type '{name}'"))),
+                None => return Err(CheckError::new().msg_str(format!("Unknown type '{name}'"))),
             },
             ParsedType::TypeWithInfo(name, additional_info) => match info
                 .scopes
@@ -248,12 +248,12 @@ pub fn type_from_parsed(
                 .find_map(|scope| scope.types.iter().find(|v| v.0 == name).map(|(_, v)| v))
             {
                 Some(Ok(t)) => {
-                    return Err(CheckError::new().msg(format!(
+                    return Err(CheckError::new().msg_str(format!(
                         "Type: specified type with info, but type {t} doesn't need it"
                     )))
                 }
                 Some(Err(f)) => as_type.add_all(&*f(&additional_info, info)?),
-                None => return Err(CheckError::new().msg(format!("Unknown type '{name}'"))),
+                None => return Err(CheckError::new().msg_str(format!("Unknown type '{name}'"))),
             },
         }
     }

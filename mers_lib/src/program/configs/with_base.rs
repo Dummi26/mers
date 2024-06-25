@@ -44,7 +44,7 @@ impl Config {
                                                         return Err(format!("Function returns a value of type {out}, which isn't included in the type of the reference, {arg}.").into());
                                                     }
                                                 },
-                                                Err(e) => return Err(CheckError::new().msg(format!("Invalid argument type {arg} for function")).err(e)),
+                                                Err(e) => return Err(CheckError::new().msg_str(format!("Invalid argument type {arg} for function")).err(e)),
                                             }
                                         } else {
                                             return Err(format!("Arguments must be (reference, function)").into());

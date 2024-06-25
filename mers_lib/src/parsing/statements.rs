@@ -3,7 +3,7 @@ use std::{path::PathBuf, sync::Arc};
 use super::{Source, SourceFrom, SourcePos};
 use crate::{
     data::Data,
-    errors::{error_colors, CheckError},
+    errors::{CheckError, EColor},
     program::{
         self,
         parsed::{as_type::AsType, MersStatement},
@@ -30,9 +30,9 @@ pub fn parse(
             let name = name.trim().to_owned();
             src.skip_whitespace();
             if !matches!(src.next_char(), Some(']')) {
-                return Err(
-                    CheckError::new().msg(format!("Expected ']' after type name in [[type_name]]"))
-                );
+                return Err(CheckError::from(format!(
+                    "Expected ']' after type name in [[type_name]]"
+                )));
             }
             src.skip_whitespace();
             if src.peek_word_allow_colon() == ":=" {
@@ -43,12 +43,12 @@ pub fn parse(
                     Ok(None) => {
                         return Err(CheckError::new()
                             .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
-                            .msg(format!("EOF after `[[...] := ...]` type definition")))
+                            .msg_str(format!("EOF after `[[...] := ...]` type definition")))
                     }
                     Err(e) => return Err(e),
                 };
                 if !matches!(src.next_char(), Some(']')) {
-                    return Err(CheckError::new().msg(format!(
+                    return Err(CheckError::new().msg_str(format!(
                         "Expected ']' after statement in [[type_name] := statement]"
                     )));
                 }
@@ -63,7 +63,7 @@ pub fn parse(
                 let as_type = super::types::parse_type(src, srca)?;
                 src.skip_whitespace();
                 if !matches!(src.next_char(), Some(']')) {
-                    return Err(CheckError::new().msg(format!(
+                    return Err(CheckError::new().msg_str(format!(
                         "Expected ']' after type definition in [[type_name] type_definition]"
                     )));
                 }
@@ -84,16 +84,16 @@ pub fn parse(
                 return Err(CheckError::new()
                     .src(vec![(
                         (pos_in_src, src.get_pos(), srca).into(),
-                        Some(error_colors::TypeAnnotationNoClosingBracket),
+                        Some(EColor::TypeAnnotationNoClosingBracket),
                     )])
-                    .msg(format!("Missing closing bracket ']' after type annotation")));
+                    .msg_str(format!("Missing closing bracket ']' after type annotation")));
             }
             let statement = match parse(src, srca) {
                 Ok(Some(v)) => v,
                 Ok(None) => {
                     return Err(CheckError::new()
                         .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
-                        .msg(format!("EOF after `[...]` type annotation")))
+                        .msg_str(format!("EOF after `[...]` type annotation")))
                 }
                 Err(e) => return Err(e),
             };
@@ -120,7 +120,7 @@ pub fn parse(
             let source = parse(src, srca)?.ok_or_else(|| {
                 CheckError::new()
                     .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
-                    .msg(format!("EOF after `:=`"))
+                    .msg_str(format!("EOF after `:=`"))
             })?;
             first = Box::new(program::parsed::init_to::InitTo {
                 pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
@@ -137,7 +137,7 @@ pub fn parse(
                         (first.source_range().start(), src.get_pos(), srca).into(),
                         None,
                     )])
-                    .msg(format!("EOF after `=`"))
+                    .msg_str(format!("EOF after `=`"))
             })?;
             first = Box::new(program::parsed::assign_to::AssignTo {
                 pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
@@ -153,7 +153,7 @@ pub fn parse(
                 Ok(None) => {
                     return Err(CheckError::new()
                         .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
-                        .msg(format!("EOF after `->`")))
+                        .msg_str(format!("EOF after `->`")))
                 }
                 Err(e) => return Err(e),
             };
@@ -182,10 +182,10 @@ pub fn parse(
                         pos_after_first = src.get_pos();
                     } else {
                         return Err(CheckError::new()
-                            .msg(format!("Expected `(` after `.try`"))
+                            .msg_str(format!("Expected `(` after `.try`"))
                             .src(vec![(
                                 (dot_in_src, src.get_pos(), srca).into(),
-                                Some(error_colors::TryBadSyntax),
+                                Some(EColor::TryBadSyntax),
                             )]));
                     }
                 } else {
@@ -194,7 +194,7 @@ pub fn parse(
                         Ok(None) => {
                             return Err(CheckError::new()
                                 .src(vec![((dot_in_src, src.get_pos(), srca).into(), None)])
-                                .msg(format!("EOF after `.`")))
+                                .msg_str(format!("EOF after `.`")))
                         }
                         Err(e) => return Err(e),
                     };
@@ -265,16 +265,16 @@ pub fn parse_no_chain(
             if src.peek_char().is_none() {
                 return Err(CheckError::new()
                     .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
-                    .msg(format!("EOF after #")));
+                    .msg_str(format!("EOF after #")));
             }
             if src.peek_char().is_some_and(|ch| ch.is_whitespace()) {
                 src.skip_whitespace();
                 return Err(CheckError::new()
                     .src(vec![(
                         (pos_in_src, src.get_pos(), srca).into(),
-                        Some(error_colors::WhitespaceAfterHashtag),
+                        Some(EColor::WhitespaceAfterHashtag),
                     )])
-                    .msg(format!("Whitespace after #")));
+                    .msg_str(format!("Whitespace after #")));
             }
             match src.next_word() {
                 "include" => {
@@ -313,19 +313,19 @@ pub fn parse_no_chain(
                                         ((pos_in_src, end_in_src, srca).into(), None),
                                         (
                                             (string_in_src, src.get_pos(), srca).into(),
-                                            Some(error_colors::HashIncludeCantLoadFile),
+                                            Some(EColor::HashIncludeCantLoadFile),
                                         ),
                                     ])
-                                    .msg(format!("Can't load file '{file_path_str}': {e}")));
+                                    .msg_str(format!("Can't load file '{file_path_str}': {e}")));
                             }
                         }
                     } else {
                         return Err(CheckError::new()
                             .src(vec![
                                 ((pos_in_src, end_in_src, srca).into(), None),
-                                ((string_in_src, src.get_pos(), srca).into(), Some(error_colors::HashIncludeNotAString)),
+                                ((string_in_src, src.get_pos(), srca).into(), Some(EColor::HashIncludeNotAString)),
                             ])
-                            .msg(format!(
+                            .msg_str(format!(
                                 "#include must be followed by a string literal like \"file.mers\" (\" expected)."
                             )));
                     }
@@ -335,9 +335,9 @@ pub fn parse_no_chain(
                     return Err(CheckError::new()
                         .src(vec![(
                             (pos_in_src, src.get_pos(), srca).into(),
-                            Some(error_colors::HashUnknown),
+                            Some(EColor::HashUnknown),
                         )])
-                        .msg(msg));
+                        .msg_str(msg));
                 }
             }
         }
@@ -371,7 +371,7 @@ pub fn parse_no_chain(
                                                 (pos_in_src, src.get_pos(), srca).into(),
                                                 None,
                                             )])
-                                            .msg(format!("EOF after `:` in object")))
+                                            .msg_str(format!("EOF after `:` in object")))
                                     }
                                     Err(e) => {
                                         return Err(CheckError::new()
@@ -379,7 +379,9 @@ pub fn parse_no_chain(
                                                 (pos_in_src, src.get_pos(), srca).into(),
                                                 None,
                                             )])
-                                            .msg(format!("Error in statement after `:` in object"))
+                                            .msg_str(format!(
+                                                "Error in statement after `:` in object"
+                                            ))
                                             .err(e))
                                     }
                                 },
@@ -430,7 +432,7 @@ pub fn parse_no_chain(
                 Ok(None) => {
                     return Err(CheckError::new()
                         .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
-                        .msg(format!("EOF in `if`")))
+                        .msg_str(format!("EOF in `if`")))
                 }
                 Err(e) => return Err(e),
             };
@@ -439,7 +441,7 @@ pub fn parse_no_chain(
                 Ok(None) => {
                     return Err(CheckError::new()
                         .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
-                        .msg(format!("EOF after `if <condition>`")))
+                        .msg_str(format!("EOF after `if <condition>`")))
                 }
                 Err(e) => return Err(e),
             };
@@ -453,7 +455,7 @@ pub fn parse_no_chain(
                         Ok(None) => {
                             return Err(CheckError::new()
                                 .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
-                                .msg(format!("EOF after `else`")))
+                                .msg_str(format!("EOF after `else`")))
                         }
                         Err(e) => return Err(e),
                     })
@@ -476,7 +478,7 @@ pub fn parse_no_chain(
                 Ok(None) => {
                     return Err(CheckError::new()
                         .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
-                        .msg(format!("EOF after `loop`")))
+                        .msg_str(format!("EOF after `loop`")))
                 }
                 Err(e) => return Err(e),
             };
@@ -578,17 +580,17 @@ pub fn parse_string_custom_end(
                         return Err(CheckError::new()
                             .src(vec![(
                                 (backslash_in_src, src.get_pos(), srca).into(),
-                                Some(error_colors::BackslashEscapeUnknown),
+                                Some(EColor::BackslashEscapeUnknown),
                             )])
-                            .msg(format!("unknown backslash escape '\\{o}'")));
+                            .msg_str(format!("unknown backslash escape '\\{o}'")));
                     }
                     None => {
                         return Err(CheckError::new()
                             .src(vec![(
                                 (backslash_in_src, src.get_pos(), srca).into(),
-                                Some(error_colors::BackslashEscapeEOF),
+                                Some(EColor::BackslashEscapeEOF),
                             )])
-                            .msg(format!("EOF in backslash escape")));
+                            .msg_str(format!("EOF in backslash escape")));
                     }
                 });
             } else if ch == closing_char {
@@ -600,9 +602,9 @@ pub fn parse_string_custom_end(
             return Err(CheckError::new()
                 .src(vec![(
                     (opening, src.get_pos(), srca).into(),
-                    Some(error_colors::StringEOF),
+                    Some(EColor::StringEOF),
                 )])
-                .msg(format!(
+                .msg_str(format!(
                     "EOF in string literal{}",
                     if closing_char != '"' {
                         format!(

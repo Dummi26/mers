@@ -1,10 +1,8 @@
 use std::collections::VecDeque;
 
-use colored::Colorize;
-
 use crate::{
     data::{self, tuple::TupleT, Data, Type},
-    errors::{error_colors, CheckError, SourceRange},
+    errors::{CheckError, EColor, SourceRange},
 };
 
 use super::MersStatement;
@@ -32,33 +30,54 @@ impl MersStatement for Tuple {
                             vec[i].add_all(&e);
                         }
                     } else {
-                        return Err(
-                            format!("can't init a {} with type {}{} - only tuples with the same length ({}) can be assigned.",
-                                "tuple".color(error_colors::InitTo),
-                                t.to_string().color(error_colors::InitFrom),
+                        return Err(CheckError::new().msg(vec![
+                            ("can't init a ".to_owned(), None),
+                            ("tuple".to_owned(), Some(EColor::InitTo)),
+                            (" with type ".to_owned(), None),
+                            (t.to_string(), Some(EColor::InitFrom)),
+                            (
                                 if print_is_part_of {
-                                    format!(", which is part of {}", init_to.to_string().color(error_colors::InitFrom))
+                                    ", which is part of ".to_owned()
                                 } else {
-                                    format!("")
+                                    String::new()
                                 },
-                                self.elems.len()
-                            ).into());
+                                None,
+                            ),
+                            if print_is_part_of {
+                                (init_to.to_string(), Some(EColor::InitFrom))
+                            } else {
+                                (String::new(), None)
+                            },
+                            (
+                                format!(
+                                    " - only tuples with the same length ({}) can be assigned",
+                                    self.elems.len()
+                                ),
+                                None,
+                            ),
+                        ]));
                     }
                 } else {
-                    return Err(format!(
-                        "can't init a {} with type {}{} - only tuples can be assigned to tuples",
-                        "tuple".color(error_colors::InitTo),
-                        t.to_string().color(error_colors::InitFrom),
+                    return Err(CheckError::new().msg(vec![
+                        ("can't init a ".to_owned(), None),
+                        ("tuple".to_owned(), Some(EColor::InitTo)),
+                        (" with type ".to_owned(), None),
+                        (t.to_string(), Some(EColor::InitFrom)),
+                        (
+                            if print_is_part_of {
+                                ", which is part of ".to_owned()
+                            } else {
+                                String::new()
+                            },
+                            None,
+                        ),
                         if print_is_part_of {
-                            format!(
-                                ", which is part of {}",
-                                init_to.to_string().color(error_colors::InitFrom)
-                            )
+                            (init_to.to_string(), Some(EColor::InitFrom))
                         } else {
-                            format!("")
-                        }
-                    )
-                    .into());
+                            (String::new(), None)
+                        },
+                        (" - only tuples can be assigned to tuples".to_owned(), None),
+                    ]));
                 }
             }
             Some(vec)

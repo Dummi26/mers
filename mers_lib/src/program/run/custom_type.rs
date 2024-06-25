@@ -1,10 +1,8 @@
 use std::{fmt::Debug, sync::Arc};
 
-use colored::Colorize;
-
 use crate::{
     data::{Data, Type},
-    errors::{CheckError, SourceRange},
+    errors::{CheckError, EColor, SourceRange},
 };
 
 use super::{CheckInfo, Info, MersStatement};
@@ -45,12 +43,17 @@ impl MersStatement for CustomType {
         } else {
             if let Err(e) = t {
                 return Err(CheckError::new()
-                    .msg(format!(
-                        " {} {} {} (`[[_] := ...]` indicates that `...` must be type-correct)",
-                        "<<".bright_red(),
-                        "Custom type-test failed!".bright_red(),
-                        ">>".bright_red(),
-                    ))
+                    .msg(vec![
+                        (
+                            " << Custom type-test failed! >>".to_owned(),
+                            Some(EColor::CustomTypeTestFailed),
+                        ),
+                        (
+                            " (`[[_] := ...]` indicates that `...` must be type-correct)"
+                                .to_owned(),
+                            None,
+                        ),
+                    ])
                     .err(e));
             }
         }

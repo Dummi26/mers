@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::{
     data::{self, Data, Type},
-    errors::{error_colors, CheckError, SourceRange},
+    errors::{CheckError, EColor, SourceRange},
 };
 
 use super::{Info, MersStatement};
@@ -62,16 +62,13 @@ impl MersStatement for Try {
                         }
                     } else {
                         return Err(CheckError::new()
-                            .msg(format!(
+                            .msg_str(format!(
                                 "try: #{} is not a function, type is {ft} within {func}.",
                                 i + 1
                             ))
                             .src(vec![
                                 (self.source_range(), None),
-                                (
-                                    self.funcs[i].source_range(),
-                                    Some(error_colors::TryNotAFunction),
-                                ),
+                                (self.funcs[i].source_range(), Some(EColor::TryNotAFunction)),
                             ]));
                     }
                 }
@@ -88,15 +85,17 @@ impl MersStatement for Try {
             }
             if !found {
                 let mut err = CheckError::new()
-                    .msg(format!(
+                    .msg_str(format!(
                         "try: no function found for argument of type {arg}."
                     ))
                     .src(vec![(
                         self.pos_in_src.clone(),
-                        Some(error_colors::TryNoFunctionFound),
+                        Some(EColor::TryNoFunctionFound),
                     )]);
                 for (i, e) in errs.into_iter().enumerate() {
-                    err = err.msg(format!("Error for function #{}:", i + 1)).err(e);
+                    err = err
+                        .msg_str(format!("Error for function #{}:", i + 1))
+                        .err(e);
                 }
                 return Err(err);
             }

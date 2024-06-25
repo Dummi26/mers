@@ -14,7 +14,7 @@ fn main() {
 
     eprintln!("This is not:");
     let e = run("5.rust_func".to_owned()).err().unwrap();
-    eprintln!("{e}");
+    eprintln!("{e:?}");
 }
 fn run(src: String) -> Result<(), CheckError> {
     let mut source = Source::new_from_string(src);

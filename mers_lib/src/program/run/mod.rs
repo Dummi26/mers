@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     data::{self, Data, Type},
-    errors::{error_colors, CheckError, SourceRange},
+    errors::{CheckError, EColor, SourceRange},
     info,
 };
 
@@ -98,10 +98,10 @@ pub trait MersStatement: Debug + Send + Sync {
         if let Some(cutoff) = info.global.limit_runtime {
             if Instant::now() >= cutoff {
                 return Err(CheckError::new()
-                    .msg("maximum runtime exceeded".to_owned())
+                    .msg_str("maximum runtime exceeded".to_owned())
                     .src(vec![(
                         self.source_range(),
-                        Some(error_colors::MaximumRuntimeExceeded),
+                        Some(EColor::MaximumRuntimeExceeded),
                     )]));
             }
         }

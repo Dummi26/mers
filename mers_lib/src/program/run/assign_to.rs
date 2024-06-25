@@ -1,8 +1,6 @@
-use colored::Colorize;
-
 use crate::{
     data::{self, Data, Type},
-    errors::{error_colors, CheckError, SourceRange},
+    errors::{CheckError, EColor, SourceRange},
 };
 
 use super::{CheckInfo, MersStatement};
@@ -37,10 +35,10 @@ impl MersStatement for AssignTo {
                 return Err(CheckError::new()
                     .src(vec![
                         (self.pos_in_src.clone(), None),
-                        (self.target.source_range(), Some(error_colors::InitTo)),
-                        (self.source.source_range(), Some(error_colors::InitFrom)),
+                        (self.target.source_range(), Some(EColor::InitTo)),
+                        (self.source.source_range(), Some(EColor::InitFrom)),
                     ])
-                    .msg(format!("Cannot initialize:"))
+                    .msg_str(format!("Cannot initialize:"))
                     .err(e));
             }
         };
@@ -50,15 +48,17 @@ impl MersStatement for AssignTo {
                     return Err(CheckError::new()
                         .src(vec![
                             (self.pos_in_src.clone(), None),
-                            (self.target.source_range(), Some(error_colors::AssignTo)),
-                            (self.source.source_range(), Some(error_colors::AssignFrom)),
+                            (self.target.source_range(), Some(EColor::AssignTo)),
+                            (self.source.source_range(), Some(EColor::AssignFrom)),
                         ])
-                        .msg(format!(
-                            "can't assign {} to {} because it isn't included in {}",
-                            source.to_string().color(error_colors::AssignFrom),
-                            target.to_string().color(error_colors::AssignTo),
-                            t
-                        )));
+                        .msg(vec![
+                            ("can't assign ".to_owned(), None),
+                            (source.to_string(), Some(EColor::AssignFrom)),
+                            (" to ".to_owned(), None),
+                            (target.to_string(), Some(EColor::AssignTo)),
+                            (" because it isn't included in ".to_owned(), None),
+                            (t.to_string(), None),
+                        ]));
                 }
             } else {
                 return Err(CheckError::new()
@@ -66,13 +66,16 @@ impl MersStatement for AssignTo {
                         (self.pos_in_src.clone(), None),
                         (
                             self.target.source_range(),
-                            Some(error_colors::AssignTargetNonReference),
+                            Some(EColor::AssignTargetNonReference),
                         ),
                     ])
-                    .msg(format!(
-                        "can't assign to {}",
-                        "non-reference!".color(error_colors::AssignTargetNonReference)
-                    )));
+                    .msg(vec![
+                        ("can't assign to ".to_owned(), None),
+                        (
+                            "non-reference!".to_owned(),
+                            Some(EColor::AssignTargetNonReference),
+                        ),
+                    ]));
             }
         }
         Ok(Type::empty_tuple())

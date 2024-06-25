@@ -38,7 +38,7 @@ impl Config {
                         if let Some(f) = t.as_any().downcast_ref::<data::function::FunctionT>() {
                             match f.o(&Type::empty_tuple()) {
                                 Ok(t) => out.add_all(&t),
-                                Err(e) => return Err(CheckError::new().msg(format!("Can't call thread on a function which can't be called on an empty tuple: ")).err(e))
+                                Err(e) => return Err(CheckError::new().msg_str(format!("Can't call thread on a function which can't be called on an empty tuple: ")).err(e))
                             }
                         } else {
                             return Err(format!("thread: argument wasn't a function").into());
@@ -69,7 +69,7 @@ impl Config {
                 out: Arc::new(|a, _i| {
                     for t in a.types.iter() {
                         if !t.as_any().is::<ThreadT>() {
-                            return Err(CheckError::new().msg(format!("Cannot call thread_finished on a value of type {t}, which isn't a thread but part of the argument {a}.")));
+                            return Err(CheckError::new().msg_str(format!("Cannot call thread_finished on a value of type {t}, which isn't a thread but part of the argument {a}.")));
                         }
                     }
                     Ok(Type::new(data::bool::BoolT))
@@ -93,7 +93,7 @@ impl Config {
                         if let Some(t) = t.as_any().downcast_ref::<ThreadT>() {
                             out.add_all(&t.0);
                         } else {
-                            return Err(CheckError::new().msg(format!("Cannot call thread_await on a value of type {t}, which isn't a thread but part of the argument {a}.")));
+                            return Err(CheckError::new().msg_str(format!("Cannot call thread_await on a value of type {t}, which isn't a thread but part of the argument {a}.")));
                         }
                     }
                     Ok(out)

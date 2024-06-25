@@ -1,10 +1,9 @@
 use std::{
     fmt::{Debug, Display},
     rc::Rc,
-    sync::{atomic::AtomicUsize, Arc},
+    sync::{atomic::AtomicU32, Arc},
 };
 
-use colored::{ColoredString, Colorize};
 use line_span::LineSpans;
 
 #[cfg(feature = "parse")]
@@ -44,65 +43,169 @@ impl SourceRange {
         &self.in_file
     }
 }
+/// To `Display` this, use one of the `display` methods to get a struct with some configuration options.
+/// The `Debug` impl of this is the same as `Display`ing `this.display_term()` or `this.display_notheme()`, depending on if the `ecolor-term` feature is enabled or not.
+/// Since this may use ansi color codes, it should only be used when printing to a terminal, which is why `CheckError` itself has no `Display` implementation, only this one for `Debug`.
 #[derive(Clone)]
 pub struct CheckError(pub Vec<CheckErrorComponent>);
-#[allow(non_upper_case_globals)]
-pub mod error_colors {
-    use colored::Color;
 
-    pub const UnknownVariable: Color = Color::Red;
+#[derive(Clone, Copy)]
+pub enum EColor {
+    Indent(u32),
 
-    pub const WhitespaceAfterHashtag: Color = Color::Red;
-    pub const HashUnknown: Color = Color::Red;
-    pub const HashIncludeCantLoadFile: Color = Color::Red;
-    pub const HashIncludeNotAString: Color = Color::Red;
-    pub const HashIncludeErrorInIncludedFile: Color = Color::Red;
+    UnknownVariable,
+    WhitespaceAfterHashtag,
+    HashUnknown,
+    HashIncludeCantLoadFile,
+    HashIncludeNotAString,
+    HashIncludeErrorInIncludedFile,
+    BackslashEscapeUnknown,
+    BackslashEscapeEOF,
+    StringEOF,
+    IfConditionNotBool,
+    ChainWithNonFunction,
+    Function,
+    FunctionArgument,
+    InitFrom,
+    InitTo,
+    AssignFrom,
+    AssignTo,
+    AssignTargetNonReference,
+    AsTypeStatementWithTooBroadType,
+    AsTypeTypeAnnotation,
+    BadCharInTupleType,
+    BadCharInFunctionType,
+    BadTypeFromParsed,
+    TypeAnnotationNoClosingBracket,
+    TryBadSyntax,
+    TryNoFunctionFound,
+    TryNotAFunction,
+    TryUnusedFunction1,
+    TryUnusedFunction2,
+    CustomTypeTestFailed,
 
-    pub const BackslashEscapeUnknown: Color = Color::Red;
-    pub const BackslashEscapeEOF: Color = Color::Red;
-    pub const StringEOF: Color = Color::Red;
+    StacktraceDescend,
+    StacktraceDescendHashInclude,
 
-    pub const IfConditionNotBool: Color = Color::Red;
-    pub const ChainWithNonFunction: Color = Color::Yellow;
+    MaximumRuntimeExceeded,
 
-    pub const Function: Color = Color::BrightMagenta;
-    pub const FunctionArgument: Color = Color::BrightBlue;
+    InCodePositionLine,
+}
 
-    pub const InitFrom: Color = Color::BrightCyan;
-    pub const InitTo: Color = Color::Green;
-    pub const AssignFrom: Color = InitFrom;
-    pub const AssignTo: Color = InitTo;
-    pub const AssignTargetNonReference: Color = Color::BrightYellow;
+pub trait Theme<T> {
+    fn color(&self, text: &str, color: EColor, t: &mut T);
+}
+pub trait ThemeTo<T>: Theme<T> {
+    fn color_to(&self, text: &str, color: EColor) -> T;
+}
+impl<T: Theme<String> + ?Sized> ThemeTo<String> for T {
+    fn color_to(&self, text: &str, color: EColor) -> String {
+        let mut t = String::new();
+        self.color(text, color, &mut t);
+        t
+    }
+}
+pub fn colorize_str(
+    message: &Vec<(String, Option<EColor>)>,
+    theme: &(impl Theme<String> + ?Sized),
+) -> String {
+    let mut t = String::new();
+    colorize_gen(message, &mut t, |t, a| a.push_str(t), theme);
+    t
+}
+pub fn colorize_gen<T>(
+    message: &Vec<(String, Option<EColor>)>,
+    t: &mut T,
+    direct: impl Fn(&str, &mut T),
+    theme: &(impl Theme<T> + ?Sized),
+) {
+    for (text, color) in message {
+        if let Some(color) = *color {
+            theme.color(text, color, t)
+        } else {
+            direct(text, t)
+        }
+    }
+}
 
-    pub const AsTypeStatementWithTooBroadType: Color = InitFrom;
-    pub const AsTypeTypeAnnotation: Color = InitTo;
+pub struct NoTheme;
+impl Theme<String> for NoTheme {
+    fn color(&self, text: &str, _color: EColor, t: &mut String) {
+        t.push_str(text);
+    }
+}
 
-    pub const BadCharInTupleType: Color = Color::Red;
-    pub const BadCharInFunctionType: Color = Color::Red;
-    pub const BadTypeFromParsed: Color = Color::Blue;
-    pub const TypeAnnotationNoClosingBracket: Color = Color::Blue;
+#[cfg(feature = "ecolor-term")]
+pub struct TermDefaultTheme;
+#[cfg(feature = "ecolor-term")]
+impl Theme<String> for TermDefaultTheme {
+    fn color(&self, text: &str, color: EColor, t: &mut String) {
+        use colored::{Color, Colorize};
+        t.push_str(&text.color(match color {
+            EColor::Indent(n) => match n % 6 {
+                0 => Color::Red,
+                1 => Color::Green,
+                2 => Color::Yellow,
+                3 => Color::Blue,
+                4 => Color::Magenta,
+                _ => Color::Cyan,
+            },
 
-    pub const TryBadSyntax: Color = Color::Red;
-    pub const TryNoFunctionFound: Color = Color::Red;
-    pub const TryNotAFunction: Color = Color::Red;
-    pub const TryUnusedFunction1: Color = Color::Red;
-    pub const TryUnusedFunction2: Color = Color::BrightRed;
+            EColor::UnknownVariable => Color::Red,
 
-    pub const StacktraceDescend: Color = Color::Yellow;
-    pub const StacktraceDescendHashInclude: Color = Color::Red;
+            EColor::WhitespaceAfterHashtag => Color::Red,
+            EColor::HashUnknown => Color::Red,
+            EColor::HashIncludeCantLoadFile => Color::Red,
+            EColor::HashIncludeNotAString => Color::Red,
+            EColor::HashIncludeErrorInIncludedFile => Color::Red,
 
-    pub const MaximumRuntimeExceeded: Color = Color::BrightYellow;
+            EColor::BackslashEscapeUnknown => Color::Red,
+            EColor::BackslashEscapeEOF => Color::Red,
+            EColor::StringEOF => Color::Red,
+
+            EColor::IfConditionNotBool => Color::Red,
+            EColor::ChainWithNonFunction => Color::Yellow,
+
+            EColor::Function => Color::BrightMagenta,
+            EColor::FunctionArgument => Color::BrightBlue,
+
+            EColor::InitFrom | EColor::AssignFrom | EColor::AsTypeStatementWithTooBroadType => {
+                Color::BrightCyan
+            }
+            EColor::InitTo | EColor::AssignTo | EColor::AsTypeTypeAnnotation => Color::Green,
+            EColor::AssignTargetNonReference => Color::BrightYellow,
+
+            EColor::BadCharInTupleType => Color::Red,
+            EColor::BadCharInFunctionType => Color::Red,
+            EColor::BadTypeFromParsed => Color::Blue,
+            EColor::TypeAnnotationNoClosingBracket => Color::Blue,
+
+            EColor::TryBadSyntax => Color::Red,
+            EColor::TryNoFunctionFound => Color::Red,
+            EColor::TryNotAFunction => Color::Red,
+            EColor::TryUnusedFunction1 => Color::Red,
+            EColor::TryUnusedFunction2 => Color::BrightRed,
+            EColor::CustomTypeTestFailed => Color::BrightRed,
+
+            EColor::StacktraceDescend => Color::Yellow,
+            EColor::StacktraceDescendHashInclude => Color::Red,
+            EColor::MaximumRuntimeExceeded => Color::BrightYellow,
+
+            EColor::InCodePositionLine => Color::BrightBlack,
+        }));
+    }
 }
 #[derive(Clone)]
 pub enum CheckErrorComponent {
-    Message(String),
+    Message(Vec<(String, Option<EColor>)>),
     Error(CheckError),
     ErrorWithDifferentSource(CheckError),
-    Source(Vec<(SourceRange, Option<colored::Color>)>),
+    Source(Vec<(SourceRange, Option<EColor>)>),
 }
 pub struct CheckErrorHRConfig {
-    color_index_ptr: Rc<AtomicUsize>,
-    color_index: usize,
+    color_index_ptr: Rc<AtomicU32>,
+    color_index: u32,
+    theme: Rc<dyn Theme<String>>,
     is_inner: bool,
     style: u8,
     idt_start: String,
@@ -113,7 +216,7 @@ pub struct CheckErrorHRConfig {
     show_comments: bool,
 }
 type BorderCharsSet = [[&'static str; 4]; 3];
-pub struct IndentStr<'a>(&'a str, ColoredString);
+pub struct IndentStr<'a>(&'a str, String);
 impl Display for IndentStr<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}{}", self.0, self.1)
@@ -143,17 +246,11 @@ impl CheckErrorHRConfig {
             ["╩", "╙", "╜", "╨"],
         ],
     ];
-    fn color(&self, s: &str) -> ColoredString {
-        match self.color_index % 8 {
-            0 => s.bright_white(),
-            1 => s.bright_green(),
-            2 => s.bright_purple(),
-            3 => s.bright_cyan(),
-            4 => s.bright_red(),
-            5 => s.bright_yellow(),
-            6 => s.bright_magenta(),
-            _ => s.bright_blue(),
-        }
+    fn color(&self, s: &str) -> String {
+        let mut t = String::new();
+        self.theme
+            .color(s, EColor::Indent(self.color_index), &mut t);
+        return t;
     }
     pub fn indent_start(&self, right: bool) -> IndentStr {
         IndentStr(
@@ -202,6 +299,7 @@ impl CheckErrorHRConfig {
         Self {
             color_index_ptr: self.color_index_ptr.clone(),
             color_index,
+            theme: Rc::clone(&self.theme),
             is_inner: true,
             style,
             idt_start: if is_first {
@@ -231,6 +329,7 @@ impl CheckErrorHRConfig {
 #[cfg(feature = "parse")]
 pub struct CheckErrorDisplay<'a> {
     e: &'a CheckError,
+    theme: Rc<dyn Theme<String>>,
     pub show_comments: bool,
 }
 #[cfg(feature = "parse")]
@@ -247,7 +346,8 @@ impl Display for CheckErrorDisplay<'_> {
             f,
             &CheckErrorHRConfig {
                 color_index: 0,
-                color_index_ptr: Rc::new(AtomicUsize::new(1)),
+                color_index_ptr: Rc::new(AtomicU32::new(1)),
+                theme: Rc::clone(&self.theme),
                 is_inner: false,
                 style: CheckErrorHRConfig::STYLE_DEFAULT,
                 idt_start: String::new(),
@@ -272,10 +372,16 @@ impl CheckError {
         self.0.push(v);
         self
     }
-    pub(crate) fn msg(self, s: String) -> Self {
+    pub(crate) fn msg_str(self, s: String) -> Self {
+        self.add(CheckErrorComponent::Message(vec![(s, None)]))
+    }
+    pub(crate) fn msg_mut_str(&mut self, s: String) -> &mut Self {
+        self.add_mut(CheckErrorComponent::Message(vec![(s, None)]))
+    }
+    pub(crate) fn msg(self, s: Vec<(String, Option<EColor>)>) -> Self {
         self.add(CheckErrorComponent::Message(s))
     }
-    pub(crate) fn msg_mut(&mut self, s: String) -> &mut Self {
+    pub(crate) fn msg_mut(&mut self, s: Vec<(String, Option<EColor>)>) -> &mut Self {
         self.add_mut(CheckErrorComponent::Message(s))
     }
     pub(crate) fn err(self, e: Self) -> Self {
@@ -290,18 +396,30 @@ impl CheckError {
     pub(crate) fn err_with_diff_src_mut(&mut self, e: CheckError) -> &mut Self {
         self.add_mut(CheckErrorComponent::ErrorWithDifferentSource(e))
     }
-    pub(crate) fn src(self, s: Vec<(SourceRange, Option<colored::Color>)>) -> Self {
+    pub(crate) fn src(self, s: Vec<(SourceRange, Option<EColor>)>) -> Self {
         self.add(CheckErrorComponent::Source(s))
     }
-    pub(crate) fn src_mut(&mut self, s: Vec<(SourceRange, Option<colored::Color>)>) -> &mut Self {
+    pub(crate) fn src_mut(&mut self, s: Vec<(SourceRange, Option<EColor>)>) -> &mut Self {
         self.add_mut(CheckErrorComponent::Source(s))
     }
     #[cfg(feature = "parse")]
-    pub fn display<'a>(&'a self) -> CheckErrorDisplay<'a> {
+    pub fn display<'a>(&'a self, theme: impl Theme<String> + 'static) -> CheckErrorDisplay<'a> {
         CheckErrorDisplay {
             e: self,
+            theme: Rc::new(theme),
             show_comments: true,
         }
+    }
+    /// Like `display`, but doesn't use any theme (doesn't colorize its output)
+    #[cfg(feature = "parse")]
+    pub fn display_notheme<'a>(&'a self) -> CheckErrorDisplay<'a> {
+        self.display(NoTheme)
+    }
+    /// Like `display`, but uses the default terminal theme
+    #[cfg(feature = "parse")]
+    #[cfg(feature = "ecolor-term")]
+    pub fn display_term<'a>(&'a self) -> CheckErrorDisplay<'a> {
+        self.display(TermDefaultTheme)
     }
     /// will, unless empty, end in a newline
     #[cfg(feature = "parse")]
@@ -330,6 +448,7 @@ impl CheckError {
             }
             match component {
                 CheckErrorComponent::Message(msg) => {
+                    let msg = colorize_str(msg, cfg.theme.as_ref());
                     let lines = msg.lines().collect::<Vec<_>>();
                     let lc = lines.len();
                     for (i, line) in lines.into_iter().enumerate() {
@@ -403,26 +522,30 @@ impl CheckError {
                                     f,
                                     "{}{}",
                                     indent!(true, false, ADD_RIGHT_BITS),
-                                    format!(
-                                        "Line {first_line_nr} ({}..{}){}",
-                                        start_with_comments + 1 - first_line_start,
-                                        end_with_comments - last_line_start,
-                                        src_from,
+                                    cfg.theme.color_to(
+                                        &format!(
+                                            "Line {first_line_nr} ({}..{}){}",
+                                            start_with_comments + 1 - first_line_start,
+                                            end_with_comments - last_line_start,
+                                            src_from,
+                                        ),
+                                        EColor::InCodePositionLine
                                     )
-                                    .bright_black()
                                 )?;
                             } else {
                                 writeln!(
                                     f,
                                     "{}{}",
                                     indent!(true, false, ADD_RIGHT_BITS),
-                                    format!(
-                                        "Lines {first_line_nr}-{last_line_nr} ({}..{}){}",
-                                        start_with_comments + 1 - first_line_start,
-                                        end_with_comments - last_line_start,
-                                        src_from,
+                                    cfg.theme.color_to(
+                                        &format!(
+                                            "Lines {first_line_nr}-{last_line_nr} ({}..{}){}",
+                                            start_with_comments + 1 - first_line_start,
+                                            end_with_comments - last_line_start,
+                                            src_from,
+                                        ),
+                                        EColor::InCodePositionLine
                                     )
-                                    .bright_black()
                                 )?;
                             }
                             let lines = if cfg.show_comments {
@@ -441,7 +564,7 @@ impl CheckError {
                                 for (highlight_index, (highlight_pos, color)) in
                                     highlights.iter().enumerate()
                                 {
-                                    if let Some(color) = color {
+                                    if let Some(color) = *color {
                                         let (highlight_start, highlight_end) = if cfg.show_comments
                                         {
                                             (
@@ -515,7 +638,7 @@ impl CheckError {
                                                 f,
                                                 "{}{}",
                                                 " ".repeat(hl_space),
-                                                "~".repeat(hl_len).color(*color)
+                                                &cfg.theme.color_to(&"~".repeat(hl_len), color)
                                             )?;
                                         }
                                     }
@@ -538,21 +661,20 @@ impl CheckError {
 }
 impl From<String> for CheckError {
     fn from(value: String) -> Self {
-        Self::new().msg(value)
+        Self::new().msg_str(value)
     }
 }
 impl From<&str> for CheckError {
     fn from(value: &str) -> Self {
-        Self::new().msg(value.to_owned())
+        value.to_owned().into()
     }
 }
 impl Debug for CheckError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self}")
-    }
-}
-impl Display for CheckError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.display())
+        #[cfg(feature = "ecolor-term")]
+        let e = self.display_term();
+        #[cfg(not(feature = "ecolor-term"))]
+        let e = self.display_notheme();
+        write!(f, "{e}")
     }
 }

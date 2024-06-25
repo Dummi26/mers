@@ -3,11 +3,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use colored::Colorize;
-
 use crate::{
     data::{self, Data, Type},
-    errors::error_colors,
+    errors::{CheckError, EColor},
     program::{self, run::CheckInfo},
 };
 
@@ -33,11 +31,10 @@ impl Config {
                             Arc::new(data::tuple::TupleT(vec![])),
                         ]))
                     } else {
-                        Err(format!(
-                            "expected (), got {}",
-                            a.to_string().color(error_colors::FunctionArgument)
-                        )
-                        .into())
+                        Err(CheckError::new().msg(vec![
+                            ("expected (), got ".to_owned(), None),
+                            (a.to_string(), Some(EColor::FunctionArgument)),
+                        ]))
                     }
                 }),
                 run: Arc::new(|_a, _i| {

@@ -1,10 +1,8 @@
 use std::collections::VecDeque;
 
-use colored::Colorize;
-
 use crate::{
     data::{self, object::ObjectT, Data, Type},
-    errors::{error_colors, CheckError, SourceRange},
+    errors::{CheckError, EColor, SourceRange},
 };
 
 use super::MersStatement;
@@ -31,34 +29,47 @@ impl MersStatement for Object {
                         for (i, ((sn, _), (tn, t))) in self.elems.iter().zip(t.0.iter()).enumerate()
                         {
                             if sn != tn {
-                                return Err(format!("can't init an {} with type {}{} - field mismatch: {sn} != {tn}",                                    "object".color(error_colors::InitTo),
-                                                t.to_string().color(error_colors::InitFrom),
-                                                if print_is_part_of {
-                                                    format!(
-                                                        ", which is part of {}",
-                                                        init_to.to_string().color(error_colors::InitFrom)
-                                                    )
-                                                } else {
-                                                    format!("")
-                                                }
-                                            ).into());
+                                return Err(CheckError::new().msg(vec![
+                                    ("can't init an ".to_owned(), None),
+                                    ("object".to_owned(), Some(EColor::InitTo)),
+                                    (" with type ".to_owned(), None),
+                                    (t.to_string(), Some(EColor::InitFrom)),
+                                    if print_is_part_of {
+                                        (", which is part of ".to_owned(), None)
+                                    } else {
+                                        (String::new(), None)
+                                    },
+                                    if print_is_part_of {
+                                        (init_to.to_string(), Some(EColor::InitFrom))
+                                    } else {
+                                        (String::new(), None)
+                                    },
+                                    (" - field mismatch: ".to_owned(), None),
+                                    (sn.to_owned(), None),
+                                    (" != ".to_owned(), None),
+                                    (tn.to_owned(), None),
+                                ]));
                             }
                             acc[i].add_all(&t);
                         }
                     } else {
-                        return Err(format!(
-                            "can't init an {} with type {}{} - source has {}",
-                            "object".color(error_colors::InitTo),
-                            t.to_string().color(error_colors::InitFrom),
+                        return Err(CheckError::new().msg(vec![
+                            ("can't init an ".to_owned(), None),
+                            ("object".to_owned(), Some(EColor::InitTo)),
+                            (" with type ".to_owned(), None),
+                            (t.to_string(), Some(EColor::InitFrom)),
                             if print_is_part_of {
-                                format!(
-                                    ", which is part of {}",
-                                    init_to.to_string().color(error_colors::InitFrom)
-                                )
+                                (", which is part of ".to_owned(), None)
                             } else {
-                                format!("")
+                                (format!(""), None)
                             },
-                            if self.elems.len() > t.0.len() {
+                            if print_is_part_of {
+                                (init_to.to_string(), Some(EColor::InitFrom))
+                            } else {
+                                (format!(""), None)
+                            },
+                            (" - source has ".to_owned(), None),
+                            (if self.elems.len() > t.0.len() {
                                 format!("less fields ({}, not {})", t.0.len(), self.elems.len())
                             } else {
                                 format!(
@@ -74,25 +85,30 @@ impl MersStatement for Object {
                                         .collect::<String>(),
                                     data::object::ObjectT(t.0.iter().take(self.elems.len()).cloned().collect())
                                 )
-                            }
-                        )
-                        .into());
+                            }, None)
+                        ]));
                     }
                 } else {
-                    return Err(format!(
-                        "can't init an {} with type {}{} - only objects can be assigned to objects",
-                        "object".color(error_colors::InitTo),
-                        t.to_string().color(error_colors::InitFrom),
+                    return Err(CheckError::new().msg(vec![
+                        ("can't init an ".to_owned(), None),
+                        ("object".to_owned(), Some(EColor::InitTo)),
+                        (" with type ".to_owned(), None),
+                        (t.to_string(), Some(EColor::InitFrom)),
                         if print_is_part_of {
-                            format!(
-                                ", which is part of {}",
-                                init_to.to_string().color(error_colors::InitFrom)
-                            )
+                            (", which is part of ".to_owned(), None)
                         } else {
-                            format!("")
-                        }
-                    )
-                    .into());
+                            (format!(""), None)
+                        },
+                        if print_is_part_of {
+                            (init_to.to_string(), Some(EColor::InitFrom))
+                        } else {
+                            (format!(""), None)
+                        },
+                        (
+                            " - only objects can be assigned to objects".to_owned(),
+                            None,
+                        ),
+                    ]));
                 }
             }
             Some(acc)

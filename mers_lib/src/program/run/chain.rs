@@ -1,8 +1,6 @@
-use colored::Colorize;
-
 use crate::{
     data::{Data, Type},
-    errors::{error_colors, CheckError, SourceRange},
+    errors::{CheckError, EColor, SourceRange},
     parsing::Source,
 };
 
@@ -44,29 +42,27 @@ impl MersStatement for Chain {
                             CheckError::new()
                                 .src(vec![(
                                     self.pos_in_src.clone(),
-                                    Some(error_colors::HashIncludeErrorInIncludedFile),
+                                    Some(EColor::HashIncludeErrorInIncludedFile),
                                 )])
-                                .msg(
-                                    "Error in #include:"
-                                        .color(error_colors::HashIncludeErrorInIncludedFile)
-                                        .to_string(),
-                                )
+                                .msg(vec![(
+                                    "Error in #include:".to_owned(),
+                                    Some(EColor::HashIncludeErrorInIncludedFile),
+                                )])
                                 .err_with_diff_src(e)
                         } else {
                             CheckError::new()
                                 .src(vec![
                                     (self.pos_in_src.clone(), None),
-                                    (
-                                        self.first.source_range(),
-                                        Some(error_colors::FunctionArgument),
-                                    ),
-                                    (self.chained.source_range(), Some(error_colors::Function)),
+                                    (self.first.source_range(), Some(EColor::FunctionArgument)),
+                                    (self.chained.source_range(), Some(EColor::Function)),
                                 ])
-                                .msg(format!(
-                                    "Can't call {} with an argument of type {}:",
-                                    "this function".color(error_colors::Function),
-                                    arg.to_string().color(error_colors::FunctionArgument)
-                                ))
+                                .msg(vec![
+                                    ("Can't call ".to_owned(), None),
+                                    ("this function".to_owned(), Some(EColor::Function)),
+                                    (" with an argument of type ".to_owned(), None),
+                                    (arg.to_string(), Some(EColor::FunctionArgument)),
+                                    (":".to_owned(), None),
+                                ])
                                 .err(e)
                         })
                     }
@@ -77,13 +73,14 @@ impl MersStatement for Chain {
                         (self.pos_in_src.clone(), None),
                         (
                             self.chained.source_range(),
-                            Some(error_colors::ChainWithNonFunction),
+                            Some(EColor::ChainWithNonFunction),
                         ),
                     ])
-                    .msg(format!(
-                        "cannot chain with a non-function ({})",
-                        func.to_string().color(error_colors::ChainWithNonFunction)
-                    )));
+                    .msg(vec![
+                        ("cannot chain with a non-function (".to_owned(), None),
+                        (func.to_string(), Some(EColor::ChainWithNonFunction)),
+                        (")".to_owned(), None),
+                    ]));
             }
         }
         Ok(o)
@@ -98,12 +95,12 @@ impl MersStatement for Chain {
                 Err(e) => Err(if let Some(_) = &self.as_part_of_include {
                     CheckError::new().err_with_diff_src(e).src(vec![(
                         self.pos_in_src.clone(),
-                        Some(error_colors::StacktraceDescendHashInclude),
+                        Some(EColor::StacktraceDescendHashInclude),
                     )])
                 } else {
                     CheckError::new().err(e).src(vec![
                         (self.pos_in_src.clone(), None),
-                        (self.source_range(), Some(error_colors::StacktraceDescend)),
+                        (self.source_range(), Some(EColor::StacktraceDescend)),
                     ])
                 }),
             }

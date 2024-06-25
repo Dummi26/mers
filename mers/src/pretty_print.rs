@@ -7,7 +7,7 @@ pub fn pretty_print(mut src: Source) {
     let srca = Arc::new(src.clone());
     match parse(&mut src, &srca) {
         Err(e) => {
-            eprintln!("{e}");
+            eprintln!("{e:?}");
             exit(28);
         }
         Ok(parsed) => {
