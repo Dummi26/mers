@@ -1,4 +1,4 @@
-use std::{io::Write, sync::Arc};
+use std::sync::Arc;
 
 use crate::{
     errors::CheckError,
@@ -12,10 +12,11 @@ pub fn pretty_print(src: Source) {
         eprintln!("{e:?}");
         std::process::exit(28);
     }
+    println!();
 }
 
 /// to print to stdout, use `pretty_print` (available only with the `ecolor-term` feature)
-pub fn pretty_print_to<O: Write>(
+pub fn pretty_print_to<O>(
     mut src: Source,
     out: &mut O,
     theme: impl FTheme<O>,
@@ -140,7 +141,7 @@ impl ThemeGen for HtmlDefaultTheme {
 pub trait FTheme<O>: ThemeGen<C = FColor, T = O> {}
 impl<O, T: ThemeGen<C = FColor, T = O>> FTheme<O> for T {}
 
-fn print_parsed<O: Write>(
+fn print_parsed<O>(
     srca: &Arc<Source>,
     parsed: &dyn crate::program::parsed::MersStatement,
     out: &mut O,
@@ -158,7 +159,6 @@ fn print_parsed<O: Write>(
         theme.color(&src[i..end], clr, out);
         i = end;
     }
-    let _ = writeln!(out);
 }
 fn build_print(
     sections: &mut Vec<(FColor, usize)>,
