@@ -1,4 +1,4 @@
-use std::{io::Write, process::exit, sync::Arc};
+use std::{io::Write, sync::Arc};
 
 use crate::{
     errors::CheckError,
@@ -10,7 +10,7 @@ use crate::{
 pub fn pretty_print(src: Source) {
     if let Err(e) = pretty_print_to(src, &mut std::io::stdout(), DefaultTheme) {
         eprintln!("{e:?}");
-        exit(28);
+        std::process::exit(28);
     }
 }
 
@@ -92,6 +92,35 @@ impl ThemeGen for DefaultTheme {
     }
     fn nocolor(&self, text: &str, t: &mut Self::T) {
         let _ = write!(t, "{}", text);
+    }
+}
+
+#[cfg(feature = "ecolor-html")]
+pub struct HtmlDefaultTheme;
+#[cfg(feature = "ecolor-html")]
+impl ThemeGen for HtmlDefaultTheme {
+    type C = FColor;
+    type T = String;
+    fn color(&self, text: &str, color: FColor, t: &mut String) {
+        if let Some(color) = map_color(color) {
+            let color = match color {
+                AbstractColor::Gray => "Gray",
+                AbstractColor::Green => "Green",
+                AbstractColor::Red => "Crimson",
+                AbstractColor::Blue => "RoyalBlue",
+                AbstractColor::Cyan => "DarkCyan",
+            };
+            t.push_str("<span style=\"color:");
+            t.push_str(color);
+            t.push_str(";\">");
+            self.nocolor(text, t);
+            t.push_str("</span>");
+        } else {
+            self.nocolor(text, t);
+        }
+    }
+    fn nocolor(&self, text: &str, t: &mut String) {
+        html_escape::encode_text_to_string(text, t);
     }
 }
 
