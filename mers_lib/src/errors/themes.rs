@@ -70,8 +70,7 @@ pub fn default_theme<C>(
         UnknownVariable => hard_err,
         BackslashEscapeUnknown => hard_err,
         BackslashEscapeEOF | StringEOF | TypeEOF => missing,
-        BadCharInTupleType => hard_err,
-        BadCharInFunctionType => hard_err,
+        BadCharInTupleType | BadCharInFunctionType | BadCharAtStartOfStatement => hard_err,
         TryBadSyntax => hard_err,
         TypeAnnotationNoClosingBracket | BracketedRefTypeNoClosingBracket => missing,
 

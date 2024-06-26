@@ -112,113 +112,116 @@ pub fn parse(
         return Ok(None);
     };
     let mut pos_after_first = src.get_pos();
-    src.skip_whitespace();
-    match src.peek_word_allow_colon() {
-        ":=" => {
-            let pos_in_src = src.get_pos();
-            src.next_word_allow_colon();
-            let source = parse(src, srca)?.ok_or_else(|| {
-                CheckError::new()
-                    .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
-                    .msg_str(format!("EOF after `:=`"))
-            })?;
-            first = Box::new(program::parsed::init_to::InitTo {
-                pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
-                target: first,
-                source,
-            });
-        }
-        "=" => {
-            let pos_in_src = src.get_pos();
-            src.next_word_allow_colon();
-            let source = parse(src, srca)?.ok_or_else(|| {
-                CheckError::new()
-                    .src(vec![(
-                        (first.source_range().start(), src.get_pos(), srca).into(),
-                        None,
-                    )])
-                    .msg_str(format!("EOF after `=`"))
-            })?;
-            first = Box::new(program::parsed::assign_to::AssignTo {
-                pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
-                target: first,
-                source,
-            });
-        }
-        "->" => {
-            let pos_in_src = src.get_pos();
-            src.next_word_allow_colon();
-            let run = match parse(src, srca) {
-                Ok(Some(v)) => v,
-                Ok(None) => {
-                    return Err(CheckError::new()
+    loop {
+        src.skip_whitespace();
+        match src.peek_word_allow_colon() {
+            ":=" => {
+                let pos_in_src = src.get_pos();
+                src.next_word_allow_colon();
+                let source = parse(src, srca)?.ok_or_else(|| {
+                    CheckError::new()
                         .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
-                        .msg_str(format!("EOF after `->`")))
-                }
-                Err(e) => return Err(e),
-            };
-            first = Box::new(program::parsed::function::Function {
-                pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
-                arg: first,
-                run,
-            });
-        }
-        _ => loop {
-            src.skip_whitespace();
-            let dot_in_src = src.get_pos();
-            if let Some('.') = src.peek_char() {
-                src.next_char();
-                src.skip_whitespace();
-                if src.peek_word() == "try" {
-                    src.next_word();
-                    src.skip_whitespace();
-                    if let Some('(') = src.next_char() {
-                        let funcs = parse_tuple_without_open(src, srca)?;
-                        first = Box::new(program::parsed::r#try::Try {
-                            pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
-                            arg: first,
-                            funcs,
-                        });
-                        pos_after_first = src.get_pos();
-                    } else {
-                        return Err(CheckError::new()
-                            .msg_str(format!("Expected `(` after `.try`"))
-                            .src(vec![(
-                                (dot_in_src, src.get_pos(), srca).into(),
-                                Some(EColor::TryBadSyntax),
-                            )]));
-                    }
-                } else {
-                    let chained = match parse_no_chain(src, srca) {
-                        Ok(Some(v)) => v,
-                        Ok(None) => {
-                            return Err(CheckError::new()
-                                .src(vec![((dot_in_src, src.get_pos(), srca).into(), None)])
-                                .msg_str(format!("EOF after `.`")))
-                        }
-                        Err(e) => return Err(e),
-                    };
-                    // allow a.f(b, c) syntax (but not f(a, b, c))
-                    if let Some('(') = src.peek_char() {
-                        src.next_char();
-                        let elems = parse_multiple(src, srca, ")")?;
-                        first = Box::new(program::parsed::tuple::Tuple {
-                            pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
-                            elems: [first].into_iter().chain(elems).collect(),
-                        });
-                    }
-                    first = Box::new(program::parsed::chain::Chain {
-                        pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
-                        first,
-                        chained,
-                    });
-                    pos_after_first = src.get_pos();
-                }
-            } else {
-                src.set_pos(pos_after_first);
+                        .msg_str(format!("EOF after `:=`"))
+                })?;
+                first = Box::new(program::parsed::init_to::InitTo {
+                    pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
+                    target: first,
+                    source,
+                });
                 break;
             }
-        },
+            "=" => {
+                let pos_in_src = src.get_pos();
+                src.next_word_allow_colon();
+                let source = parse(src, srca)?.ok_or_else(|| {
+                    CheckError::new()
+                        .src(vec![(
+                            (first.source_range().start(), src.get_pos(), srca).into(),
+                            None,
+                        )])
+                        .msg_str(format!("EOF after `=`"))
+                })?;
+                first = Box::new(program::parsed::assign_to::AssignTo {
+                    pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
+                    target: first,
+                    source,
+                });
+                break;
+            }
+            "->" => {
+                let pos_in_src = src.get_pos();
+                src.next_word_allow_colon();
+                let run = match parse(src, srca) {
+                    Ok(Some(v)) => v,
+                    Ok(None) => {
+                        return Err(CheckError::new()
+                            .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
+                            .msg_str(format!("EOF after `->`")))
+                    }
+                    Err(e) => return Err(e),
+                };
+                first = Box::new(program::parsed::function::Function {
+                    pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
+                    arg: first,
+                    run,
+                });
+                break;
+            }
+            _ => (),
+        }
+        let dot_in_src = src.get_pos();
+        if let Some('.') = src.peek_char() {
+            src.next_char();
+            src.skip_whitespace();
+            if src.peek_word() == "try" {
+                src.next_word();
+                src.skip_whitespace();
+                if let Some('(') = src.next_char() {
+                    let funcs = parse_tuple_without_open(src, srca)?;
+                    first = Box::new(program::parsed::r#try::Try {
+                        pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
+                        arg: first,
+                        funcs,
+                    });
+                    pos_after_first = src.get_pos();
+                } else {
+                    return Err(CheckError::new()
+                        .msg_str(format!("Expected `(` after `.try`"))
+                        .src(vec![(
+                            (dot_in_src, src.get_pos(), srca).into(),
+                            Some(EColor::TryBadSyntax),
+                        )]));
+                }
+            } else {
+                let chained = match parse_no_chain(src, srca) {
+                    Ok(Some(v)) => v,
+                    Ok(None) => {
+                        return Err(CheckError::new()
+                            .src(vec![((dot_in_src, src.get_pos(), srca).into(), None)])
+                            .msg_str(format!("EOF after `.`")))
+                    }
+                    Err(e) => return Err(e),
+                };
+                // allow a.f(b, c) syntax (but not f(a, b, c))
+                if let Some('(') = src.peek_char() {
+                    src.next_char();
+                    let elems = parse_multiple(src, srca, ")")?;
+                    first = Box::new(program::parsed::tuple::Tuple {
+                        pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
+                        elems: [first].into_iter().chain(elems).collect(),
+                    });
+                }
+                first = Box::new(program::parsed::chain::Chain {
+                    pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
+                    first,
+                    chained,
+                });
+                pos_after_first = src.get_pos();
+            }
+        } else {
+            src.set_pos(pos_after_first);
+            break;
+        }
     }
     if matches!(src.peek_char(), Some(',' | ';')) {
         src.next_char();
@@ -495,15 +498,17 @@ pub fn parse_no_chain(
             pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
             data: Data::new(crate::data::bool::Bool(false)),
         }),
-        "" => return Ok(None),
-        o => {
+        o if !o.trim().is_empty() => {
             let o = o.to_string();
             src.section_begin("literals, variables, and other non-keyword things".to_string());
             if let Ok(n) = o.parse() {
                 if src.peek_char() == Some('.') {
                     let here = src.get_pos();
                     src.next_char();
-                    if let Ok(num) = format!("{o}.{}", src.next_word()).parse() {
+                    let after_dot = src.next_word();
+                    if let Some(Ok(num)) =
+                        (!after_dot.is_empty()).then_some(format!("{o}.{}", after_dot).parse())
+                    {
                         Box::new(program::parsed::value::Value {
                             pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
                             data: Data::new(crate::data::float::Float(num)),
@@ -544,6 +549,21 @@ pub fn parse_no_chain(
                         var: o.to_string(),
                     })
                 }
+            }
+        }
+        // empty string (after calling .trim())
+        _ => {
+            if src.next_char().is_some() {
+                // unexpected word-separator character
+                return Err(CheckError::new()
+                    .src(vec![(
+                        (pos_in_src, src.get_pos(), srca).into(),
+                        Some(EColor::BadCharAtStartOfStatement),
+                    )])
+                    .msg_str("Unexpected character found at the start of a statement".to_owned()));
+            } else {
+                // EOF
+                return Ok(None);
             }
         }
     }))

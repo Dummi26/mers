@@ -81,6 +81,7 @@ pub enum EColor {
     AsTypeTypeAnnotation,
     BadCharInTupleType,
     BadCharInFunctionType,
+    BadCharAtStartOfStatement,
     BadTypeFromParsed,
     TypeAnnotationNoClosingBracket,
     TryBadSyntax,
