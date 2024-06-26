@@ -23,6 +23,7 @@ pub fn pretty_print_to<O: Write>(
     let srca = Arc::new(src.clone());
     let parsed = parse(&mut src, &srca)?;
     print_parsed(&srca, parsed.as_ref(), out, theme);
+    Ok(())
 }
 
 pub enum AbstractColor {
