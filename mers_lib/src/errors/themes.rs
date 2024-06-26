@@ -172,6 +172,6 @@ impl ThemeGen for HtmlDefaultTheme {
         }
     }
     fn nocolor(&self, text: &str, t: &mut String) {
-        t.push_str(html_escape::encode_text(text).replace("\n", "<br>\n"));
+        html_escape::encode_text_to_string(text, t);
     }
 }
