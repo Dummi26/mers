@@ -165,13 +165,13 @@ impl ThemeGen for HtmlDefaultTheme {
             t.push_str("<span style=\"color:");
             t.push_str(color);
             t.push_str(";\">");
-            html_escape::encode_text_to_string(text, t);
+            self.nocolor(text, t);
             t.push_str("</span>");
         } else {
-            html_escape::encode_text_to_string(text, t);
+            self.nocolor(text, t);
         }
     }
     fn nocolor(&self, text: &str, t: &mut String) {
-        t.push_str(text);
+        t.push_str(html_escape::encode_text(text).replace("\n", "<br>\n"));
     }
 }
