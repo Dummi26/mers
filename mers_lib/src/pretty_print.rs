@@ -5,13 +5,12 @@ use crate::{
     theme::ThemeGen,
 };
 
-#[cfg(not(feature = "ecolor-term"))]
-compile_error!("feature ecolor-term is required if pretty-print feature is enabled");
-
+#[cfg(feature = "ecolor-term")]
 pub fn pretty_print(src: Source) {
     pretty_print_to(src, &mut std::io::stdout(), DefaultTheme)
 }
 
+/// to print to stdout, use `pretty_print` (available only with the `ecolor-term` feature)
 pub fn pretty_print_to<O: Write>(mut src: Source, out: &mut O, theme: impl FTheme<O>) {
     let srca = Arc::new(src.clone());
     match parse(&mut src, &srca) {
@@ -65,7 +64,9 @@ pub enum FColor {
     Unknown,
 }
 
+#[cfg(feature = "ecolor-term")]
 pub struct DefaultTheme;
+#[cfg(feature = "ecolor-term")]
 impl ThemeGen for DefaultTheme {
     type C = FColor;
     type T = std::io::Stdout;
