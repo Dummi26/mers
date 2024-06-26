@@ -555,7 +555,7 @@ pub fn parse_string(
     srca: &Arc<Source>,
     double_quote: SourcePos,
 ) -> Result<String, CheckError> {
-    parse_string_custom_end(src, srca, double_quote, '"', '"')
+    parse_string_custom_end(src, srca, double_quote, '"', '"', "", EColor::StringEOF)
 }
 pub fn parse_string_custom_end(
     src: &mut Source,
@@ -563,6 +563,8 @@ pub fn parse_string_custom_end(
     opening: SourcePos,
     opening_char: char,
     closing_char: char,
+    string_prefix: &str,
+    eof_color: EColor,
 ) -> Result<String, CheckError> {
     let mut s = String::new();
     loop {
@@ -602,13 +604,13 @@ pub fn parse_string_custom_end(
             return Err(CheckError::new()
                 .src(vec![(
                     (opening, src.get_pos(), srca).into(),
-                    Some(EColor::StringEOF),
+                    Some(eof_color),
                 )])
                 .msg_str(format!(
-                    "EOF in string literal{}",
+                    "EOF in {string_prefix}string literal{}",
                     if closing_char != '"' {
                         format!(
-                            "{opening_char}...{closing_char} (end string with '{closing_char}')"
+                            " {opening_char}...{closing_char} (end string with '{closing_char}')"
                         )
                     } else {
                         String::new()

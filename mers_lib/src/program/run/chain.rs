@@ -105,7 +105,12 @@ impl MersStatement for Chain {
                 }),
             }
         } else {
-            todo!("err: not a function");
+            Err(CheckError::new()
+                .msg_str("tried to chain with non-function".to_owned())
+                .src(vec![(
+                    self.chained.source_range(),
+                    Some(EColor::ChainWithNonFunction),
+                )]))
         }
     }
     fn has_scope(&self) -> bool {

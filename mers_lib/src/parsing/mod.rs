@@ -308,6 +308,9 @@ impl Source {
         line
     }
 
+    pub fn get_pos_last_char(&self) -> SourcePos {
+        SourcePos(self.i.saturating_sub(1))
+    }
     pub fn get_pos(&self) -> SourcePos {
         SourcePos(self.i)
     }

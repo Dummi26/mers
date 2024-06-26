@@ -7,7 +7,10 @@ pub mod info;
 /// parser implementation.
 #[cfg(feature = "parse")]
 pub mod parsing;
+#[cfg(feature = "pretty-print")]
+pub mod pretty_print;
 pub mod program;
+pub mod theme;
 
 #[cfg(feature = "parse")]
 pub mod prelude_compile {

@@ -8,6 +8,9 @@ use line_span::LineSpans;
 
 #[cfg(feature = "parse")]
 use crate::parsing::Source;
+use crate::theme::ThemeGen;
+
+pub mod themes;
 
 #[derive(Clone, Copy, Debug)]
 pub struct SourcePos(pub(crate) usize);
@@ -62,6 +65,9 @@ pub enum EColor {
     BackslashEscapeUnknown,
     BackslashEscapeEOF,
     StringEOF,
+    TypeEOF,
+    /// `&[Int/String` (notice the missing `]`)
+    BracketedRefTypeNoClosingBracket,
     IfConditionNotBool,
     ChainWithNonFunction,
     Function,
@@ -92,115 +98,24 @@ pub enum EColor {
     InCodePositionLine,
 }
 
-pub trait Theme<T> {
-    fn color(&self, text: &str, color: EColor, t: &mut T);
-}
-pub trait ThemeTo<T>: Theme<T> {
-    fn color_to(&self, text: &str, color: EColor) -> T;
-}
-impl<T: Theme<String> + ?Sized> ThemeTo<String> for T {
-    fn color_to(&self, text: &str, color: EColor) -> String {
-        let mut t = String::new();
-        self.color(text, color, &mut t);
-        t
-    }
-}
+pub trait ETheme: ThemeGen<C = EColor, T = String> {}
+impl<T: ThemeGen<C = EColor, T = String>> ETheme for T {}
+
 pub fn colorize_str(
     message: &Vec<(String, Option<EColor>)>,
-    theme: &(impl Theme<String> + ?Sized),
+    theme: &(impl ETheme + ?Sized),
 ) -> String {
     let mut t = String::new();
-    colorize_gen(message, &mut t, |t, a| a.push_str(t), theme);
-    t
-}
-pub fn colorize_gen<T>(
-    message: &Vec<(String, Option<EColor>)>,
-    t: &mut T,
-    direct: impl Fn(&str, &mut T),
-    theme: &(impl Theme<T> + ?Sized),
-) {
     for (text, color) in message {
         if let Some(color) = *color {
-            theme.color(text, color, t)
+            theme.color(text, color, &mut t)
         } else {
-            direct(text, t)
+            theme.nocolor(text, &mut t)
         }
     }
+    t
 }
 
-pub struct NoTheme;
-impl Theme<String> for NoTheme {
-    fn color(&self, text: &str, _color: EColor, t: &mut String) {
-        t.push_str(text);
-    }
-}
-
-#[cfg(feature = "ecolor-term")]
-pub struct TermDefaultTheme;
-#[cfg(feature = "ecolor-term")]
-impl Theme<String> for TermDefaultTheme {
-    fn color(&self, text: &str, color: EColor, t: &mut String) {
-        use colored::{Color, Colorize};
-        t.push_str(
-            &text
-                .color(match color {
-                    EColor::Indent(n) => match n % 6 {
-                        0 => Color::Red,
-                        1 => Color::Green,
-                        2 => Color::Yellow,
-                        3 => Color::Blue,
-                        4 => Color::Magenta,
-                        _ => Color::Cyan,
-                    },
-
-                    EColor::UnknownVariable => Color::Red,
-
-                    EColor::WhitespaceAfterHashtag => Color::Red,
-                    EColor::HashUnknown => Color::Red,
-                    EColor::HashIncludeCantLoadFile => Color::Red,
-                    EColor::HashIncludeNotAString => Color::Red,
-                    EColor::HashIncludeErrorInIncludedFile => Color::Red,
-
-                    EColor::BackslashEscapeUnknown => Color::Red,
-                    EColor::BackslashEscapeEOF => Color::Red,
-                    EColor::StringEOF => Color::Red,
-
-                    EColor::IfConditionNotBool => Color::Red,
-                    EColor::ChainWithNonFunction => Color::Yellow,
-
-                    EColor::Function => Color::BrightMagenta,
-                    EColor::FunctionArgument => Color::BrightBlue,
-
-                    EColor::InitFrom
-                    | EColor::AssignFrom
-                    | EColor::AsTypeStatementWithTooBroadType => Color::BrightCyan,
-                    EColor::InitTo | EColor::AssignTo | EColor::AsTypeTypeAnnotation => {
-                        Color::Green
-                    }
-                    EColor::AssignTargetNonReference => Color::BrightYellow,
-
-                    EColor::BadCharInTupleType => Color::Red,
-                    EColor::BadCharInFunctionType => Color::Red,
-                    EColor::BadTypeFromParsed => Color::Blue,
-                    EColor::TypeAnnotationNoClosingBracket => Color::Blue,
-
-                    EColor::TryBadSyntax => Color::Red,
-                    EColor::TryNoFunctionFound => Color::Red,
-                    EColor::TryNotAFunction => Color::Red,
-                    EColor::TryUnusedFunction1 => Color::Red,
-                    EColor::TryUnusedFunction2 => Color::BrightRed,
-                    EColor::CustomTypeTestFailed => Color::BrightRed,
-
-                    EColor::StacktraceDescend => Color::Yellow,
-                    EColor::StacktraceDescendHashInclude => Color::Red,
-                    EColor::MaximumRuntimeExceeded => Color::BrightYellow,
-
-                    EColor::InCodePositionLine => Color::BrightBlack,
-                })
-                .to_string(),
-        );
-    }
-}
 #[derive(Clone)]
 pub enum CheckErrorComponent {
     Message(Vec<(String, Option<EColor>)>),
@@ -211,7 +126,7 @@ pub enum CheckErrorComponent {
 pub struct CheckErrorHRConfig {
     color_index_ptr: Rc<AtomicU32>,
     color_index: u32,
-    theme: Rc<dyn Theme<String>>,
+    theme: Rc<dyn ETheme>,
     is_inner: bool,
     style: u8,
     idt_start: String,
@@ -335,7 +250,7 @@ impl CheckErrorHRConfig {
 #[cfg(feature = "parse")]
 pub struct CheckErrorDisplay<'a> {
     e: &'a CheckError,
-    theme: Rc<dyn Theme<String>>,
+    theme: Rc<dyn ETheme>,
     pub show_comments: bool,
 }
 #[cfg(feature = "parse")]
@@ -409,7 +324,7 @@ impl CheckError {
         self.add_mut(CheckErrorComponent::Source(s))
     }
     #[cfg(feature = "parse")]
-    pub fn display<'a>(&'a self, theme: impl Theme<String> + 'static) -> CheckErrorDisplay<'a> {
+    pub fn display<'a>(&'a self, theme: impl ETheme + 'static) -> CheckErrorDisplay<'a> {
         CheckErrorDisplay {
             e: self,
             theme: Rc::new(theme),
@@ -419,13 +334,13 @@ impl CheckError {
     /// Like `display`, but doesn't use any theme (doesn't colorize its output)
     #[cfg(feature = "parse")]
     pub fn display_notheme<'a>(&'a self) -> CheckErrorDisplay<'a> {
-        self.display(NoTheme)
+        self.display(themes::NoTheme)
     }
     /// Like `display`, but uses the default terminal theme
     #[cfg(feature = "parse")]
     #[cfg(feature = "ecolor-term")]
     pub fn display_term<'a>(&'a self) -> CheckErrorDisplay<'a> {
-        self.display(TermDefaultTheme)
+        self.display(themes::TermDefaultTheme)
     }
     /// will, unless empty, end in a newline
     #[cfg(feature = "parse")]
@@ -435,7 +350,7 @@ impl CheckError {
         cfg: &CheckErrorHRConfig,
     ) -> std::fmt::Result {
         const ADD_RIGHT_BITS: bool = false;
-        use crate::parsing::SourceFrom;
+        use crate::{parsing::SourceFrom, theme::ThemeTo};
 
         let len = self.0.len();
         for (i, component) in self.0.iter().enumerate() {

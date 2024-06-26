@@ -3,8 +3,6 @@ use mers_lib::prelude_compile::*;
 use std::{path::PathBuf, process::exit, sync::Arc};
 
 mod cfg_globals;
-#[cfg(feature = "colored-output")]
-mod pretty_print;
 
 #[derive(Parser)]
 struct Args {
@@ -169,7 +167,7 @@ fn main() {
         }
         #[cfg(feature = "colored-output")]
         Command::PrettyPrint { source } => {
-            pretty_print::pretty_print(get_source(source));
+            mers_lib::pretty_print::pretty_print(get_source(source));
         }
         #[cfg(not(feature = "colored-output"))]
         Command::PrettyPrint { source: _ } => {

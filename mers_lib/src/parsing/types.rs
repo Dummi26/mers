@@ -24,6 +24,7 @@ pub fn parse_single_type(src: &mut Source, srca: &Arc<Source>) -> Result<ParsedT
     Ok(match src.peek_char() {
         // Reference
         Some('&') => {
+            let pos_in_src = src.get_pos();
             src.next_char();
             if let Some('[') = src.peek_char() {
                 src.next_char();
@@ -35,9 +36,14 @@ pub fn parse_single_type(src: &mut Source, srca: &Arc<Source>) -> Result<ParsedT
                     } else {
                         format!("EOF")
                     };
-                    return Err(CheckError::new().msg_str(format!(
-                        "No closing ] in reference type with opening [! Found {nc} instead"
-                    )));
+                    return Err(CheckError::new()
+                        .src(vec![(
+                            (pos_in_src, src.get_pos(), srca).into(),
+                            Some(EColor::BracketedRefTypeNoClosingBracket),
+                        )])
+                        .msg_str(format!(
+                            "No closing ] in reference type with opening [! Found {nc} instead"
+                        )));
                 }
                 ParsedType::Reference(types)
             } else {
@@ -177,13 +183,28 @@ pub fn parse_single_type(src: &mut Source, srca: &Arc<Source>) -> Result<ParsedT
                 src.next_char();
                 ParsedType::TypeWithInfo(
                     t,
-                    super::statements::parse_string_custom_end(src, srca, pos, '<', '>')?,
+                    super::statements::parse_string_custom_end(
+                        src,
+                        srca,
+                        pos,
+                        '<',
+                        '>',
+                        "type-info ",
+                        EColor::TypeEOF,
+                    )?,
                 )
             } else {
                 ParsedType::Type(t)
             }
         }
-        None => todo!(),
+        None => {
+            return Err(CheckError::new()
+                .src(vec![(
+                    (src.get_pos_last_char(), src.get_pos(), srca).into(),
+                    Some(EColor::TypeEOF),
+                )])
+                .msg_str(format!("Expected type, got EOF")))
+        }
     })
 }
 
