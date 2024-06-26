@@ -1,27 +1,28 @@
 use std::{io::Write, process::exit, sync::Arc};
 
 use crate::{
+    errors::CheckError,
     prelude_compile::{parse, Source},
     theme::ThemeGen,
 };
 
 #[cfg(feature = "ecolor-term")]
 pub fn pretty_print(src: Source) {
-    pretty_print_to(src, &mut std::io::stdout(), DefaultTheme)
+    if let Err(e) = pretty_print_to(src, &mut std::io::stdout(), DefaultTheme) {
+        eprintln!("{e:?}");
+        exit(28);
+    }
 }
 
 /// to print to stdout, use `pretty_print` (available only with the `ecolor-term` feature)
-pub fn pretty_print_to<O: Write>(mut src: Source, out: &mut O, theme: impl FTheme<O>) {
+pub fn pretty_print_to<O: Write>(
+    mut src: Source,
+    out: &mut O,
+    theme: impl FTheme<O>,
+) -> Result<(), CheckError> {
     let srca = Arc::new(src.clone());
-    match parse(&mut src, &srca) {
-        Err(e) => {
-            eprintln!("{e:?}");
-            exit(28);
-        }
-        Ok(parsed) => {
-            print_parsed(&srca, parsed.as_ref(), out, theme);
-        }
-    }
+    let parsed = parse(&mut src, &srca)?;
+    print_parsed(&srca, parsed.as_ref(), out, theme);
 }
 
 pub enum AbstractColor {
