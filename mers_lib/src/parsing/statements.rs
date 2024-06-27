@@ -281,6 +281,14 @@ pub fn parse_no_chain(
             }
             match src.next_word() {
                 "include" => {
+                    if !src.allow_includes {
+                        return Err(CheckError::new()
+                            .src(vec![(
+                                (pos_in_src, src.get_pos(), srca).into(),
+                                Some(EColor::HashIncludeCantLoadFile),
+                            )])
+                            .msg_str(format!("not allowed to use #include (only allowed when source code is read from a file, or if allow_includes is explicitly set)")));
+                    }
                     let end_in_src = src.get_pos();
                     src.skip_whitespace();
                     let string_in_src = src.get_pos();

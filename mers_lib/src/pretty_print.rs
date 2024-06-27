@@ -75,6 +75,7 @@ impl ThemeGen for DefaultTheme {
     type T = std::io::Stdout;
     fn color(&self, text: &str, color: Self::C, t: &mut Self::T) {
         use colored::{Color, Colorize};
+        use std::io::Write;
         if let Some(color) = map_color(color) {
             let _ = write!(
                 t,
@@ -92,6 +93,7 @@ impl ThemeGen for DefaultTheme {
         }
     }
     fn nocolor(&self, text: &str, t: &mut Self::T) {
+        use std::io::Write;
         let _ = write!(t, "{}", text);
     }
 }

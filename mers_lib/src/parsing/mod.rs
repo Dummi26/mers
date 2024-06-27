@@ -112,6 +112,7 @@ pub struct Source {
     comments: Vec<(usize, String)>,
     i: usize,
     sections: Vec<SectionMarker>,
+    allow_includes: bool,
 }
 impl Clone for Source {
     fn clone(&self) -> Self {
@@ -123,6 +124,7 @@ impl Clone for Source {
             comments: self.comments.clone(),
             i: self.i,
             sections: vec![],
+            allow_includes: self.allow_includes,
         }
     }
 }
@@ -150,12 +152,14 @@ impl Source {
             comments: vec![],
             i: 0,
             sections: vec![],
+            allow_includes: false,
         }
     }
     pub fn new_from_string(source: String) -> Self {
         Self::new(SourceFrom::Unspecified, source)
     }
     pub fn new(src_from: SourceFrom, source: String) -> Self {
+        let allow_includes = matches!(src_from, SourceFrom::File(_));
         let mut src = String::with_capacity(source.len());
         let mut comment = (0, String::new());
         let mut comments = Vec::new();
@@ -222,7 +226,12 @@ impl Source {
             comments,
             i: 0,
             sections: vec![],
+            allow_includes,
         }
+    }
+    pub fn allow_includes(mut self, allow_includes: bool) -> Self {
+        self.allow_includes = allow_includes;
+        self
     }
 
     pub fn src(&self) -> &String {
