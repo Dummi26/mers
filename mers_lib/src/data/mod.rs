@@ -19,6 +19,15 @@ pub mod tuple;
 pub mod defs;
 
 pub trait MersData: Any + Debug + Display + Send + Sync {
+    /// must be the same as the `executable` impl on the MersType
+    #[allow(unused_variables)]
+    fn executable(&self) -> Option<crate::data::function::FunctionT> {
+        None
+    }
+    #[allow(unused_variables)]
+    fn execute(&self, arg: Data) -> Option<Result<Data, CheckError>> {
+        None
+    }
     fn iterable(&self) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
         None
     }
@@ -38,6 +47,10 @@ pub trait MersData: Any + Debug + Display + Send + Sync {
 }
 
 pub trait MersType: Any + Debug + Display + Send + Sync {
+    #[allow(unused_variables)]
+    fn executable(&self) -> Option<crate::data::function::FunctionT> {
+        None
+    }
     /// If Some(T), calling `iterable` on the MersData this MersType belongs to
     /// Should return Some(I), where I is an Iterator which only returns items of type T.
     fn iterable(&self) -> Option<Type> {

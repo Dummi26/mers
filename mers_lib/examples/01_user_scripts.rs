@@ -23,7 +23,7 @@ fn main() -> Result<(), CheckError> {
 
     // use the function to decorate these 3 test strings
     for input in ["my test string", "Main Menu", "O.o"] {
-        let result = func.run(Data::new(data::string::String(input.to_owned())))?;
+        let result = func.run_immut(Data::new(data::string::String(input.to_owned())))?;
         let result = result.get();
         let result = &result
             .as_any()

@@ -31,10 +31,7 @@ impl MersStatement for Chain {
         info.global.enable_hooks = prev_enable_hooks;
         let mut o = Type::empty();
         for func in &func.types {
-            if let Some(func) = func
-                .as_any()
-                .downcast_ref::<crate::data::function::FunctionT>()
-            {
+            if let Some(func) = func.executable() {
                 match func.o(&arg) {
                     Ok(t) => o.add_all(&t),
                     Err(e) => {
@@ -89,28 +86,25 @@ impl MersStatement for Chain {
         let f = self.first.run(info)?;
         let c = self.chained.run(info)?;
         let c = c.get();
-        if let Some(func) = c.as_any().downcast_ref::<crate::data::function::Function>() {
-            match func.run(f) {
-                Ok(v) => Ok(v),
-                Err(e) => Err(if let Some(_) = &self.as_part_of_include {
-                    CheckError::new().err_with_diff_src(e).src(vec![(
-                        self.pos_in_src.clone(),
-                        Some(EColor::StacktraceDescendHashInclude),
-                    )])
-                } else {
-                    CheckError::new().err(e).src(vec![
-                        (self.pos_in_src.clone(), None),
-                        (self.source_range(), Some(EColor::StacktraceDescend)),
-                    ])
-                }),
-            }
-        } else {
-            Err(CheckError::new()
+        match c.execute(f) {
+            Some(Ok(v)) => Ok(v),
+            Some(Err(e)) => Err(if let Some(_) = &self.as_part_of_include {
+                CheckError::new().err_with_diff_src(e).src(vec![(
+                    self.pos_in_src.clone(),
+                    Some(EColor::StacktraceDescendHashInclude),
+                )])
+            } else {
+                CheckError::new().err(e).src(vec![
+                    (self.pos_in_src.clone(), None),
+                    (self.source_range(), Some(EColor::StacktraceDescend)),
+                ])
+            }),
+            None => Err(CheckError::new()
                 .msg_str("tried to chain with non-function".to_owned())
                 .src(vec![(
                     self.chained.source_range(),
                     Some(EColor::ChainWithNonFunction),
-                )]))
+                )])),
         }
     }
     fn has_scope(&self) -> bool {

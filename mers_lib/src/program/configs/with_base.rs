@@ -27,7 +27,7 @@ impl Config {
             // .add_var("try".to_string(), get_try(false))
             // .add_var("try_allow_unused".to_string(), get_try(true))
             .add_var("lock_update".to_string(), Data::new(data::function::Function {
-                info: Arc::new(Info::neverused()),
+                info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     for t in a.types.iter() {
@@ -37,7 +37,7 @@ impl Config {
                                 if let Some(arg) = arg_ref.dereference() {
                                     let func = &t.0[1];
                                     for func_t in func.types.iter() {
-                                        if let Some(f) = func_t.as_any().downcast_ref::<data::function::FunctionT>() {
+                                        if let Some(f) = func_t.executable() {
                                             match f.o(&arg) {
                                                 Ok(out) => {
                                                     if !out.is_included_in(&arg) {
@@ -69,14 +69,13 @@ impl Config {
                     let arg_ref = arg_ref.as_any().downcast_ref::<data::reference::Reference>().unwrap();
                     let mut arg = arg_ref.0.write().unwrap();
                     let func = a.0[1].get();
-                    let func = func.as_any().downcast_ref::<data::function::Function>().unwrap();
-                    *arg = func.run(arg.clone())?;
+                    *arg = func.execute(arg.clone()).unwrap()?;
                     Ok(Data::empty_tuple())
                 }),
                 inner_statements: None,
             }))
             .add_var("sleep".to_string(), Data::new(data::function::Function {
-                info: Arc::new(Info::neverused()),
+                info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, _i| if a.is_included_in(&Type::newm(vec![
                     Arc::new(data::int::IntT),
@@ -105,7 +104,7 @@ impl Config {
                 inner_statements: None,
             }))
             .add_var("exit".to_string(), Data::new(data::function::Function {
-                info: Arc::new(Info::neverused()),
+                info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
             out: Arc::new(|a, _i| if a.is_included_in_single(&data::int::IntT) {
                 Ok(Type::empty())
@@ -118,7 +117,7 @@ impl Config {
             inner_statements: None,
         }))
             .add_var("panic".to_string(), Data::new(data::function::Function {
-                info: Arc::new(Info::neverused()),
+                info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
             out: Arc::new(|a, _i| if a.is_included_in_single(&data::string::StringT) {
                 Ok(Type::empty())
@@ -140,7 +139,7 @@ impl Config {
             .add_var(
             "len".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(Info::neverused()),
+                info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     for t in &a.types {
@@ -168,7 +167,7 @@ impl Config {
         .add_var(
             "eq".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(Info::neverused()),
+                info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     for t in &a.types {
@@ -204,7 +203,7 @@ impl Config {
         .add_var(
             "mkref".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(Info::neverused()),
+                info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, _i| Ok(Type::new(data::reference::ReferenceT(a.clone())))),
                 run: Arc::new(|a, _i| {
@@ -216,7 +215,7 @@ impl Config {
         .add_var(
             "deref".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(Info::neverused()),
+                info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, _i| if let Some(v) = a.dereference() { Ok(v) } else { Err(format!("cannot dereference type {a}").into())
                 }),
@@ -239,7 +238,7 @@ impl Config {
 
 // fn get_try(allow_unused_functions: bool) -> Data {
 //     Data::new(data::function::Function {
-//         info: Arc::new(Info::neverused()),
+//         info: Info::neverused(),
 //         info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
 //         out: Arc::new(move |a, _i| {
 //             let mut out = Type::empty();

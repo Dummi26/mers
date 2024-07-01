@@ -32,7 +32,7 @@ impl Config {
                 let t = crate::parsing::types::parse_type(&mut src, &srca)?;
                 Ok(Arc::new(Type::new(ListT(crate::parsing::types::type_from_parsed(&t, i)?))))})))
             .add_var("get_mut".to_string(), Data::new(data::function::Function {
-                    info: Arc::new(program::run::Info::neverused()),
+                    info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                     out: Arc::new(|a, _i| {
                             let mut out = Type::empty_tuple();
@@ -101,7 +101,7 @@ impl Config {
             .add_var(
                 "pop".to_string(),
                 Data::new(data::function::Function {
-                    info: Arc::new(program::run::Info::neverused()),
+                    info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                     out: Arc::new(|a, _i| {
                         if let Some(a) = a.dereference() {
@@ -149,7 +149,7 @@ impl Config {
             .add_var(
                 "push".to_string(),
                 Data::new(data::function::Function {
-                    info: Arc::new(program::run::Info::neverused()),
+                    info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                     out: Arc::new(|a, _i| {
                         for t in a.types.iter() {
@@ -212,7 +212,7 @@ impl Config {
             .add_var(
                 "as_list".to_string(),
                 Data::new(data::function::Function {
-                    info: Arc::new(program::run::Info::neverused()),
+                    info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                     out: Arc::new(|a, _i| {
                         if let Some(v) = a.iterable() {

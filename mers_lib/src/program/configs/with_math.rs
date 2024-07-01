@@ -71,7 +71,7 @@ impl Config {
         .add_var(
             "parse_float".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     if a.is_included_in(&Type::new(data::string::StringT)) {
@@ -105,7 +105,7 @@ impl Config {
         .add_var(
             "parse_int".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     if a.is_included_in(&Type::new(data::string::StringT)) {
@@ -139,7 +139,7 @@ impl Config {
         .add_var(
             "signum".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     if a.is_included_in(&Type::newm(vec![
@@ -255,7 +255,7 @@ fn num_iter_to_num(
     func: impl Fn(Result<isize, f64>, Result<isize, f64>) -> Result<isize, f64> + Send + Sync + 'static,
 ) -> data::function::Function {
     data::function::Function {
-        info: Arc::new(program::run::Info::neverused()),
+        info: program::run::Info::neverused(),
         info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
         out: Arc::new(move |a, _i| {
             if let Some(a) = a.iterable() {
@@ -320,7 +320,7 @@ fn two_num_tuple_to_num(
     func_ff: impl Fn(f64, f64) -> Result<f64, CheckError> + Send + Sync + 'static,
 ) -> data::function::Function {
     data::function::Function {
-        info: Arc::new(program::run::Info::neverused()),
+        info: program::run::Info::neverused(),
         info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
         out: Arc::new(|a, _i| two_tuple_to_num_impl_check(a, func_name)),
         run: Arc::new(move |a, _i| {
@@ -406,7 +406,7 @@ fn ltgtoe_function(
     op: impl Fn(IntOrFloatOrNothing, IntOrFloatOrNothing) -> bool + Send + Sync + 'static,
 ) -> data::function::Function {
     data::function::Function {
-        info: Arc::new(program::run::Info::neverused()),
+        info: program::run::Info::neverused(),
         info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
         out: Arc::new(move |a, _i| {
             if let Some(iter_type) = a.iterable() {

@@ -1,8 +1,7 @@
-use std::sync::Arc;
-
 use crate::{
     data::{self, Data, MersData, Type},
     errors::{CheckError, SourceRange},
+    info::Local,
 };
 
 use super::MersStatement;
@@ -26,9 +25,7 @@ impl MersStatement for Function {
         Ok(self.func_no_info.as_type())
     }
     fn run_custom(&self, info: &mut super::Info) -> Result<Data, CheckError> {
-        Ok(Data::new(
-            self.func_no_info.with_info_run(Arc::new(info.clone())),
-        ))
+        Ok(Data::new(self.func_no_info.with_info_run(info.duplicate())))
     }
     fn has_scope(&self) -> bool {
         true

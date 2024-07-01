@@ -36,7 +36,7 @@ impl MersStatement for Function {
         Ok(Box::new(program::run::function::Function {
             pos_in_src: self.pos_in_src.clone(),
             func_no_info: data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(move |a, i| {
                     arg2.check(i, Some(a))?;

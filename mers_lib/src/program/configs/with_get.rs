@@ -13,7 +13,7 @@ impl Config {
         self.add_var(
             "get".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     let mut out = Type::empty();

@@ -54,7 +54,7 @@ impl MersStatement for IncludeMers {
             chained: Box::new(program::run::function::Function {
                 pos_in_src: self.pos_in_src.clone(),
                 func_no_info: data::function::Function {
-                    info: Arc::new(info::Info::neverused()),
+                    info: info::Info::neverused(),
                     info_check: Arc::new(Mutex::new(info::Info::neverused())),
                     out: Arc::new(move |_, i| compiled.check(&mut i.duplicate(), None)),
                     run: Arc::new(move |_, i| compiled2.run(&mut i.duplicate())),

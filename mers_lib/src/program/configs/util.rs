@@ -11,7 +11,7 @@ pub fn to_mers_func(
     run: impl Fn(Data) -> Result<Data, CheckError> + Send + Sync + 'static,
 ) -> data::function::Function {
     data::function::Function {
-        info: Arc::new(Info::neverused()),
+        info: Info::neverused(),
         info_check: Arc::new(Mutex::new(Info::neverused())),
         out: Arc::new(move |a, _| out(a)),
         run: Arc::new(move |a, _| run(a)),

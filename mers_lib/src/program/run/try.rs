@@ -53,7 +53,7 @@ impl MersStatement for Try {
                 let mut func_res = Type::empty();
                 let mut func_err = None;
                 for ft in func.types.iter() {
-                    if let Some(ft) = ft.as_any().downcast_ref::<data::function::FunctionT>() {
+                    if let Some(ft) = ft.executable() {
                         match ft.o(&Type::newm(vec![Arc::clone(arg)])) {
                             Ok(res) => {
                                 func_res.add_all(&res);
@@ -107,32 +107,18 @@ impl MersStatement for Try {
         let ar = arg.get();
         let a = ar.as_ref();
         let arg_type = a.as_type();
-        let functions = self
-            .funcs
-            .iter()
-            .map(|v| {
-                Ok::<_, CheckError>(
-                    v.run(info)?
-                        .get()
-                        .as_any()
-                        .downcast_ref::<data::function::Function>()
-                        .unwrap()
-                        .clone(),
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut found = None;
-        for (i, func) in functions.iter().enumerate() {
-            match func.get_as_type().o(&arg_type) {
-                Ok(_) => {
-                    found = Some(i);
-                    break;
+        for func in self.funcs.iter() {
+            let func = func.run(info)?;
+            let func = func.get();
+            match func.executable().map(|func| func.o(&arg_type)) {
+                Some(Ok(_)) => {
+                    drop(ar);
+                    return func.execute(arg).unwrap();
                 }
-                Err(_) => (),
+                None | Some(Err(_)) => (),
             }
         }
-        drop(ar);
-        functions[found.expect("try: no function found")].run(arg)
+        panic!("try: no function found")
     }
     fn has_scope(&self) -> bool {
         true

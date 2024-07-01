@@ -27,7 +27,7 @@ impl Config {
             .add_var(
             "run_command".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     if a.types.iter().all(|t| t.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in_single(&data::string::StringT) && t.0[1].iterable().is_some_and(|t| t.is_included_in_single(&data::string::StringT)))) {
@@ -82,7 +82,7 @@ impl Config {
         .add_var(
             "spawn_command".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     if a.types.iter().all(|t| t.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in_single(&data::string::StringT) && t.0[1].iterable().is_some_and(|t| t.is_included_in_single(&data::string::StringT)))) {
@@ -126,7 +126,7 @@ impl Config {
         .add_var(
             "childproc_exited".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     if a.is_included_in_single(&ChildProcessT) {
@@ -154,7 +154,7 @@ impl Config {
         .add_var(
             "childproc_await".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     if a.is_included_in_single(&ChildProcessT) {
@@ -187,7 +187,7 @@ impl Config {
         .add_var(
             "childproc_write_bytes".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     if a.types.iter().all(|a| a.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in_single(&ChildProcessT) && t.0[1].iterable().is_some_and(|i| i.is_included_in_single(&data::byte::ByteT)))) {
@@ -216,7 +216,7 @@ impl Config {
         .add_var(
             "childproc_write_string".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     if a.is_included_in_single(&data::tuple::TupleT(vec![Type::new(ChildProcessT), Type::new(data::string::StringT)])) {
@@ -245,7 +245,7 @@ impl Config {
         .add_var(
             "childproc_read_byte".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     if a.is_included_in_single(&ChildProcessT) {
@@ -274,7 +274,7 @@ impl Config {
         .add_var(
             "childproc_readerr_byte".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     if a.is_included_in_single(&ChildProcessT) {
@@ -303,7 +303,7 @@ impl Config {
         .add_var(
             "childproc_read_line".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     if a.is_included_in_single(&ChildProcessT) {
@@ -332,7 +332,7 @@ impl Config {
         .add_var(
             "childproc_readerr_line".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     if a.is_included_in_single(&ChildProcessT) {

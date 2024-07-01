@@ -30,12 +30,12 @@ impl Config {
         .add_var(
             "thread".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     let mut out = Type::empty();
                     for t in a.types.iter() {
-                        if let Some(f) = t.as_any().downcast_ref::<data::function::FunctionT>() {
+                        if let Some(f) = t.executable() {
                             match f.o(&Type::empty_tuple()) {
                                 Ok(t) => out.add_all(&t),
                                 Err(e) => return Err(CheckError::new().msg_str(format!("Can't call thread on a function which can't be called on an empty tuple: ")).err(e))
@@ -47,24 +47,15 @@ impl Config {
                     Ok(Type::new(ThreadT(out)))
                 }),
                 run: Arc::new(|a, _i| {
-                    let a = a.get();
-                    if let Some(f) = a
-                        .as_any()
-                        .downcast_ref::<data::function::Function>()
-                        .cloned()
-                    {
-                        Ok(Data::new(Thread(Arc::new(Mutex::new(Ok(std::thread::spawn(
-                            move || f.run(Data::empty_tuple()),
-                        )))))))
-                    } else {
-                        return Err("thread called, but arg wasn't a function".into());
-                    }
+                    Ok(Data::new(Thread(Arc::new(Mutex::new(Ok(std::thread::spawn(
+                        move || a.get().execute(Data::empty_tuple()).unwrap(),
+                    )))))))
                 }),
                 inner_statements: None,
             }),
         )
             .add_var("thread_finished".to_string(), Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     for t in a.types.iter() {
@@ -85,7 +76,7 @@ impl Config {
                 inner_statements: None,
             }))
             .add_var("thread_await".to_string(), Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     let mut out = Type::empty();

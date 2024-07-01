@@ -22,7 +22,7 @@ impl Config {
         self.add_var(
             "read_line".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, _i| {
                     if a.is_zero_tuple() {
@@ -50,7 +50,7 @@ impl Config {
         .add_var(
             "debug".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|a, _i| Ok(a.clone())),
                 run: Arc::new(|a, _i| {
@@ -65,7 +65,7 @@ impl Config {
         .add_var(
             "eprint".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|_a, _i| Ok(Type::empty_tuple())),
                 run: Arc::new(|a, _i| {
@@ -79,7 +79,7 @@ impl Config {
         .add_var(
             "eprintln".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|_a, _i| Ok(Type::empty_tuple())),
                 run: Arc::new(|a, _i| {
@@ -92,7 +92,7 @@ impl Config {
         .add_var(
             "print".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|_a, _i| Ok(Type::empty_tuple())),
                 run: Arc::new(|a, _i| {
@@ -106,7 +106,7 @@ impl Config {
         .add_var(
             "println".to_string(),
             Data::new(data::function::Function {
-                info: Arc::new(program::run::Info::neverused()),
+                info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Arc::new(|_a, _i| Ok(Type::empty_tuple())),
                 run: Arc::new(|a, _i| {

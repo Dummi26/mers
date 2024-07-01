@@ -6,14 +6,14 @@ use std::{
 
 use crate::{
     errors::CheckError,
+    info::Local,
     program::run::{CheckInfo, Info},
 };
 
 use super::{Data, MersData, MersType, Type};
 
-#[derive(Clone)]
 pub struct Function {
-    pub info: Arc<Info>,
+    pub info: Info,
     pub info_check: Arc<Mutex<CheckInfo>>,
     pub out: Arc<dyn Fn(&Type, &mut CheckInfo) -> Result<Type, CheckError> + Send + Sync>,
     pub run:
@@ -23,20 +23,31 @@ pub struct Function {
         Arc<Box<dyn crate::program::run::MersStatement>>,
     )>,
 }
+impl Clone for Function {
+    fn clone(&self) -> Self {
+        Self {
+            info: self.info.duplicate(),
+            info_check: self.info_check.clone(),
+            out: self.out.clone(),
+            run: self.run.clone(),
+            inner_statements: self.inner_statements.clone(),
+        }
+    }
+}
 impl Function {
     pub fn new(
         out: impl Fn(&Type) -> Result<Type, CheckError> + Send + Sync + 'static,
         run: impl Fn(Data) -> Result<Data, CheckError> + Send + Sync + 'static,
     ) -> Self {
         Self {
-            info: Arc::new(crate::info::Info::neverused()),
+            info: crate::info::Info::neverused(),
             info_check: Arc::new(Mutex::new(crate::info::Info::neverused())),
             out: Arc::new(move |a, _| out(a)),
             run: Arc::new(move |a, _| run(a)),
             inner_statements: None,
         }
     }
-    pub fn with_info_run(&self, info: Arc<Info>) -> Self {
+    pub fn with_info_run(&self, info: Info) -> Self {
         Self {
             info,
             info_check: Arc::clone(&self.info_check),
@@ -57,8 +68,11 @@ impl Function {
         drop(lock);
         (self.out)(arg, &mut info)
     }
-    pub fn run(&self, arg: Data) -> Result<Data, CheckError> {
-        (self.run)(arg, &mut self.info.as_ref().clone())
+    pub fn run_mut(&mut self, arg: Data) -> Result<Data, CheckError> {
+        (self.run)(arg, &mut self.info)
+    }
+    pub fn run_immut(&self, arg: Data) -> Result<Data, CheckError> {
+        (self.run)(arg, &mut self.info.duplicate())
     }
     pub fn get_as_type(&self) -> FunctionT {
         let out = Arc::clone(&self.out);
@@ -73,10 +87,16 @@ impl Function {
 }
 
 impl MersData for Function {
+    fn executable(&self) -> Option<crate::data::function::FunctionT> {
+        Some(self.get_as_type())
+    }
+    fn execute(&self, arg: Data) -> Option<Result<Data, CheckError>> {
+        Some(self.run_immut(arg))
+    }
     fn iterable(&self) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
-        let s = Clone::clone(self);
+        let mut s = Clone::clone(self);
         Some(Box::new(std::iter::from_fn(move || {
-            match s.run(Data::empty_tuple()) {
+            match s.run_mut(Data::empty_tuple()) {
                 Err(e) => Some(Err(e)),
                 Ok(v) => {
                     if let Some(v) = v.one_tuple_content() {
@@ -122,6 +142,9 @@ impl FunctionT {
     }
 }
 impl MersType for FunctionT {
+    fn executable(&self) -> Option<crate::data::function::FunctionT> {
+        Some(self.clone())
+    }
     fn iterable(&self) -> Option<Type> {
         // if this function can be called with an empty tuple and returns `()` or `(T)`, it can act as an iterator with type `T`.
         if let Ok(t) = self.o(&Type::empty_tuple()) {
