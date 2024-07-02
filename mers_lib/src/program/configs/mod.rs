@@ -7,6 +7,7 @@ use crate::{
     program::run::CheckInfo,
 };
 
+pub mod gen;
 pub mod util;
 pub mod with_base;
 pub mod with_command_running;

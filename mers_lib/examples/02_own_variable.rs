@@ -30,7 +30,7 @@ fn run(src: String) -> Result<(), CheckError> {
         )
         .add_var(
             "rust_func".to_owned(),
-            Data::new(data::function::Function::new(
+            Data::new(data::function::Function::new_generic(
                 |arg| {
                     // If the input is a string, the output is a string.
                     // Otherwise, the function is used incorrectly.

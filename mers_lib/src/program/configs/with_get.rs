@@ -15,7 +15,7 @@ impl Config {
             Data::new(data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     let mut out = Type::empty();
                     for a in a.types.iter() {
                         if let Some(t) = a.as_any().downcast_ref::<data::tuple::TupleT>() {
@@ -45,7 +45,7 @@ impl Config {
                         Arc::new(data::tuple::TupleT(vec![out])),
                         Arc::new(data::tuple::TupleT(vec![])),
                     ]))
-                }),
+                })),
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     if let (Some(v), Some(i)) = (a.get(0), a.get(1)) {

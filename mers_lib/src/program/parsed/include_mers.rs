@@ -56,7 +56,9 @@ impl MersStatement for IncludeMers {
                 func_no_info: data::function::Function {
                     info: info::Info::neverused(),
                     info_check: Arc::new(Mutex::new(info::Info::neverused())),
-                    out: Arc::new(move |_, i| compiled.check(&mut i.duplicate(), None)),
+                    out: Ok(Arc::new(move |_, i| {
+                        compiled.check(&mut i.duplicate(), None)
+                    })),
                     run: Arc::new(move |_, i| compiled2.run(&mut i.duplicate())),
                     inner_statements: None,
                 },

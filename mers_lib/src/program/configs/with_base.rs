@@ -29,7 +29,7 @@ impl Config {
             .add_var("lock_update".to_string(), Data::new(data::function::Function {
                 info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     for t in a.types.iter() {
                         if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
                             if t.0.len() == 2 {
@@ -61,7 +61,7 @@ impl Config {
                         }
                     }
                     Ok(Type::empty_tuple())
-                }),
+                })),
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let a = a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
@@ -77,14 +77,14 @@ impl Config {
             .add_var("sleep".to_string(), Data::new(data::function::Function {
                 info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, _i| if a.is_included_in(&Type::newm(vec![
+                out: Ok(Arc::new(|a, _i| if a.is_included_in(&Type::newm(vec![
                     Arc::new(data::int::IntT),
                     Arc::new(data::float::FloatT),
                 ])) {
                         Ok(Type::empty_tuple())
                 } else {
                         Err(format!("cannot call sleep with non-int or non-float argument.").into())
-                    }),
+                    })),
                 run: Arc::new(|a, i| {
                     let a = a.get();
                     let mut sleep_dur = if let Some(data::int::Int(n)) = a.as_any().downcast_ref() {
@@ -106,11 +106,11 @@ impl Config {
             .add_var("exit".to_string(), Data::new(data::function::Function {
                 info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-            out: Arc::new(|a, _i| if a.is_included_in_single(&data::int::IntT) {
+            out: Ok(Arc::new(|a, _i| if a.is_included_in_single(&data::int::IntT) {
                 Ok(Type::empty())
             } else {
                 Err(format!("cannot call exit with non-int argument").into())
-            }),
+            })),
             run: Arc::new(|a, _i|  {
                 std::process::exit(a.get().as_any().downcast_ref::<data::int::Int>().map(|i| i.0 as _).unwrap_or(1));
             }),
@@ -119,11 +119,11 @@ impl Config {
             .add_var("panic".to_string(), Data::new(data::function::Function {
                 info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-            out: Arc::new(|a, _i| if a.is_included_in_single(&data::string::StringT) {
+            out: Ok(Arc::new(|a, _i| if a.is_included_in_single(&data::string::StringT) {
                 Ok(Type::empty())
             } else {
                 Err(format!("cannot call panic with non-string argument").into())
-            }),
+            })),
             run: Arc::new(|a, _i|  {
                 Err(
                     a
@@ -141,14 +141,14 @@ impl Config {
             Data::new(data::function::Function {
                 info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     for t in &a.types {
                         if t.as_any().downcast_ref::<data::string::StringT>().is_none() && t.as_any().downcast_ref::<data::tuple::TupleT>().is_none() && t.iterable().is_none() {
                             return Err(format!("cannot get length of {t} (must be a tuple, string or iterable)").into());
                         }
                     }
                     Ok(Type::new(data::int::IntT))
-                }),
+                })),
                 run: Arc::new(|a, _i| {
                     Ok(Data::new(data::int::Int(if let Some(t) = a.get().as_any().downcast_ref::<data::tuple::Tuple>() {
                         t.0.len() as _
@@ -169,14 +169,14 @@ impl Config {
             Data::new(data::function::Function {
                 info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     for t in &a.types {
                             if t.iterable().is_none() {
                                 return Err(format!("called eq on non-iterable").into())
                             }
                     }
                         Ok(Type::new(data::bool::BoolT))
-                    }),
+                    })),
                 run: Arc::new(|a, _i| {
                     Ok(Data::new(data::bool::Bool(if let Some(mut i) = a.get().iterable() {
                         if let Some(f) = i.next() {
@@ -205,7 +205,7 @@ impl Config {
             Data::new(data::function::Function {
                 info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, _i| Ok(Type::new(data::reference::ReferenceT(a.clone())))),
+                out: Ok(Arc::new(|a, _i| Ok(Type::new(data::reference::ReferenceT(a.clone()))))),
                 run: Arc::new(|a, _i| {
                     Ok(Data::new(data::reference::Reference(Arc::new(RwLock::new(a.clone())))))
                 }),
@@ -217,8 +217,8 @@ impl Config {
             Data::new(data::function::Function {
                 info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, _i| if let Some(v) = a.dereference() { Ok(v) } else { Err(format!("cannot dereference type {a}").into())
-                }),
+                out: Ok(Arc::new(|a, _i| if let Some(v) = a.dereference() { Ok(v) } else { Err(format!("cannot dereference type {a}").into())
+                })),
                 run: Arc::new(|a, _i| {
                     if let Some(r) = a
                         .get()

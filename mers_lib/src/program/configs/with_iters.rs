@@ -49,7 +49,7 @@ impl Config {
             Data::new(data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     for a in &a.types {
                         if let Some(tuple) = a.as_any().downcast_ref::<data::tuple::TupleT>() {
                             if let (Some(v), Some(f)) = (tuple.0.get(0), tuple.0.get(1)) {
@@ -84,7 +84,7 @@ impl Config {
                         }
                     }
                     Ok(Type::empty_tuple())
-                }),
+                })),
                 run: Arc::new(|a, _i| {
                     if let Some(tuple) = a.get().as_any().downcast_ref::<data::tuple::Tuple>() {
                         if let (Some(v), Some(f)) = (tuple.get(0), tuple.get(1)) {
@@ -133,14 +133,14 @@ impl Config {
             Data::new(data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     let data = if let Some(a) = a.iterable() {
                         a
                     } else {
                         return Err(format!("cannot call enumerate on non-iterable type {a}.").into());
                     };
                     Ok(Type::new(IterT::new(ItersT::Enumerate, data)?))
-                }),
+                })),
                 run: Arc::new(|a, _i| Ok(Data::new(Iter(Iters::Enumerate, a.clone())))),
                 inner_statements: None,
             }),
@@ -150,14 +150,14 @@ impl Config {
             Data::new(data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     let data = if let Some(a) = a.iterable() {
                         a
                     } else {
                         return Err(format!("cannot call chain on non-iterable type {a}.").into());
                     };
                     Ok(Type::new(IterT::new(ItersT::Chained, data)?))
-                }),
+                })),
                 run: Arc::new(|a, _i| Ok(Data::new(Iter(Iters::Chained, a.clone())))),
                 inner_statements: None,
             }),
@@ -202,7 +202,7 @@ fn genfunc_iter_and_func(
     data::function::Function {
         info: program::run::Info::neverused(),
         info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-        out: Arc::new(move |a, _i| iter_out_arg(a, name, |f| ft(f))),
+        out: Ok(Arc::new(move |a, _i| iter_out_arg(a, name, |f| ft(f)))),
         run: Arc::new(move |a, _i| {
             if let Some(tuple) = a.get().as_any().downcast_ref::<data::tuple::Tuple>() {
                 if let (Some(v), Some(f)) = (tuple.get(0), tuple.get(1)) {
@@ -256,7 +256,9 @@ fn genfunc_iter_and_arg<T: MersType, D: MersData>(
     data::function::Function {
         info: program::run::Info::neverused(),
         info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-        out: Arc::new(move |a, _i| iter_out_arg(a, name, |f: &T| ft(f), type_sample)),
+        out: Ok(Arc::new(move |a, _i| {
+            iter_out_arg(a, name, |f: &T| ft(f), type_sample)
+        })),
         run: Arc::new(move |a, _i| {
             if let Some(tuple) = a.get().as_any().downcast_ref::<data::tuple::Tuple>() {
                 if let (Some(v), Some(f)) = (tuple.get(0), tuple.get(1)) {
@@ -525,7 +527,7 @@ fn genfunc_iter_in_val_out(
     Function {
         info: crate::info::Info::neverused(),
         info_check: Arc::new(Mutex::new(crate::info::Info::neverused())),
-        out: Arc::new(move |a, _i| {
+        out: Ok(Arc::new(move |a, _i| {
             if let Some(iter_over) = a.iterable() {
                 if iter_over.is_included_in_single(&iter_type) {
                     Ok(out_type.clone())
@@ -535,7 +537,7 @@ fn genfunc_iter_in_val_out(
             } else {
                 Err(format!("Cannot call function {name} on non-iterable type {a}.").into())
             }
-        }),
+        })),
         run: Arc::new(run),
         inner_statements: None,
     }

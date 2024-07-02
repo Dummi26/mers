@@ -38,10 +38,10 @@ impl MersStatement for Function {
             func_no_info: data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(move |a, i| {
+                out: Ok(Arc::new(move |a, i| {
                     arg2.check(i, Some(a))?;
                     Ok(run2.check(i, None)?)
-                }),
+                })),
                 run: Arc::new(move |arg, info| {
                     data::defs::assign(&arg, &arg_target.run(info)?);
                     run.run(info)

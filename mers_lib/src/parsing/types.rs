@@ -246,10 +246,13 @@ pub fn type_from_parsed(
                     })
                     .collect::<Result<_, _>>()?,
             ))),
-            ParsedType::Function(v) => as_type.add(Arc::new(data::function::FunctionT(Err(v
-                .iter()
-                .map(|(i, o)| Ok((type_from_parsed(i, info)?, type_from_parsed(o, info)?)))
-                .collect::<Result<_, CheckError>>()?)))),
+            ParsedType::Function(v) => {
+                as_type.add(Arc::new(data::function::FunctionT(Err(Arc::new(
+                    v.iter()
+                        .map(|(i, o)| Ok((type_from_parsed(i, info)?, type_from_parsed(o, info)?)))
+                        .collect::<Result<_, CheckError>>()?,
+                )))))
+            }
             ParsedType::Type(name) => match info
                 .scopes
                 .iter()

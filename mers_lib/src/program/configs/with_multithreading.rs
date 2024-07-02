@@ -32,7 +32,7 @@ impl Config {
             Data::new(data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     let mut out = Type::empty();
                     for t in a.types.iter() {
                         if let Some(f) = t.executable() {
@@ -45,7 +45,7 @@ impl Config {
                         }
                     }
                     Ok(Type::new(ThreadT(out)))
-                }),
+                })),
                 run: Arc::new(|a, _i| {
                     Ok(Data::new(Thread(Arc::new(Mutex::new(Ok(std::thread::spawn(
                         move || a.get().execute(Data::empty_tuple()).unwrap(),
@@ -57,14 +57,14 @@ impl Config {
             .add_var("thread_finished".to_string(), Data::new(data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     for t in a.types.iter() {
                         if !t.as_any().is::<ThreadT>() {
                             return Err(CheckError::new().msg_str(format!("Cannot call thread_finished on a value of type {t}, which isn't a thread but part of the argument {a}.")));
                         }
                     }
                     Ok(Type::new(data::bool::BoolT))
-                }),
+                })),
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let t = a.as_any().downcast_ref::<Thread>().unwrap().0.lock().unwrap();
@@ -78,7 +78,7 @@ impl Config {
             .add_var("thread_await".to_string(), Data::new(data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     let mut out = Type::empty();
                     for t in a.types.iter() {
                         if let Some(t) = t.as_any().downcast_ref::<ThreadT>() {
@@ -88,7 +88,7 @@ impl Config {
                         }
                     }
                     Ok(out)
-                }),
+                })),
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let mut t = a.as_any().downcast_ref::<Thread>().unwrap().0.lock().unwrap();

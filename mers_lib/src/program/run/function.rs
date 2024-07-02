@@ -34,7 +34,7 @@ impl MersStatement for Function {
         self.pos_in_src.clone()
     }
     fn inner_statements(&self) -> Vec<&dyn MersStatement> {
-        if let Some((a, b)) = &self.func_no_info.inner_statements {
+        if let Some((a, b)) = &self.func_no_info.inner_statements() {
             vec![a.as_ref().as_ref(), b.as_ref().as_ref()]
         } else {
             vec![]

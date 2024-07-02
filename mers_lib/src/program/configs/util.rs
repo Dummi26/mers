@@ -13,7 +13,7 @@ pub fn to_mers_func(
     data::function::Function {
         info: Info::neverused(),
         info_check: Arc::new(Mutex::new(Info::neverused())),
-        out: Arc::new(move |a, _| out(a)),
+        out: Ok(Arc::new(move |a, _| out(a))),
         run: Arc::new(move |a, _| run(a)),
         inner_statements: None,
     }
@@ -41,16 +41,7 @@ pub fn to_mers_func_with_in_out_types(
     out_type: Type,
     run: impl Fn(Data) -> Result<Data, CheckError> + Send + Sync + 'static,
 ) -> data::function::Function {
-    to_mers_func(
-        move |a| {
-            if a.is_included_in(&in_type) {
-                Ok(out_type.clone())
-            } else {
-                Err(format!("Function argument must be {in_type}, but was {a}.").into())
-            }
-        },
-        run,
-    )
+    data::function::Function::new_static(vec![(in_type, out_type)], run)
 }
 
 pub fn to_mers_func_concrete_string_to_any(

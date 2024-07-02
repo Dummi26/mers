@@ -29,7 +29,7 @@ impl Config {
             Data::new(data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     if a.types.iter().all(|t| t.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in_single(&data::string::StringT) && t.0[1].iterable().is_some_and(|t| t.is_included_in_single(&data::string::StringT)))) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![
@@ -42,7 +42,7 @@ impl Config {
                     } else {
                         return Err(format!("run_command called with invalid arguments (must be (String, Iter<String>))").into());
                     }
-                }),
+                })),
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let cmd = a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
@@ -84,7 +84,7 @@ impl Config {
             Data::new(data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     if a.types.iter().all(|t| t.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in_single(&data::string::StringT) && t.0[1].iterable().is_some_and(|t| t.is_included_in_single(&data::string::StringT)))) {
                         Ok(Type::newm(vec![
                             Arc::new(ChildProcessT),
@@ -93,7 +93,7 @@ impl Config {
                     } else {
                         return Err(format!("spawn_command called with invalid arguments (must be (String, Iter<String>))").into());
                     }
-                }),
+                })),
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let cmd = a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
@@ -128,7 +128,7 @@ impl Config {
             Data::new(data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![Type::new(data::bool::BoolT)])),
@@ -137,7 +137,7 @@ impl Config {
                     } else {
                         return Err(format!("childproc_exited called on non-ChildProcess type {a}").into());
                     }
-                }),
+                })),
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let child = a.as_any().downcast_ref::<ChildProcess>().unwrap();
@@ -156,7 +156,7 @@ impl Config {
             Data::new(data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
                             Arc::new(data::int::IntT),
@@ -166,7 +166,7 @@ impl Config {
                     } else {
                         return Err(format!("childproc_await called on non-ChildProcess type {a}").into());
                     }
-                }),
+                })),
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let child = a.as_any().downcast_ref::<ChildProcess>().unwrap();
@@ -189,13 +189,13 @@ impl Config {
             Data::new(data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     if a.types.iter().all(|a| a.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in_single(&ChildProcessT) && t.0[1].iterable().is_some_and(|i| i.is_included_in_single(&data::byte::ByteT)))) {
                         Ok(Type::new(data::bool::BoolT))
                     } else {
                         return Err(format!("childproc_write_bytes called on non-`(ChildProcess, Iter<Byte>)` type {a}").into());
                     }
-                }),
+                })),
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let tuple = a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
@@ -218,13 +218,13 @@ impl Config {
             Data::new(data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     if a.is_included_in_single(&data::tuple::TupleT(vec![Type::new(ChildProcessT), Type::new(data::string::StringT)])) {
                         Ok(Type::new(data::bool::BoolT))
                     } else {
                         return Err(format!("childproc_write_string called on non-`(ChildProcess, String)` type {a}").into());
                     }
-                }),
+                })),
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let tuple = a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
@@ -247,7 +247,7 @@ impl Config {
             Data::new(data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![Type::new(data::byte::ByteT)])),
@@ -256,7 +256,7 @@ impl Config {
                     } else {
                         return Err(format!("childproc_read_byte called on non-ChildProcess type {a}").into());
                     }
-                }),
+                })),
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let child = a.as_any().downcast_ref::<ChildProcess>().unwrap();
@@ -276,7 +276,7 @@ impl Config {
             Data::new(data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![Type::new(data::byte::ByteT)])),
@@ -285,7 +285,7 @@ impl Config {
                     } else {
                         return Err(format!("childproc_readerr_byte called on non-ChildProcess type {a}").into());
                     }
-                }),
+                })),
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let child = a.as_any().downcast_ref::<ChildProcess>().unwrap();
@@ -305,7 +305,7 @@ impl Config {
             Data::new(data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![Type::new(data::string::StringT)])),
@@ -314,7 +314,7 @@ impl Config {
                     } else {
                         return Err(format!("childproc_read_line called on non-ChildProcess type {a}").into());
                     }
-                }),
+                })),
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let child = a.as_any().downcast_ref::<ChildProcess>().unwrap();
@@ -334,7 +334,7 @@ impl Config {
             Data::new(data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![Type::new(data::string::StringT)])),
@@ -343,7 +343,7 @@ impl Config {
                     } else {
                         return Err(format!("childproc_read_line called on non-ChildProcess type {a}").into());
                     }
-                }),
+                })),
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let child = a.as_any().downcast_ref::<ChildProcess>().unwrap();

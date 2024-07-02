@@ -1,3 +1,7 @@
+# IN CODE
+
+rm mers_lib/src/program/configs/util.rs
+
 # Objects
 
 ```

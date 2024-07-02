@@ -34,7 +34,7 @@ impl Config {
             .add_var("get_mut".to_string(), Data::new(data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                    out: Arc::new(|a, _i| {
+                    out: Ok(Arc::new(|a, _i| {
                             let mut out = Type::empty_tuple();
                             for t in a.types.iter() {
                                 if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
@@ -71,7 +71,7 @@ impl Config {
                                 }
                             }
                             Ok(out)
-                    }),
+                    })),
                     run: Arc::new(|a, _i| {
                         let t = a.get();
                         let t = t.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
@@ -103,7 +103,7 @@ impl Config {
                 Data::new(data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                    out: Arc::new(|a, _i| {
+                    out: Ok(Arc::new(|a, _i| {
                         if let Some(a) = a.dereference() {
                             let mut out = Type::empty();
                             for t in a.types.iter() {
@@ -122,7 +122,7 @@ impl Config {
                         } else {
                             return Err(format!("pop: not a reference: {a}").into());
                         }
-                    }),
+                    })),
                     run: Arc::new(|a, _i| {
                         Ok(match a
                             .get()
@@ -151,7 +151,7 @@ impl Config {
                 Data::new(data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                    out: Arc::new(|a, _i| {
+                    out: Ok(Arc::new(|a, _i| {
                         for t in a.types.iter() {
                             if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
                                 if t.0.len() != 2 {
@@ -186,7 +186,7 @@ impl Config {
                             }
                         }
                         Ok(Type::empty_tuple())
-                    }),
+                    })),
                     run: Arc::new(|a, _i| {
                         let tuple = a.get();
                         let tuple = tuple.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
@@ -214,7 +214,7 @@ impl Config {
                 Data::new(data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                    out: Arc::new(|a, _i| {
+                    out: Ok(Arc::new(|a, _i| {
                         if let Some(v) = a.iterable() {
                             Ok(Type::new(ListT(v)))
                         } else {
@@ -222,7 +222,7 @@ impl Config {
                                 "cannot iterate over type {a}"
                             ).into())
                         }
-                    }),
+                    })),
                     run: Arc::new(|a, _i| {
                         if let Some(i) = a.get().iterable() {
                             Ok(Data::new(List(i.map(|v| Ok::<_, CheckError>(Arc::new(RwLock::new(v?)))).collect::<Result<_, _>>()?)))

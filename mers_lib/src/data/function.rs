@@ -15,7 +15,10 @@ use super::{Data, MersData, MersType, Type};
 pub struct Function {
     pub info: Info,
     pub info_check: Arc<Mutex<CheckInfo>>,
-    pub out: Arc<dyn Fn(&Type, &mut CheckInfo) -> Result<Type, CheckError> + Send + Sync>,
+    pub out: Result<
+        Arc<dyn Fn(&Type, &mut CheckInfo) -> Result<Type, CheckError> + Send + Sync>,
+        Arc<Vec<(Type, Type)>>,
+    >,
     pub run:
         Arc<dyn Fn(Data, &mut crate::program::run::Info) -> Result<Data, CheckError> + Send + Sync>,
     pub inner_statements: Option<(
@@ -35,14 +38,26 @@ impl Clone for Function {
     }
 }
 impl Function {
-    pub fn new(
+    pub fn new_static(
+        out: Vec<(Type, Type)>,
+        run: impl Fn(Data) -> Result<Data, CheckError> + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            info: crate::info::Info::neverused(),
+            info_check: Arc::new(Mutex::new(crate::info::Info::neverused())),
+            out: Err(Arc::new(out)),
+            run: Arc::new(move |a, _| run(a)),
+            inner_statements: None,
+        }
+    }
+    pub fn new_generic(
         out: impl Fn(&Type) -> Result<Type, CheckError> + Send + Sync + 'static,
         run: impl Fn(Data) -> Result<Data, CheckError> + Send + Sync + 'static,
     ) -> Self {
         Self {
             info: crate::info::Info::neverused(),
             info_check: Arc::new(Mutex::new(crate::info::Info::neverused())),
-            out: Arc::new(move |a, _| out(a)),
+            out: Ok(Arc::new(move |a, _| out(a))),
             run: Arc::new(move |a, _| run(a)),
             inner_statements: None,
         }
@@ -51,7 +66,7 @@ impl Function {
         Self {
             info,
             info_check: Arc::clone(&self.info_check),
-            out: Arc::clone(&self.out),
+            out: self.out.clone(),
             run: Arc::clone(&self.run),
             inner_statements: self
                 .inner_statements
@@ -63,10 +78,7 @@ impl Function {
         *self.info_check.lock().unwrap() = check;
     }
     pub fn check(&self, arg: &Type) -> Result<Type, CheckError> {
-        let lock = self.info_check.lock().unwrap();
-        let mut info = lock.clone();
-        drop(lock);
-        (self.out)(arg, &mut info)
+        self.get_as_type().o(arg)
     }
     pub fn run_mut(&mut self, arg: Data) -> Result<Data, CheckError> {
         (self.run)(arg, &mut self.info)
@@ -75,14 +87,23 @@ impl Function {
         (self.run)(arg, &mut self.info.duplicate())
     }
     pub fn get_as_type(&self) -> FunctionT {
-        let out = Arc::clone(&self.out);
-        let info = Arc::clone(&self.info_check);
-        FunctionT(Ok(Arc::new(move |a| {
-            let lock = info.lock().unwrap();
-            let mut info = lock.clone();
-            drop(lock);
-            out(a, &mut info)
-        })))
+        match &self.out {
+            Ok(out) => {
+                let out = Arc::clone(out);
+                let info = self.info_check.lock().unwrap().clone();
+                FunctionT(Ok(Arc::new(move |a| out(a, &mut info.clone()))))
+            }
+            Err(types) => FunctionT(Err(Arc::clone(types))),
+        }
+    }
+
+    pub fn inner_statements(
+        &self,
+    ) -> &Option<(
+        Arc<Box<dyn crate::program::run::MersStatement>>,
+        Arc<Box<dyn crate::program::run::MersStatement>>,
+    )> {
+        &self.inner_statements
     }
 }
 
@@ -130,7 +151,7 @@ impl MersData for Function {
 
 #[derive(Clone)]
 pub struct FunctionT(
-    pub Result<Arc<dyn Fn(&Type) -> Result<Type, CheckError> + Send + Sync>, Vec<(Type, Type)>>,
+    pub Result<Arc<dyn Fn(&Type) -> Result<Type, CheckError> + Send + Sync>, Arc<Vec<(Type, Type)>>>,
 );
 impl FunctionT {
     /// get output type

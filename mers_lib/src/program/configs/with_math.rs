@@ -73,7 +73,7 @@ impl Config {
             Data::new(data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     if a.is_included_in(&Type::new(data::string::StringT)) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![Type::new(data::float::FloatT)])),
@@ -82,7 +82,7 @@ impl Config {
                     } else {
                         Err(format!("parse_float called on non-string type").into())
                     }
-                }),
+                })),
                 run: Arc::new(|a, _i| {
                     Ok(
                         if let Ok(n) = a
@@ -107,7 +107,7 @@ impl Config {
             Data::new(data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     if a.is_included_in(&Type::new(data::string::StringT)) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![Type::new(data::int::IntT)])),
@@ -116,7 +116,7 @@ impl Config {
                     } else {
                         Err(format!("parse_float called on non-string type").into())
                     }
-                }),
+                })),
                 run: Arc::new(|a, _i| {
                     Ok(
                         if let Ok(n) = a
@@ -141,7 +141,7 @@ impl Config {
             Data::new(data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, _i| {
                     if a.is_included_in(&Type::newm(vec![
                         Arc::new(data::int::IntT),
                         Arc::new(data::float::FloatT),
@@ -150,7 +150,7 @@ impl Config {
                     } else {
                         Err(format!("signum called on non-number type").into())
                     }
-                }),
+                })),
                 run: Arc::new(|a, _i| {
                     Ok(Data::new(data::int::Int(
                         if let Some(n) = a.get().as_any().downcast_ref::<data::int::Int>() {
@@ -257,7 +257,7 @@ fn num_iter_to_num(
     data::function::Function {
         info: program::run::Info::neverused(),
         info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-        out: Arc::new(move |a, _i| {
+        out: Ok(Arc::new(move |a, _i| {
             if let Some(a) = a.iterable() {
                 let int_type = Type::new(data::int::IntT);
                 if a.is_included_in(&int_type) {
@@ -281,7 +281,7 @@ fn num_iter_to_num(
             } else {
                 Err(format!("argument passed to {func_name} must be an iterator").into())
             }
-        }),
+        })),
         run: Arc::new(move |a, _i| {
             let mut out = init;
             for v in a.get().iterable().unwrap() {
@@ -322,7 +322,7 @@ fn two_num_tuple_to_num(
     data::function::Function {
         info: program::run::Info::neverused(),
         info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-        out: Arc::new(|a, _i| two_tuple_to_num_impl_check(a, func_name)),
+        out: Ok(Arc::new(|a, _i| two_tuple_to_num_impl_check(a, func_name))),
         run: Arc::new(move |a, _i| {
             two_tuple_to_num_impl_run(a, func_name, &func_ii, &func_if, &func_fi, &func_ff)
         }),
@@ -408,7 +408,7 @@ fn ltgtoe_function(
     data::function::Function {
         info: program::run::Info::neverused(),
         info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-        out: Arc::new(move |a, _i| {
+        out: Ok(Arc::new(move |a, _i| {
             if let Some(iter_type) = a.iterable() {
                 let iter_required_type = Type::newm(vec![
                     Arc::new(data::int::IntT),
@@ -422,7 +422,7 @@ fn ltgtoe_function(
             } else {
                 Err(CheckError::from(format!("Cannot use {func_name}")))
             }
-        }),
+        })),
         run: Arc::new(move |a, _i| {
             let mut prev = IntOrFloatOrNothing::Nothing;
             for item in a.get().iterable().unwrap() {
