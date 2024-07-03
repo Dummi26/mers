@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc};
 
 use crate::{
     data::{self, Data, MersData, Type},
@@ -7,8 +7,23 @@ use crate::{
 
 use super::{FromMersData, ToMersData};
 
+pub fn fun<I: FromMersData + 'static, O: ToMersData + 'static>(
+    f: fn(I, &mut crate::program::run::Info) -> Result<O, CheckError>,
+) -> impl StaticMersFunc {
+    Box::new(f)
+}
 pub fn func<I: FromMersData + 'static, O: ToMersData + 'static>(
-    f: fn(I) -> Result<O, CheckError>,
+    f: fn(I, &mut crate::program::run::Info) -> Result<O, CheckError>,
+) -> data::function::Function {
+    Box::new(f).mers_func()
+}
+pub fn func_end<I: FromMersData + 'static>(
+    f: fn(I, &mut crate::program::run::Info) -> !,
+) -> data::function::Function {
+    Box::new(f).mers_func()
+}
+pub fn func_err<I: FromMersData + 'static>(
+    f: fn(I, &mut crate::program::run::Info) -> CheckError,
 ) -> data::function::Function {
     Box::new(f).mers_func()
 }
@@ -31,10 +46,14 @@ pub fn func<I: FromMersData + 'static, O: ToMersData + 'static>(
 
 pub trait StaticMersFunc: Sized + 'static + Send + Sync {
     fn types() -> Vec<(Type, Type)>;
-    fn run(&self, a: &(impl MersData + ?Sized)) -> Option<Result<Data, CheckError>>;
+    fn run(
+        &self,
+        a: &(impl MersData + ?Sized),
+        info: &mut crate::program::run::Info,
+    ) -> Option<Result<Data, CheckError>>;
     fn mers_func(self) -> data::function::Function {
-        data::function::Function::new_static(Self::types(), move |a| {
-            match self.run(a.get().as_ref()) {
+        data::function::Function::new_static(Self::types(), move |a, i| {
+            match self.run(a.get().as_ref(), i) {
                 Some(Ok(v)) => Ok(v),
                 Some(Err(e)) => Err(e),
                 None => Err(CheckError::from(format!(
@@ -52,13 +71,55 @@ pub struct TwoFuncs<A: StaticMersFunc, B: StaticMersFunc>(pub A, pub B);
 pub trait Func: Send + Sync + 'static {
     type I: FromMersData;
     type O: ToMersData;
-    fn run_func(&self, i: Self::I) -> Result<Self::O, CheckError>;
+    fn run_func(
+        &self,
+        i: Self::I,
+        info: &mut crate::program::run::Info,
+    ) -> Result<Self::O, CheckError>;
 }
-impl<I: FromMersData + 'static, O: ToMersData + 'static> Func for fn(I) -> Result<O, CheckError> {
+impl<I: FromMersData + 'static, O: ToMersData + 'static> Func
+    for fn(I, &mut crate::program::run::Info) -> Result<O, CheckError>
+{
     type I = I;
     type O = O;
-    fn run_func(&self, i: Self::I) -> Result<Self::O, CheckError> {
-        self(i)
+    fn run_func(
+        &self,
+        i: Self::I,
+        info: &mut crate::program::run::Info,
+    ) -> Result<Self::O, CheckError> {
+        self(i, info)
+    }
+}
+
+pub struct UnreachableDontConstruct(PhantomData<Self>);
+impl ToMersData for UnreachableDontConstruct {
+    fn as_type_to() -> Type {
+        Type::empty()
+    }
+    fn represent(self) -> Data {
+        unreachable!()
+    }
+}
+impl<I: FromMersData + 'static> Func for fn(I, &mut crate::program::run::Info) -> ! {
+    type I = I;
+    type O = UnreachableDontConstruct;
+    fn run_func(
+        &self,
+        i: Self::I,
+        info: &mut crate::program::run::Info,
+    ) -> Result<Self::O, CheckError> {
+        self(i, info);
+    }
+}
+impl<I: FromMersData + 'static> Func for fn(I, &mut crate::program::run::Info) -> CheckError {
+    type I = I;
+    type O = UnreachableDontConstruct;
+    fn run_func(
+        &self,
+        i: Self::I,
+        info: &mut crate::program::run::Info,
+    ) -> Result<Self::O, CheckError> {
+        Err(self(i, info))
     }
 }
 
@@ -66,8 +127,14 @@ impl<F: Func + ?Sized> StaticMersFunc for Box<F> {
     fn types() -> Vec<(Type, Type)> {
         vec![(F::I::as_type_from(), F::O::as_type_to())]
     }
-    fn run(&self, a: &(impl MersData + ?Sized)) -> Option<Result<Data, CheckError>> {
-        F::I::try_represent(a, |v| v.map(|v| self.run_func(v).map(|v| v.represent())))
+    fn run(
+        &self,
+        a: &(impl MersData + ?Sized),
+        info: &mut crate::program::run::Info,
+    ) -> Option<Result<Data, CheckError>> {
+        F::I::try_represent(a, |v| {
+            v.map(|v| self.run_func(v, info).map(|v| v.represent()))
+        })
     }
 }
 
@@ -84,7 +151,11 @@ impl<A: StaticMersFunc, B: StaticMersFunc> StaticMersFunc for TwoFuncs<A, B> {
         }
         o
     }
-    fn run(&self, a: &(impl MersData + ?Sized)) -> Option<Result<Data, CheckError>> {
-        self.0.run(a).or_else(|| self.1.run(a))
+    fn run(
+        &self,
+        a: &(impl MersData + ?Sized),
+        info: &mut crate::program::run::Info,
+    ) -> Option<Result<Data, CheckError>> {
+        self.0.run(a, info).or_else(|| self.1.run(a, info))
     }
 }

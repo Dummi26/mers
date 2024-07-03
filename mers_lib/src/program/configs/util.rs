@@ -41,7 +41,7 @@ pub fn to_mers_func_with_in_out_types(
     out_type: Type,
     run: impl Fn(Data) -> Result<Data, CheckError> + Send + Sync + 'static,
 ) -> data::function::Function {
-    data::function::Function::new_static(vec![(in_type, out_type)], run)
+    data::function::Function::new_static(vec![(in_type, out_type)], move |a, _| run(a))
 }
 
 pub fn to_mers_func_concrete_string_to_any(

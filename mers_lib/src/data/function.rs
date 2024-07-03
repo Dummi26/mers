@@ -40,25 +40,25 @@ impl Clone for Function {
 impl Function {
     pub fn new_static(
         out: Vec<(Type, Type)>,
-        run: impl Fn(Data) -> Result<Data, CheckError> + Send + Sync + 'static,
+        run: impl Fn(Data, &mut Info) -> Result<Data, CheckError> + Send + Sync + 'static,
     ) -> Self {
         Self {
             info: crate::info::Info::neverused(),
             info_check: Arc::new(Mutex::new(crate::info::Info::neverused())),
             out: Err(Arc::new(out)),
-            run: Arc::new(move |a, _| run(a)),
+            run: Arc::new(run),
             inner_statements: None,
         }
     }
     pub fn new_generic(
         out: impl Fn(&Type) -> Result<Type, CheckError> + Send + Sync + 'static,
-        run: impl Fn(Data) -> Result<Data, CheckError> + Send + Sync + 'static,
+        run: impl Fn(Data, &mut Info) -> Result<Data, CheckError> + Send + Sync + 'static,
     ) -> Self {
         Self {
             info: crate::info::Info::neverused(),
             info_check: Arc::new(Mutex::new(crate::info::Info::neverused())),
             out: Ok(Arc::new(move |a, _| out(a))),
-            run: Arc::new(move |a, _| run(a)),
+            run: Arc::new(run),
             inner_statements: None,
         }
     }
