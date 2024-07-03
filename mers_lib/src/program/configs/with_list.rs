@@ -31,7 +31,7 @@ impl Config {
                 let srca = Arc::new(src.clone());
                 let t = crate::parsing::types::parse_type(&mut src, &srca)?;
                 Ok(Arc::new(Type::new(ListT(crate::parsing::types::type_from_parsed(&t, i)?))))})))
-            .add_var("get_mut".to_string(), Data::new(data::function::Function {
+            .add_var("get_mut", data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                     out: Ok(Arc::new(|a, _i| {
@@ -97,10 +97,10 @@ impl Config {
                         Ok(o)
                     }),
                 inner_statements: None,
-            }))
+            })
             .add_var(
-                "pop".to_string(),
-                Data::new(data::function::Function {
+                "pop",
+                data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                     out: Ok(Arc::new(|a, _i| {
@@ -144,11 +144,11 @@ impl Config {
                         })
                     }),
                 inner_statements: None,
-                }),
+                },
             )
             .add_var(
-                "push".to_string(),
-                Data::new(data::function::Function {
+                "push",
+                data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                     out: Ok(Arc::new(|a, _i| {
@@ -207,11 +207,11 @@ impl Config {
                             Ok(Data::empty_tuple())
                     }),
                 inner_statements: None,
-                }),
+                },
             )
             .add_var(
-                "as_list".to_string(),
-                Data::new(data::function::Function {
+                "as_list",
+                data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                     out: Ok(Arc::new(|a, _i| {
@@ -231,7 +231,7 @@ impl Config {
                         }
                     }),
                 inner_statements: None,
-                }),
+                },
             )
     }
 }

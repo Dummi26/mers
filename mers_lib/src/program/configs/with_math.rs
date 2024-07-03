@@ -11,7 +11,7 @@ use crate::{
 
 use super::{
     gen::{
-        function::{fun, func, StaticMersFunc, TwoFuncs},
+        function::{fun, func, Funcs, StaticMersFunc},
         OneOf, OneOrNone,
     },
     Config,
@@ -50,60 +50,60 @@ impl Config {
     /// `round_ties_even_to_int: fn` round ties (x.5) to the nearest even number, return the result as an Int (saturates at the Int boundaries, hence the to_int instead of as_int)
     pub fn with_math(self) -> Self {
         self.add_var(
-            "parse_float".to_owned(),
-            Data::new(func(|n: &str, _| Ok(OneOrNone(n.parse::<f64>().ok())))),
+            "parse_float",
+            func(|n: &str, _| Ok(OneOrNone(n.parse::<f64>().ok()))),
         )
         .add_var(
-            "parse_int".to_owned(),
-            Data::new(func(|n: &str, _| Ok(OneOrNone(n.parse::<isize>().ok())))),
+            "parse_int",
+            func(|n: &str, _| Ok(OneOrNone(n.parse::<isize>().ok()))),
         )
         .add_var(
-            "lt".to_string(),
-            Data::new(func(|v: (OneOf<isize, f64>, OneOf<isize, f64>), _| {
+            "lt",
+            func(|v: (OneOf<isize, f64>, OneOf<isize, f64>), _| {
                 Ok(match v {
                     (OneOf::A(a), OneOf::A(b)) => a < b,
                     (OneOf::A(a), OneOf::B(b)) => (a as f64) < b,
                     (OneOf::B(a), OneOf::A(b)) => a < (b as f64),
                     (OneOf::B(a), OneOf::B(b)) => a < b,
                 })
-            })),
+            }),
         )
         .add_var(
-            "gt".to_string(),
-            Data::new(func(|v: (OneOf<isize, f64>, OneOf<isize, f64>), _| {
+            "gt",
+            func(|v: (OneOf<isize, f64>, OneOf<isize, f64>), _| {
                 Ok(match v {
                     (OneOf::A(a), OneOf::A(b)) => a > b,
                     (OneOf::A(a), OneOf::B(b)) => (a as f64) > b,
                     (OneOf::B(a), OneOf::A(b)) => a > (b as f64),
                     (OneOf::B(a), OneOf::B(b)) => a > b,
                 })
-            })),
+            }),
         )
         .add_var(
-            "ltoe".to_string(),
-            Data::new(func(|v: (OneOf<isize, f64>, OneOf<isize, f64>), _| {
+            "ltoe",
+            func(|v: (OneOf<isize, f64>, OneOf<isize, f64>), _| {
                 Ok(match v {
                     (OneOf::A(a), OneOf::A(b)) => a <= b,
                     (OneOf::A(a), OneOf::B(b)) => (a as f64) <= b,
                     (OneOf::B(a), OneOf::A(b)) => a <= (b as f64),
                     (OneOf::B(a), OneOf::B(b)) => a <= b,
                 })
-            })),
+            }),
         )
         .add_var(
-            "gtoe".to_string(),
-            Data::new(func(|v: (OneOf<isize, f64>, OneOf<isize, f64>), _| {
+            "gtoe",
+            func(|v: (OneOf<isize, f64>, OneOf<isize, f64>), _| {
                 Ok(match v {
                     (OneOf::A(a), OneOf::A(b)) => a >= b,
                     (OneOf::A(a), OneOf::B(b)) => (a as f64) >= b,
                     (OneOf::B(a), OneOf::A(b)) => a >= (b as f64),
                     (OneOf::B(a), OneOf::B(b)) => a >= b,
                 })
-            })),
+            }),
         )
         .add_var(
-            "signum".to_string(),
-            Data::new(func(|n: OneOf<isize, f64>, _| {
+            "signum",
+            func(|n: OneOf<isize, f64>, _| {
                 Ok(match n {
                     OneOf::A(n) => n.signum(),
                     OneOf::B(n) => {
@@ -116,216 +116,192 @@ impl Config {
                         }
                     }
                 })
-            })),
+            }),
         )
         .add_var(
-            "add".to_string(),
-            Data::new(num_iter_to_num("sum", Ok(0), |a, v| match (a, v) {
+            "add",
+            num_iter_to_num("sum", Ok(0), |a, v| match (a, v) {
                 (Ok(a), Ok(v)) => Ok(a + v),
                 (Ok(a), Err(v)) => Err(a as f64 + v),
                 (Err(a), Ok(v)) => Err(a + v as f64),
                 (Err(a), Err(v)) => Err(a + v),
-            })),
+            }),
         )
         .add_var(
-            "sub".to_string(),
-            Data::new(
-                TwoFuncs(
-                    fun(|(n, d): (isize, isize), _| Ok(n.wrapping_sub(d))),
-                    fun(|(n, d): (OneOf<isize, f64>, OneOf<isize, f64>), _| {
-                        let n = match n {
-                            OneOf::A(v) => v as f64,
-                            OneOf::B(v) => v,
-                        };
-                        let d = match d {
-                            OneOf::A(v) => v as f64,
-                            OneOf::B(v) => v,
-                        };
-                        Ok(n - d)
-                    }),
-                )
-                .mers_func(),
-            ),
+            "sub",
+            Funcs(
+                fun(|(n, d): (isize, isize), _| Ok(n.wrapping_sub(d))),
+                fun(|(n, d): (OneOf<isize, f64>, OneOf<isize, f64>), _| {
+                    let n = match n {
+                        OneOf::A(v) => v as f64,
+                        OneOf::B(v) => v,
+                    };
+                    let d = match d {
+                        OneOf::A(v) => v as f64,
+                        OneOf::B(v) => v,
+                    };
+                    Ok(n - d)
+                }),
+            )
+            .mers_func(),
         )
         .add_var(
-            "mul".to_string(),
-            Data::new(num_iter_to_num("sum", Ok(1), |a, v| match (a, v) {
+            "mul",
+            num_iter_to_num("sum", Ok(1), |a, v| match (a, v) {
                 (Ok(a), Ok(v)) => Ok(a * v),
                 (Ok(a), Err(v)) => Err(a as f64 * v),
                 (Err(a), Ok(v)) => Err(a * v as f64),
                 (Err(a), Err(v)) => Err(a * v),
-            })),
+            }),
         )
         .add_var(
-            "div".to_string(),
-            Data::new(
-                TwoFuncs(
-                    fun(|(n, d): (isize, isize), _| {
-                        n.checked_div(d)
-                            .ok_or_else(|| CheckError::from("attempted to divide by zero"))
-                    }),
-                    fun(|(n, d): (OneOf<isize, f64>, OneOf<isize, f64>), _| {
-                        let n = match n {
-                            OneOf::A(v) => v as f64,
-                            OneOf::B(v) => v,
-                        };
-                        let d = match d {
-                            OneOf::A(v) => v as f64,
-                            OneOf::B(v) => v,
-                        };
-                        Ok(n / d)
-                    }),
-                )
-                .mers_func(),
-            ),
+            "div",
+            Funcs(
+                fun(|(n, d): (isize, isize), _| {
+                    n.checked_div(d)
+                        .ok_or_else(|| CheckError::from("attempted to divide by zero"))
+                }),
+                fun(|(n, d): (OneOf<isize, f64>, OneOf<isize, f64>), _| {
+                    let n = match n {
+                        OneOf::A(v) => v as f64,
+                        OneOf::B(v) => v,
+                    };
+                    let d = match d {
+                        OneOf::A(v) => v as f64,
+                        OneOf::B(v) => v,
+                    };
+                    Ok(n / d)
+                }),
+            )
+            .mers_func(),
         )
         .add_var(
-            "remainder".to_string(),
-            Data::new(
-                TwoFuncs(
-                    fun(|(n, d): (isize, isize), _| {
-                        n.checked_rem(d).ok_or_else(|| {
-                            CheckError::from(
-                                "attempted to calculate remainder with zero, or overflow occured",
-                            )
-                        })
-                    }),
-                    fun(|(n, d): (OneOf<isize, f64>, OneOf<isize, f64>), _| {
-                        let n = match n {
-                            OneOf::A(v) => v as f64,
-                            OneOf::B(v) => v,
-                        };
-                        let d = match d {
-                            OneOf::A(v) => v as f64,
-                            OneOf::B(v) => v,
-                        };
-                        Ok(n.rem(d))
-                    }),
-                )
-                .mers_func(),
-            ),
+            "remainder",
+            Funcs(
+                fun(|(n, d): (isize, isize), _| {
+                    n.checked_rem(d).ok_or_else(|| {
+                        CheckError::from(
+                            "attempted to calculate remainder with zero, or overflow occured",
+                        )
+                    })
+                }),
+                fun(|(n, d): (OneOf<isize, f64>, OneOf<isize, f64>), _| {
+                    let n = match n {
+                        OneOf::A(v) => v as f64,
+                        OneOf::B(v) => v,
+                    };
+                    let d = match d {
+                        OneOf::A(v) => v as f64,
+                        OneOf::B(v) => v,
+                    };
+                    Ok(n.rem(d))
+                }),
+            )
+            .mers_func(),
         )
         .add_var(
-            "modulo".to_string(),
-            Data::new(
-                TwoFuncs(
-                    fun(|(n, d): (isize, isize), _| {
-                        n.checked_rem_euclid(d).ok_or_else(|| {
-                            CheckError::from(
-                                "attempted to perform modulo with zero, or overflow occured",
-                            )
-                        })
-                    }),
-                    fun(|(n, d): (OneOf<isize, f64>, OneOf<isize, f64>), _| {
-                        let n = match n {
-                            OneOf::A(v) => v as f64,
-                            OneOf::B(v) => v,
-                        };
-                        let d = match d {
-                            OneOf::A(v) => v as f64,
-                            OneOf::B(v) => v,
-                        };
-                        Ok(n.rem_euclid(d))
-                    }),
-                )
-                .mers_func(),
-            ),
+            "modulo",
+            Funcs(
+                fun(|(n, d): (isize, isize), _| {
+                    n.checked_rem_euclid(d).ok_or_else(|| {
+                        CheckError::from(
+                            "attempted to perform modulo with zero, or overflow occured",
+                        )
+                    })
+                }),
+                fun(|(n, d): (OneOf<isize, f64>, OneOf<isize, f64>), _| {
+                    let n = match n {
+                        OneOf::A(v) => v as f64,
+                        OneOf::B(v) => v,
+                    };
+                    let d = match d {
+                        OneOf::A(v) => v as f64,
+                        OneOf::B(v) => v,
+                    };
+                    Ok(n.rem_euclid(d))
+                }),
+            )
+            .mers_func(),
         )
         .add_var(
-            "abs".to_string(),
-            Data::new(
-                TwoFuncs(
-                    fun(|v: isize, _| Ok(v.saturating_abs())),
-                    fun(|v: f64, _| Ok(v.abs())),
-                )
-                .mers_func(),
-            ),
+            "abs",
+            Funcs(
+                fun(|v: isize, _| Ok(v.saturating_abs())),
+                fun(|v: f64, _| Ok(v.abs())),
+            )
+            .mers_func(),
         )
         .add_var(
-            "pow".to_string(),
-            Data::new(
-                TwoFuncs(
-                    fun(|(l, r): (isize, isize), _| Ok(l.pow(r.try_into().unwrap_or(u32::MAX)))),
-                    fun(|(l, r): (OneOf<isize, f64>, OneOf<isize, f64>), _| {
-                        let l = match l {
-                            OneOf::A(v) => v as f64,
-                            OneOf::B(v) => v,
-                        };
-                        Ok(match r {
-                            OneOf::A(r) => {
-                                if let Ok(r) = r.try_into() {
-                                    l.powi(r)
-                                } else {
-                                    l.powf(r as f64)
-                                }
+            "pow",
+            Funcs(
+                fun(|(l, r): (isize, isize), _| Ok(l.pow(r.try_into().unwrap_or(u32::MAX)))),
+                fun(|(l, r): (OneOf<isize, f64>, OneOf<isize, f64>), _| {
+                    let l = match l {
+                        OneOf::A(v) => v as f64,
+                        OneOf::B(v) => v,
+                    };
+                    Ok(match r {
+                        OneOf::A(r) => {
+                            if let Ok(r) = r.try_into() {
+                                l.powi(r)
+                            } else {
+                                l.powf(r as f64)
                             }
-                            OneOf::B(r) => l.powf(r),
-                        })
-                    }),
-                )
-                .mers_func(),
-            ),
+                        }
+                        OneOf::B(r) => l.powf(r),
+                    })
+                }),
+            )
+            .mers_func(),
         )
         .add_var(
-            "as_float".to_owned(),
-            Data::new(func(|v: OneOf<isize, f64>, _| {
+            "as_float",
+            func(|v: OneOf<isize, f64>, _| {
                 Ok(match v {
                     OneOf::A(v) => v as f64,
                     OneOf::B(v) => v,
                 })
-            })),
+            }),
         )
         .add_var(
-            "round_as_float".to_owned(),
-            Data::new(func(|v: f64, _| -> Result<f64, _> { Ok(v.round()) })),
+            "round_as_float",
+            func(|v: f64, _| -> Result<f64, _> { Ok(v.round()) }),
         )
         .add_var(
-            "ceil_as_float".to_owned(),
-            Data::new(func(|v: f64, _| -> Result<f64, _> { Ok(v.ceil()) })),
+            "ceil_as_float",
+            func(|v: f64, _| -> Result<f64, _> { Ok(v.ceil()) }),
         )
         .add_var(
-            "floor_as_float".to_owned(),
-            Data::new(func(|v: f64, _| -> Result<f64, _> { Ok(v.floor()) })),
+            "floor_as_float",
+            func(|v: f64, _| -> Result<f64, _> { Ok(v.floor()) }),
         )
         .add_var(
-            "truncate_as_float".to_owned(),
-            Data::new(func(|v: f64, _| -> Result<f64, _> { Ok(v.trunc()) })),
+            "truncate_as_float",
+            func(|v: f64, _| -> Result<f64, _> { Ok(v.trunc()) }),
         )
         .add_var(
-            "round_ties_even_as_float".to_owned(),
-            Data::new(func(|v: f64, _| -> Result<f64, _> {
-                Ok(v.round_ties_even())
-            })),
+            "round_ties_even_as_float",
+            func(|v: f64, _| -> Result<f64, _> { Ok(v.round_ties_even()) }),
         )
         .add_var(
-            "round_to_int".to_owned(),
-            Data::new(func(|v: f64, _| -> Result<isize, _> {
-                Ok(isize_from(v.round()))
-            })),
+            "round_to_int",
+            func(|v: f64, _| -> Result<isize, _> { Ok(isize_from(v.round())) }),
         )
         .add_var(
-            "ceil_to_int".to_owned(),
-            Data::new(func(|v: f64, _| -> Result<isize, _> {
-                Ok(isize_from(v.ceil()))
-            })),
+            "ceil_to_int",
+            func(|v: f64, _| -> Result<isize, _> { Ok(isize_from(v.ceil())) }),
         )
         .add_var(
-            "floor_to_int".to_owned(),
-            Data::new(func(|v: f64, _| -> Result<isize, _> {
-                Ok(isize_from(v.floor()))
-            })),
+            "floor_to_int",
+            func(|v: f64, _| -> Result<isize, _> { Ok(isize_from(v.floor())) }),
         )
         .add_var(
-            "truncate_to_int".to_owned(),
-            Data::new(func(|v: f64, _| -> Result<isize, _> {
-                Ok(isize_from(v.trunc()))
-            })),
+            "truncate_to_int",
+            func(|v: f64, _| -> Result<isize, _> { Ok(isize_from(v.trunc())) }),
         )
         .add_var(
             "round_ties_even_to_int".to_owned(),
-            Data::new(func(|v: f64, _| -> Result<isize, _> {
-                Ok(isize_from(v.round_ties_even()))
-            })),
+            func(|v: f64, _| -> Result<isize, _> { Ok(isize_from(v.round_ties_even())) }),
         )
     }
 }

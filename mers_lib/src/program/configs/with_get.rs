@@ -11,8 +11,8 @@ impl Config {
     /// `get: fn` is used to retrieve elements from collections
     pub fn with_get(self) -> Self {
         self.add_var(
-            "get".to_string(),
-            Data::new(data::function::Function {
+            "get",
+            data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
@@ -70,7 +70,7 @@ impl Config {
                     }
                 }),
                 inner_statements: None,
-            }),
+            },
         )
     }
 }

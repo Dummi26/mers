@@ -66,7 +66,7 @@ pub trait StaticMersFunc: Sized + 'static + Send + Sync {
     }
 }
 
-pub struct TwoFuncs<A: StaticMersFunc, B: StaticMersFunc>(pub A, pub B);
+pub struct Funcs<A: StaticMersFunc, B: StaticMersFunc>(pub A, pub B);
 
 pub trait Func: Send + Sync + 'static {
     type I: FromMersData;
@@ -138,7 +138,7 @@ impl<F: Func + ?Sized> StaticMersFunc for Box<F> {
     }
 }
 
-impl<A: StaticMersFunc, B: StaticMersFunc> StaticMersFunc for TwoFuncs<A, B> {
+impl<A: StaticMersFunc, B: StaticMersFunc> StaticMersFunc for Funcs<A, B> {
     fn types() -> Vec<(Type, Type)> {
         let mut o = A::types();
         for t in B::types() {

@@ -28,25 +28,25 @@ impl Config {
     /// `all: fn` returns true if all elements of the iterator are true
     pub fn with_iters(self) -> Self {
         self
-            .add_var("any".to_string(), Data::new(genfunc_iter_in_val_out("all".to_string(), data::bool::BoolT, Type::new(data::bool::BoolT), |a, _i| {
+            .add_var("any", genfunc_iter_in_val_out("all".to_string(), data::bool::BoolT, Type::new(data::bool::BoolT), |a, _i| {
                 for v in a.get().iterable().unwrap().map(|v| v.map(|v| v.get().as_any().downcast_ref::<data::bool::Bool>().is_some_and(|v| v.0))) {
                     if v? {
                         return Ok(Data::new(data::bool::Bool(true)));
                     }
                 }
                 Ok(Data::new(data::bool::Bool(false)))
-            })))
-            .add_var("all".to_string(), Data::new(genfunc_iter_in_val_out("all".to_string(), data::bool::BoolT, Type::new(data::bool::BoolT), |a, _i| {
+            }))
+            .add_var("all", genfunc_iter_in_val_out("all".to_string(), data::bool::BoolT, Type::new(data::bool::BoolT), |a, _i| {
                 for v in a.get().iterable().unwrap().map(|v| v.map(|v| v.get().as_any().downcast_ref::<data::bool::Bool>().is_some_and(|v| v.0))) {
                     if !v? {
                         return Ok(Data::new(data::bool::Bool(false)));
                     }
                 }
                 Ok(Data::new(data::bool::Bool(true)))
-            })))
+            }))
             .add_var(
-            "for_each".to_string(),
-            Data::new(data::function::Function {
+            "for_each",
+            data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
@@ -107,30 +107,30 @@ impl Config {
                     }
                 }),
                 inner_statements: None,
-            }),
+            },
         )
         .add_var(
-            "map".to_string(),
-            Data::new(genfunc_iter_and_func("map", ItersT::Map, Iters::Map))
+            "map",
+            genfunc_iter_and_func("map", ItersT::Map, Iters::Map)
         )
         .add_var(
-            "filter".to_string(),
-            Data::new(genfunc_iter_and_func("filter", ItersT::Filter, Iters::Filter)),
+            "filter",
+            genfunc_iter_and_func("filter", ItersT::Filter, Iters::Filter),
         )
         .add_var(
-            "filter_map".to_string(),
-            Data::new(genfunc_iter_and_func("filter_map", ItersT::FilterMap, Iters::FilterMap)),
+            "filter_map",
+            genfunc_iter_and_func("filter_map", ItersT::FilterMap, Iters::FilterMap),
         )
         .add_var(
-            "map_while".to_string(),
-            Data::new(genfunc_iter_and_func("map_while", ItersT::MapWhile, Iters::MapWhile)),
+            "map_while",
+            genfunc_iter_and_func("map_while", ItersT::MapWhile, Iters::MapWhile),
         )
-            .add_var("take".to_string(), Data::new(genfunc_iter_and_arg("take", |_: &data::int::IntT| ItersT::Take, |v: &data::int::Int| {
-                Iters::Take(v.0.max(0) as _)
-            }, &data::int::IntT)))
+        .add_var("take", genfunc_iter_and_arg("take", |_: &data::int::IntT| ItersT::Take, |v: &data::int::Int| {
+            Iters::Take(v.0.max(0) as _)
+        }, &data::int::IntT))
         .add_var(
-            "enumerate".to_string(),
-            Data::new(data::function::Function {
+            "enumerate",
+            data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
@@ -143,11 +143,11 @@ impl Config {
                 })),
                 run: Arc::new(|a, _i| Ok(Data::new(Iter(Iters::Enumerate, a.clone())))),
                 inner_statements: None,
-            }),
+            },
         )
         .add_var(
-            "chain".to_string(),
-            Data::new(data::function::Function {
+            "chain",
+            data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
@@ -160,7 +160,7 @@ impl Config {
                 })),
                 run: Arc::new(|a, _i| Ok(Data::new(Iter(Iters::Chained, a.clone())))),
                 inner_statements: None,
-            }),
+            },
         )
     }
 }

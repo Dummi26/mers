@@ -25,8 +25,8 @@ impl Config {
         self
             .add_type("ChildProcess".to_owned(), Ok(Arc::new(Type::new(ChildProcessT))))
             .add_var(
-            "run_command".to_string(),
-            Data::new(data::function::Function {
+            "run_command",
+            data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
@@ -77,11 +77,11 @@ impl Config {
                     }
                 }),
                 inner_statements: None,
-            }),
+            },
         )
         .add_var(
-            "spawn_command".to_string(),
-            Data::new(data::function::Function {
+            "spawn_command",
+            data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
@@ -121,11 +121,11 @@ impl Config {
                     }
                 }),
                 inner_statements: None,
-            }),
+            },
         )
         .add_var(
-            "childproc_exited".to_string(),
-            Data::new(data::function::Function {
+            "childproc_exited",
+            data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
@@ -149,11 +149,11 @@ impl Config {
                     })
                 }),
                 inner_statements: None,
-            }),
+            },
         )
         .add_var(
-            "childproc_await".to_string(),
-            Data::new(data::function::Function {
+            "childproc_await",
+            data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
@@ -182,11 +182,11 @@ impl Config {
                     })
                 }),
                 inner_statements: None,
-            }),
+            },
         )
         .add_var(
-            "childproc_write_bytes".to_string(),
-            Data::new(data::function::Function {
+            "childproc_write_bytes",
+            data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
@@ -211,11 +211,11 @@ impl Config {
                     })
                 }),
                 inner_statements: None,
-            }),
+            },
         )
         .add_var(
-            "childproc_write_string".to_string(),
-            Data::new(data::function::Function {
+            "childproc_write_string",
+            data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
@@ -240,11 +240,11 @@ impl Config {
                     })
                 }),
                 inner_statements: None,
-            }),
+            },
         )
         .add_var(
-            "childproc_read_byte".to_string(),
-            Data::new(data::function::Function {
+            "childproc_read_byte",
+            data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
@@ -269,11 +269,11 @@ impl Config {
                         })
                 }),
                 inner_statements: None,
-            }),
+            },
         )
         .add_var(
-            "childproc_readerr_byte".to_string(),
-            Data::new(data::function::Function {
+            "childproc_readerr_byte",
+            data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
@@ -298,11 +298,11 @@ impl Config {
                     })
                 }),
                 inner_statements: None,
-            }),
+            },
         )
         .add_var(
-            "childproc_read_line".to_string(),
-            Data::new(data::function::Function {
+            "childproc_read_line",
+            data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
@@ -327,11 +327,11 @@ impl Config {
                     })
                 }),
                 inner_statements: None,
-            }),
+            },
         )
         .add_var(
-            "childproc_readerr_line".to_string(),
-            Data::new(data::function::Function {
+            "childproc_readerr_line",
+            data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
@@ -356,7 +356,7 @@ impl Config {
                     })
                 }),
                 inner_statements: None,
-            }),
+            },
         )
     }
 }

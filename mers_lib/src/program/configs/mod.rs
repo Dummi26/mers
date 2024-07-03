@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use crate::{
-    data::{self, Data, Type},
+    data::{self, Data, MersData, Type},
     errors::CheckError,
     info::Local,
     program::run::CheckInfo,
@@ -89,11 +89,15 @@ impl Config {
     }
 
     /// Add a variable. Its type will be that of the value stored in `val`.
-    pub fn add_var(self, name: String, val: Data) -> Self {
-        let t = val.get().as_type();
-        self.add_var_arc(name, Arc::new(RwLock::new(val)), t)
+    pub fn add_var(self, name: impl Into<String>, val: impl MersData) -> Self {
+        let t = val.as_type();
+        self.add_var_from_arc(name.into(), Arc::new(RwLock::new(Data::new(val))), t)
     }
-    pub fn add_var_arc(
+    pub fn add_var_from_data(self, name: String, val: Data) -> Self {
+        let t = val.get().as_type();
+        self.add_var_from_arc(name, Arc::new(RwLock::new(val)), t)
+    }
+    pub fn add_var_from_arc(
         mut self,
         name: String,
         val: Arc<RwLock<Data>>,

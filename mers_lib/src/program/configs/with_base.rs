@@ -27,7 +27,7 @@ impl Config {
     /// `lock_update: fn` locks the value of a reference so you can exclusively modify it: &var.lock_update(v -> (v, 1).sum)
     pub fn with_base(self) -> Self {
         self
-            .add_var("lock_update".to_string(), Data::new(data::function::Function {
+            .add_var("lock_update", data::function::Function {
                 info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
@@ -74,8 +74,8 @@ impl Config {
                     Ok(Data::empty_tuple())
                 }),
                 inner_statements: None,
-            }))
-            .add_var("sleep".to_owned(), Data::new(func(|dur: OneOf<isize, f64>, i| {
+            })
+            .add_var("sleep", func(|dur: OneOf<isize, f64>, i| {
                 let mut sleep_dur = match dur {
                     OneOf::A(dur) => Duration::from_secs(dur.max(0).try_into().unwrap_or(u64::MAX)),
                     OneOf::B(dur) => Duration::from_secs_f64(dur.max(0.0)),
@@ -86,16 +86,16 @@ impl Config {
                 }
                 std::thread::sleep(sleep_dur);
                 Ok(())
-            })))
-            .add_var("exit".to_string(), Data::new(func_end(|code: isize, _| {
+            }))
+            .add_var("exit", func_end(|code: isize, _| {
                 std::process::exit(code.try_into().unwrap_or(255));
-            })))
-            .add_var("panic".to_string(), Data::new(func_err(|message: &str, _| {
+            }))
+            .add_var("panic", func_err(|message: &str, _| {
                 CheckError::from(message)
-            })))
+            }))
             .add_var(
-            "len".to_string(),
-            Data::new(data::function::Function {
+            "len",
+            data::function::Function {
                 info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
@@ -119,11 +119,11 @@ impl Config {
                     })))
                 }),
                 inner_statements: None,
-            }),
+            },
         )
         .add_var(
-            "eq".to_string(),
-            Data::new(data::function::Function {
+            "eq",
+            data::function::Function {
                 info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
@@ -155,11 +155,11 @@ impl Config {
                     })))
                 }),
                 inner_statements: None,
-            }),
+            },
         )
         .add_var(
-            "mkref".to_string(),
-            Data::new(data::function::Function {
+            "mkref",
+            data::function::Function {
                 info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| Ok(Type::new(data::reference::ReferenceT(a.clone()))))),
@@ -167,11 +167,11 @@ impl Config {
                     Ok(Data::new(data::reference::Reference(Arc::new(RwLock::new(a.clone())))))
                 }),
                 inner_statements: None,
-            }),
+            },
         )
         .add_var(
-            "deref".to_string(),
-            Data::new(data::function::Function {
+            "deref",
+            data::function::Function {
                 info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| if let Some(v) = a.dereference() { Ok(v) } else { Err(format!("cannot dereference type {a}").into())
@@ -188,7 +188,7 @@ impl Config {
                     }
                 }),
                 inner_statements: None,
-            }),
+            },
         )
     }
 }

@@ -18,107 +18,98 @@ impl Config {
     /// `to_string: fn` turns any argument into a (more or less useful) string representation
     /// `concat: fn` concatenates all arguments given to it. arg must be an enumerable
     pub fn with_string(self) -> Self {
-        self.add_var(
-            "trim".to_string(),
-            Data::new(func(|v: &str, _| Ok(v.trim().to_owned()))),
-        )
-        .add_var(
-            "index_of".to_string(),
-            Data::new(func(|(v, p): (&str, &str), _| {
-                Ok(OneOrNone(v.find(p).map(|v| v as isize)))
-            })),
-        )
-        .add_var(
-            "index_of_rev".to_string(),
-            Data::new(func(|(v, p): (&str, &str), _| {
-                Ok(OneOrNone(v.rfind(p).map(|v| v as isize)))
-            })),
-        )
-        .add_var(
-            "starts_with".to_string(),
-            Data::new(func(|(v, p): (&str, &str), _| Ok(v.starts_with(p)))),
-        )
-        .add_var(
-            "ends_with".to_string(),
-            Data::new(func(|(v, p): (&str, &str), _| Ok(v.ends_with(p)))),
-        )
-        .add_var(
-            "str_split_once".to_string(),
-            Data::new(func(|(v, p): (&str, &str), _| {
-                Ok(AnyOrNone(
-                    v.split_once(p).map(|(a, b)| (a.to_owned(), b.to_owned())),
-                ))
-            })),
-        )
-        .add_var(
-            "str_split_once_rev".to_string(),
-            Data::new(func(|(v, p): (&str, &str), _| {
-                Ok(AnyOrNone(
-                    v.rsplit_once(p).map(|(a, b)| (a.to_owned(), b.to_owned())),
-                ))
-            })),
-        )
-        .add_var(
-            "str_split".to_string(),
-            Data::new(func(|(v, p): (&str, &str), _| {
-                Ok(IterToList(v.split(p).map(|v| v.to_owned())))
-            })),
-        )
-        .add_var(
-            "concat".to_string(),
-            Data::new(util::to_mers_func(
-                |a| {
-                    if a.iterable().is_some() {
-                        Ok(Type::new(data::string::StringT))
-                    } else {
-                        Err(format!("concat called on non-iterable type {a}").into())
-                    }
-                },
-                |a| {
-                    Ok(Data::new(data::string::String(
-                        a.get()
-                            .iterable()
-                            .unwrap()
-                            .map(|v| v.map(|v| v.get().to_string()))
-                            .collect::<Result<_, _>>()?,
-                    )))
-                },
-            )),
-        )
-        .add_var(
-            "to_string".to_string(),
-            Data::new(util::to_mers_func(
-                |_a| Ok(Type::new(data::string::StringT)),
-                |a| Ok(Data::new(data::string::String(a.get().to_string()))),
-            )),
-        )
-        .add_var(
-            "substring".to_string(),
-            Data::new(func(|v: OneOf<(&str, isize), (&str, isize, isize)>, _| {
-                let (s, start, end) = match v {
-                    OneOf::A((t, s)) => (t, s, None),
-                    OneOf::B((t, s, e)) => (t, s, Some(e)),
-                };
-                let start = if start < 0 {
-                    s.len().saturating_sub(start.abs() as usize)
-                } else {
-                    start as usize
-                };
-                let end = end
-                    .map(|i| {
-                        if i < 0 {
-                            s.len().saturating_sub(i.abs() as usize)
+        self.add_var("trim", func(|v: &str, _| Ok(v.trim().to_owned())))
+            .add_var(
+                "index_of",
+                func(|(v, p): (&str, &str), _| Ok(OneOrNone(v.find(p).map(|v| v as isize)))),
+            )
+            .add_var(
+                "index_of_rev",
+                func(|(v, p): (&str, &str), _| Ok(OneOrNone(v.rfind(p).map(|v| v as isize)))),
+            )
+            .add_var(
+                "starts_with",
+                func(|(v, p): (&str, &str), _| Ok(v.starts_with(p))),
+            )
+            .add_var(
+                "ends_with",
+                func(|(v, p): (&str, &str), _| Ok(v.ends_with(p))),
+            )
+            .add_var(
+                "str_split_once",
+                func(|(v, p): (&str, &str), _| {
+                    Ok(AnyOrNone(
+                        v.split_once(p).map(|(a, b)| (a.to_owned(), b.to_owned())),
+                    ))
+                }),
+            )
+            .add_var(
+                "str_split_once_rev",
+                func(|(v, p): (&str, &str), _| {
+                    Ok(AnyOrNone(
+                        v.rsplit_once(p).map(|(a, b)| (a.to_owned(), b.to_owned())),
+                    ))
+                }),
+            )
+            .add_var(
+                "str_split",
+                func(|(v, p): (&str, &str), _| Ok(IterToList(v.split(p).map(|v| v.to_owned())))),
+            )
+            .add_var(
+                "concat",
+                util::to_mers_func(
+                    |a| {
+                        if a.iterable().is_some() {
+                            Ok(Type::new(data::string::StringT))
                         } else {
-                            i as usize
+                            Err(format!("concat called on non-iterable type {a}").into())
                         }
-                    })
-                    .unwrap_or(usize::MAX);
-                let end = end.min(s.len());
-                if end < start {
-                    return Ok(String::new());
-                }
-                Ok(s[start..end].to_owned())
-            })),
-        )
+                    },
+                    |a| {
+                        Ok(Data::new(data::string::String(
+                            a.get()
+                                .iterable()
+                                .unwrap()
+                                .map(|v| v.map(|v| v.get().to_string()))
+                                .collect::<Result<_, _>>()?,
+                        )))
+                    },
+                ),
+            )
+            .add_var(
+                "to_string",
+                util::to_mers_func(
+                    |_a| Ok(Type::new(data::string::StringT)),
+                    |a| Ok(Data::new(data::string::String(a.get().to_string()))),
+                ),
+            )
+            .add_var(
+                "substring",
+                func(|v: OneOf<(&str, isize), (&str, isize, isize)>, _| {
+                    let (s, start, end) = match v {
+                        OneOf::A((t, s)) => (t, s, None),
+                        OneOf::B((t, s, e)) => (t, s, Some(e)),
+                    };
+                    let start = if start < 0 {
+                        s.len().saturating_sub(start.abs() as usize)
+                    } else {
+                        start as usize
+                    };
+                    let end = end
+                        .map(|i| {
+                            if i < 0 {
+                                s.len().saturating_sub(i.abs() as usize)
+                            } else {
+                                i as usize
+                            }
+                        })
+                        .unwrap_or(usize::MAX);
+                    let end = end.min(s.len());
+                    if end < start {
+                        return Ok(String::new());
+                    }
+                    Ok(s[start..end].to_owned())
+                }),
+            )
     }
 }

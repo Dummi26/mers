@@ -20,8 +20,8 @@ impl Config {
     /// `read_line: fn` reads a line from stdin and returns it
     pub fn with_stdio(self) -> Self {
         self.add_var(
-            "read_line".to_string(),
-            Data::new(data::function::Function {
+            "read_line",
+            data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
@@ -45,11 +45,11 @@ impl Config {
                     })
                 }),
                 inner_statements: None,
-            }),
+            },
         )
         .add_var(
-            "debug".to_string(),
-            Data::new(data::function::Function {
+            "debug",
+            data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| Ok(a.clone()))),
@@ -60,11 +60,11 @@ impl Config {
                     Ok(a)
                 }),
                 inner_statements: None,
-            }),
+            },
         )
         .add_var(
-            "eprint".to_string(),
-            Data::new(data::function::Function {
+            "eprint",
+            data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Ok(Arc::new(|_a, _i| Ok(Type::empty_tuple()))),
@@ -74,11 +74,11 @@ impl Config {
                     Ok(Data::empty_tuple())
                 }),
                 inner_statements: None,
-            }),
+            },
         )
         .add_var(
-            "eprintln".to_string(),
-            Data::new(data::function::Function {
+            "eprintln",
+            data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Ok(Arc::new(|_a, _i| Ok(Type::empty_tuple()))),
@@ -87,11 +87,11 @@ impl Config {
                     Ok(Data::empty_tuple())
                 }),
                 inner_statements: None,
-            }),
+            },
         )
         .add_var(
-            "print".to_string(),
-            Data::new(data::function::Function {
+            "print",
+            data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Ok(Arc::new(|_a, _i| Ok(Type::empty_tuple()))),
@@ -101,11 +101,11 @@ impl Config {
                     Ok(Data::empty_tuple())
                 }),
                 inner_statements: None,
-            }),
+            },
         )
         .add_var(
-            "println".to_string(),
-            Data::new(data::function::Function {
+            "println",
+            data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Ok(Arc::new(|_a, _i| Ok(Type::empty_tuple()))),
@@ -114,7 +114,7 @@ impl Config {
                     Ok(Data::empty_tuple())
                 }),
                 inner_statements: None,
-            }),
+            },
         )
     }
 }

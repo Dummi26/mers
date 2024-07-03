@@ -28,8 +28,8 @@ impl Config {
             })),
         )
         .add_var(
-            "thread".to_string(),
-            Data::new(data::function::Function {
+            "thread",
+            data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
@@ -52,9 +52,9 @@ impl Config {
                     )))))))
                 }),
                 inner_statements: None,
-            }),
+            },
         )
-            .add_var("thread_finished".to_string(), Data::new(data::function::Function {
+            .add_var("thread_finished", data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
@@ -74,8 +74,8 @@ impl Config {
                     })))
                 }),
                 inner_statements: None,
-            }))
-            .add_var("thread_await".to_string(), Data::new(data::function::Function {
+            })
+            .add_var("thread_await", data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
@@ -100,7 +100,7 @@ impl Config {
                     d
                 }),
                 inner_statements: None,
-            }))
+            })
     }
 }
 
