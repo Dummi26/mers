@@ -27,12 +27,12 @@ enum Command {
     /// Check and then run code. Exit status is 255 if checks fail.
     Run {
         #[command(subcommand)]
-        source: From,
+        source: FromArgs,
     },
     /// Run code, but skip type-checks. Will panic at runtime if code is not valid.
     RunUnchecked {
         #[command(subcommand)]
-        source: From,
+        source: FromArgs,
     },
     /// Not available, because the colored-output default feature was disabled when building mers!
     #[cfg(not(feature = "colored-output"))]
@@ -54,6 +54,29 @@ enum From {
     /// runs cli argument
     Arg { source: String },
 }
+#[derive(Subcommand, Clone)]
+enum FromArgs {
+    /// runs the file
+    File {
+        file: PathBuf,
+        #[arg(num_args=0..)]
+        args: Vec<String>,
+    },
+    /// runs cli argument
+    Arg {
+        source: String,
+        #[arg(num_args=0..)]
+        args: Vec<String>,
+    },
+}
+impl FromArgs {
+    pub fn to(self) -> From {
+        match self {
+            Self::File { file, args: _ } => From::File { file },
+            Self::Arg { source, args: _ } => From::Arg { source },
+        }
+    }
+}
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 enum Configs {
     None,
@@ -63,13 +86,23 @@ enum Configs {
 }
 
 fn main() {
-    let args = Args::parse();
-    let config = cfg_globals::add_general(match args.config {
-        Configs::None => Config::new(),
-        Configs::Base => Config::new().bundle_base(),
-        Configs::Pure => Config::new().bundle_pure(),
-        Configs::Std => Config::new().bundle_std(),
-    });
+    let mut args = Args::parse();
+    let config = cfg_globals::add_general(
+        match args.config {
+            Configs::None => Config::new(),
+            Configs::Base => Config::new().bundle_base(),
+            Configs::Pure => Config::new().bundle_pure(),
+            Configs::Std => Config::new().bundle_std(),
+        },
+        match &mut args.command {
+            Command::Run { source } | Command::RunUnchecked { source } => match source {
+                FromArgs::File { file: _, args } | FromArgs::Arg { source: _, args } => {
+                    std::mem::replace(args, vec![])
+                }
+            },
+            _ => vec![],
+        },
+    );
     fn get_source(source: From) -> Source {
         match source {
             From::File { file } => match Source::new_from_file(PathBuf::from(&file)) {
@@ -110,7 +143,7 @@ fn main() {
             }
         }
         Command::Run { source } => {
-            let mut src = get_source(source);
+            let mut src = get_source(source.to());
             let srca = Arc::new(src.clone());
             match parse(&mut src, &srca) {
                 Err(e) => {
@@ -141,7 +174,7 @@ fn main() {
             }
         }
         Command::RunUnchecked { source } => {
-            let mut src = get_source(source);
+            let mut src = get_source(source.to());
             let srca = Arc::new(src.clone());
             match parse(&mut src, &srca) {
                 Err(e) => {
