@@ -252,7 +252,7 @@ impl LanguageServer for Backend {
                                         .iter()
                                         .map(|(_, _, t)| match t {
                                             Ok(t) => format!("\n- {t}"),
-                                            Err(e) => format!("\n- {e}"),
+                                            Err(e) => format!("\n- {}", e.display_notheme()),
                                         })
                                         .collect::<String>()
                                 ),
@@ -263,7 +263,7 @@ impl LanguageServer for Backend {
                     Err(e) => Hover {
                         contents: HoverContents::Markup(MarkupContent {
                             kind: MarkupKind::PlainText,
-                            value: format!("{e}"),
+                            value: format!("{}", e.display_notheme()),
                         }),
                         range: None,
                     },
