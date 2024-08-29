@@ -75,7 +75,14 @@ impl Config {
                     .insert(t.to_string(), Ok(Arc::new(data::Type::new(t))));
             };
         }
-        init_d!(data::bool::BoolT);
+        init_d!(data::bool::TrueT);
+        init_d!(data::bool::FalseT);
+        info_check
+            .scopes
+            .last_mut()
+            .unwrap()
+            .types
+            .insert("Bool".to_owned(), Ok(Arc::new(data::bool::bool_type())));
         init_d!(data::byte::ByteT);
         init_d!(data::int::IntT);
         init_d!(data::float::FloatT);

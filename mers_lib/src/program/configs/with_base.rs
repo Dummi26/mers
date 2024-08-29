@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    data::{self, Data, Type},
+    data::{self, bool::bool_type, Data, Type},
     errors::CheckError,
     program::run::{CheckInfo, Info},
 };
@@ -132,7 +132,7 @@ impl Config {
                                 return Err(format!("called eq on non-iterable").into())
                             }
                     }
-                        Ok(Type::new(data::bool::BoolT))
+                        Ok(bool_type())
                     })),
                 run: Arc::new(|a, _i| {
                     Ok(Data::new(data::bool::Bool(if let Some(mut i) = a.get().iterable() {

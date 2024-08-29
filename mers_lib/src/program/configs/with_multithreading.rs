@@ -63,7 +63,7 @@ impl Config {
                             return Err(CheckError::new().msg_str(format!("Cannot call thread_finished on a value of type {t}, which isn't a thread but part of the argument {a}.")));
                         }
                     }
-                    Ok(Type::new(data::bool::BoolT))
+                    Ok(data::bool::bool_type())
                 })),
                 run: Arc::new(|a, _i| {
                     let a = a.get();

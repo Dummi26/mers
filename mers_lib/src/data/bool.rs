@@ -17,7 +17,11 @@ impl MersData for Bool {
         Box::new(Clone::clone(self))
     }
     fn as_type(&self) -> super::Type {
-        Type::new(BoolT)
+        if self.0 {
+            Type::new(TrueT)
+        } else {
+            Type::new(FalseT)
+        }
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -31,8 +35,34 @@ impl MersData for Bool {
 }
 
 #[derive(Debug, Clone)]
-pub struct BoolT;
-impl MersType for BoolT {
+pub struct TrueT;
+#[derive(Debug, Clone)]
+pub struct FalseT;
+/// Returns the type `True/False`.
+pub fn bool_type() -> Type {
+    Type::newm(vec![Arc::new(TrueT), Arc::new(FalseT)])
+}
+impl MersType for TrueT {
+    fn is_same_type_as(&self, other: &dyn MersType) -> bool {
+        other.as_any().downcast_ref::<Self>().is_some()
+    }
+    fn is_included_in(&self, target: &dyn MersType) -> bool {
+        self.is_same_type_as(target)
+    }
+    fn subtypes(&self, acc: &mut Type) {
+        acc.add(Arc::new(self.clone()));
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn mut_any(&mut self) -> &mut dyn Any {
+        self
+    }
+    fn to_any(self) -> Box<dyn Any> {
+        Box::new(self)
+    }
+}
+impl MersType for FalseT {
     fn is_same_type_as(&self, other: &dyn MersType) -> bool {
         other.as_any().downcast_ref::<Self>().is_some()
     }
@@ -58,8 +88,13 @@ impl Display for Bool {
         write!(f, "{}", self.0)
     }
 }
-impl Display for BoolT {
+impl Display for TrueT {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Bool")
+        write!(f, "True")
+    }
+}
+impl Display for FalseT {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "False")
     }
 }

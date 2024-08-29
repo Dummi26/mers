@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    data::{self, tuple::TupleT, Data, Type},
+    data::{self, tuple::TupleT, Data, MersType, Type},
     errors::{CheckError, EColor, SourceRange},
 };
 
@@ -25,7 +25,7 @@ impl MersStatement for If {
             return Err("can't init to statement type If".to_string().into());
         }
         let cond_return_type = self.condition.check(info, None)?;
-        if !cond_return_type.is_included_in_single(&data::bool::BoolT) {
+        if !cond_return_type.is_included_in(&data::bool::bool_type()) {
             return Err(CheckError::new()
                 .src(vec![
                     (self.pos_in_src.clone(), None),
@@ -38,7 +38,7 @@ impl MersStatement for If {
                     ("The ".to_owned(), None),
                     ("condition".to_owned(), Some(EColor::IfConditionNotBool)),
                     (
-                        " in an if-statement must return bool, not ".to_owned(),
+                        " in an if-statement must return Bool, not ".to_owned(),
                         None,
                     ),
                     (
@@ -47,11 +47,17 @@ impl MersStatement for If {
                     ),
                 ]));
         }
-        let mut t = self.on_true.check(info, None)?;
-        if let Some(f) = &self.on_false {
-            t.add_all(&f.check(info, None)?);
+        let mut t = if Type::new(data::bool::TrueT).is_included_in(&cond_return_type) {
+            self.on_true.check(info, None)?
         } else {
-            t.add(Arc::new(TupleT(vec![])));
+            Type::empty()
+        };
+        if Type::new(data::bool::FalseT).is_included_in(&cond_return_type) {
+            if let Some(f) = &self.on_false {
+                t.add_all(&f.check(info, None)?);
+            } else {
+                t.add(Arc::new(TupleT(vec![])));
+            }
         }
         Ok(t)
     }

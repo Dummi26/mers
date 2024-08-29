@@ -2,7 +2,7 @@ pub mod function;
 
 use std::sync::{Arc, RwLock};
 
-use crate::data::{self, Data, MersData, Type};
+use crate::data::{self, bool::bool_type, Data, MersData, Type};
 
 pub trait FromMersData: Sized {
     fn as_type_from() -> Type;
@@ -336,7 +336,7 @@ impl FromMersData for bool {
         Self::as_type_to()
     }
     fn can_represent(t: &Type) -> bool {
-        t.is_included_in(&Type::new(data::bool::BoolT))
+        t.is_included_in(&bool_type())
     }
     fn try_represent<O, F: FnOnce(Option<Self>) -> O>(d: &(impl MersData + ?Sized), f: F) -> O {
         if let Some(v) = d.as_any().downcast_ref::<data::bool::Bool>() {
@@ -348,7 +348,7 @@ impl FromMersData for bool {
 }
 impl ToMersData for bool {
     fn as_type_to() -> Type {
-        Type::new(data::bool::BoolT)
+        bool_type()
     }
     fn represent(self) -> Data {
         Data::new(data::bool::Bool(self))

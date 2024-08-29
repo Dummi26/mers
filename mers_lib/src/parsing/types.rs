@@ -256,6 +256,7 @@ pub fn type_from_parsed(
             ParsedType::Type(name) => match info
                 .scopes
                 .iter()
+                .rev()
                 .find_map(|scope| scope.types.iter().find(|v| v.0 == name).map(|(_, v)| v))
             {
                 Some(Ok(t)) => as_type.add_all(&*t),

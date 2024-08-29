@@ -33,7 +33,7 @@ impl Config {
                     if a.types.iter().all(|t| t.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in_single(&data::string::StringT) && t.0[1].iterable().is_some_and(|t| t.is_included_in_single(&data::string::StringT)))) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![
-                                Type::newm(vec![Arc::new(data::int::IntT), Arc::new(data::bool::BoolT)]),
+                                Type::newm(vec![Arc::new(data::int::IntT), Arc::new(data::bool::TrueT), Arc::new(data::bool::FalseT)]),
                                 Type::new(data::string::StringT),
                                 Type::new(data::string::StringT),
                             ])),
@@ -131,7 +131,7 @@ impl Config {
                 out: Ok(Arc::new(|a, _i| {
                     if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
-                            Arc::new(data::tuple::TupleT(vec![Type::new(data::bool::BoolT)])),
+                            Arc::new(data::tuple::TupleT(vec![data::bool::bool_type()])),
                             Arc::new(data::tuple::TupleT(vec![])),
                         ]))
                     } else {
@@ -160,7 +160,8 @@ impl Config {
                     if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
                             Arc::new(data::int::IntT),
-                            Arc::new(data::bool::BoolT),
+                            Arc::new(data::bool::TrueT),
+                            Arc::new(data::bool::FalseT),
                             Arc::new(data::tuple::TupleT(vec![])),
                         ]))
                     } else {
@@ -191,7 +192,7 @@ impl Config {
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
                     if a.types.iter().all(|a| a.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in_single(&ChildProcessT) && t.0[1].iterable().is_some_and(|i| i.is_included_in_single(&data::byte::ByteT)))) {
-                        Ok(Type::new(data::bool::BoolT))
+                        Ok(data::bool::bool_type())
                     } else {
                         return Err(format!("childproc_write_bytes called on non-`(ChildProcess, Iter<Byte>)` type {a}").into());
                     }
@@ -220,7 +221,7 @@ impl Config {
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
                 out: Ok(Arc::new(|a, _i| {
                     if a.is_included_in_single(&data::tuple::TupleT(vec![Type::new(ChildProcessT), Type::new(data::string::StringT)])) {
-                        Ok(Type::new(data::bool::BoolT))
+                        Ok(data::bool::bool_type())
                     } else {
                         return Err(format!("childproc_write_string called on non-`(ChildProcess, String)` type {a}").into());
                     }

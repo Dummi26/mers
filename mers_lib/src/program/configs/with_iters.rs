@@ -28,7 +28,7 @@ impl Config {
     /// `all: fn` returns true if all elements of the iterator are true
     pub fn with_iters(self) -> Self {
         self
-            .add_var("any", genfunc_iter_in_val_out("all".to_string(), data::bool::BoolT, Type::new(data::bool::BoolT), |a, _i| {
+            .add_var("any", genfunc_iter_in_val_out("all".to_string(), data::bool::bool_type(), data::bool::bool_type(), |a, _i| {
                 for v in a.get().iterable().unwrap().map(|v| v.map(|v| v.get().as_any().downcast_ref::<data::bool::Bool>().is_some_and(|v| v.0))) {
                     if v? {
                         return Ok(Data::new(data::bool::Bool(true)));
@@ -36,7 +36,7 @@ impl Config {
                 }
                 Ok(Data::new(data::bool::Bool(false)))
             }))
-            .add_var("all", genfunc_iter_in_val_out("all".to_string(), data::bool::BoolT, Type::new(data::bool::BoolT), |a, _i| {
+            .add_var("all", genfunc_iter_in_val_out("all".to_string(), data::bool::bool_type(), data::bool::bool_type(), |a, _i| {
                 for v in a.get().iterable().unwrap().map(|v| v.map(|v| v.get().as_any().downcast_ref::<data::bool::Bool>().is_some_and(|v| v.0))) {
                     if !v? {
                         return Ok(Data::new(data::bool::Bool(false)));
@@ -413,7 +413,7 @@ impl IterT {
         let t = match &iter {
             ItersT::Map(f) => f.o(&data)?,
             ItersT::Filter(f) => {
-                if f.o(&data)?.is_included_in_single(&data::bool::BoolT) {
+                if f.o(&data)?.is_included_in(&data::bool::bool_type()) {
                     data.clone()
                 } else {
                     return Err(format!(
@@ -517,7 +517,7 @@ impl Iters {
 
 fn genfunc_iter_in_val_out(
     name: String,
-    iter_type: impl MersType + 'static,
+    iter_type: Type,
     out_type: Type,
     run: impl Fn(Data, &mut crate::info::Info<program::run::RunLocal>) -> Result<Data, CheckError>
         + Send
@@ -529,7 +529,7 @@ fn genfunc_iter_in_val_out(
         info_check: Arc::new(Mutex::new(crate::info::Info::neverused())),
         out: Ok(Arc::new(move |a, _i| {
             if let Some(iter_over) = a.iterable() {
-                if iter_over.is_included_in_single(&iter_type) {
+                if iter_over.is_included_in(&iter_type) {
                     Ok(out_type.clone())
                 } else {
                     Err(format!("Cannot call function {name} on iterator over type {a}, which isn't {iter_type}.").into())
