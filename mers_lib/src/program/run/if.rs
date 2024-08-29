@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    data::{self, tuple::TupleT, Data, MersType, Type},
+    data::{self, tuple::TupleT, Data, Type},
     errors::{CheckError, EColor, SourceRange},
 };
 
@@ -47,16 +47,42 @@ impl MersStatement for If {
                     ),
                 ]));
         }
-        let mut t = if Type::new(data::bool::TrueT).is_included_in(&cond_return_type) {
+        let may_be_true = Type::new(data::bool::TrueT).is_included_in(&cond_return_type);
+        let may_be_false = Type::new(data::bool::FalseT).is_included_in(&cond_return_type);
+        let mut t = if may_be_true {
             self.on_true.check(info, None)?
         } else {
             Type::empty()
         };
-        if Type::new(data::bool::FalseT).is_included_in(&cond_return_type) {
+        if may_be_false {
             if let Some(f) = &self.on_false {
                 t.add_all(&f.check(info, None)?);
             } else {
                 t.add(Arc::new(TupleT(vec![])));
+            }
+        }
+        if let Some(show_warning) = &info.global.show_warnings {
+            if !may_be_false || !may_be_true {
+                let mut e = CheckError::new().src(vec![
+                    (self.pos_in_src.clone(), None),
+                    (
+                        self.condition.source_range(),
+                        Some(EColor::IfConditionNotBool),
+                    ),
+                ]);
+                if !may_be_true {
+                    e.msg_mut(vec![(
+                        "Condition in this if-statement is never true".to_owned(),
+                        Some(EColor::Warning),
+                    )]);
+                }
+                if !may_be_false {
+                    e.msg_mut(vec![(
+                        "Condition in this if-statement is never false".to_owned(),
+                        Some(EColor::Warning),
+                    )]);
+                }
+                show_warning(e);
             }
         }
         Ok(t)

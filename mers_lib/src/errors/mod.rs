@@ -97,6 +97,8 @@ pub enum EColor {
     MaximumRuntimeExceeded,
 
     InCodePositionLine,
+
+    Warning,
 }
 
 pub trait ETheme: ThemeGen<C = EColor, T = String> {}

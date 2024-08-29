@@ -142,10 +142,11 @@ pub struct CheckLocal {
         >,
     >,
 }
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 pub struct CheckLocalGlobalInfo {
     pub depth: usize,
     pub enable_hooks: bool,
+    pub show_warnings: Option<Arc<dyn Fn(CheckError) + Send + Sync>>,
     /// ((results, byte_pos_in_src, deepest_statement))
     /// you only have to set `byte_pos_in_src`. `deepest` is used internally.
     /// These values should be initialized to `(vec![], _, 0)`, but `0` can be replaced by a minimum statement depth, i.e. `2` to exclude the outer scope (which has depth `1`).
@@ -159,6 +160,22 @@ pub struct CheckLocalGlobalInfo {
         >,
     >,
     pub unused_try_statements: Arc<Mutex<Vec<(SourceRange, Vec<Option<SourceRange>>)>>>,
+}
+impl CheckLocalGlobalInfo {
+    pub fn show_warnings_to_stderr(&mut self) {
+        self.show_warnings = Some(Arc::new(|e| {
+            #[cfg(feature = "ecolor-term")]
+            let theme = crate::errors::themes::TermDefaultTheme;
+            #[cfg(not(feature = "ecolor-term"))]
+            let theme = crate::errors::themes::NoTheme;
+            eprintln!("{}", e.display(theme));
+        }));
+    }
+}
+impl Debug for CheckLocalGlobalInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CheckLocalGlobalInfo {{ depth: {}, enable_hooks: {}, show_warnings: {}, unused_try_statements: {} }}", self.depth, self.enable_hooks, self.show_warnings.is_some(), self.unused_try_statements.lock().unwrap().len())
+    }
 }
 impl Debug for CheckLocal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

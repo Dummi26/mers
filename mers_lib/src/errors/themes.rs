@@ -42,6 +42,10 @@ pub fn default_theme<C>(
             _ => return None,
         });
     }
+    if let Warning = color {
+        // same color as runtime errors, because warnings are only displayed in `check` mode, where the program won't run.
+        return Some(yellow);
+    }
     let hard_err = red;
     let type_right = blue;
     let type_wrong = magenta;
@@ -56,7 +60,7 @@ pub fn default_theme<C>(
     drop(cyan_bright);
     use EColor::*;
     Some(match color {
-        Indent(_) => unreachable!(),
+        Indent(_) | Warning => unreachable!(),
 
         // macros (#...)
         WhitespaceAfterHashtag

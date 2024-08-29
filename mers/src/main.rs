@@ -125,7 +125,8 @@ fn main() {
                     exit(20);
                 }
                 Ok(parsed) => {
-                    let (i1, _, i3) = config.infos();
+                    let (i1, _, mut i3) = config.infos();
+                    i3.global.show_warnings_to_stderr();
                     match compile(&*parsed, i1) {
                         Err(e) => {
                             eprintln!("{e:?}");
