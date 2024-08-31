@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::{
-    data::{self, object::ObjectT, Data, Type},
+    data::{self, object::ObjectT, Data, MersType, Type},
     errors::{CheckError, EColor, SourceRange},
 };
 
@@ -33,14 +33,14 @@ impl MersStatement for Object {
                                     ("can't init an ".to_owned(), None),
                                     ("object".to_owned(), Some(EColor::InitTo)),
                                     (" with type ".to_owned(), None),
-                                    (t.to_string(), Some(EColor::InitFrom)),
+                                    (t.simplified_as_string(info), Some(EColor::InitFrom)),
                                     if print_is_part_of {
                                         (", which is part of ".to_owned(), None)
                                     } else {
                                         (String::new(), None)
                                     },
                                     if print_is_part_of {
-                                        (init_to.to_string(), Some(EColor::InitFrom))
+                                        (init_to.simplified_as_string(info), Some(EColor::InitFrom))
                                     } else {
                                         (String::new(), None)
                                     },
@@ -57,14 +57,14 @@ impl MersStatement for Object {
                             ("can't init an ".to_owned(), None),
                             ("object".to_owned(), Some(EColor::InitTo)),
                             (" with type ".to_owned(), None),
-                            (t.to_string(), Some(EColor::InitFrom)),
+                            (t.simplified_as_string(info), Some(EColor::InitFrom)),
                             if print_is_part_of {
                                 (", which is part of ".to_owned(), None)
                             } else {
                                 (format!(""), None)
                             },
                             if print_is_part_of {
-                                (init_to.to_string(), Some(EColor::InitFrom))
+                                (init_to.simplified_as_string(info), Some(EColor::InitFrom))
                             } else {
                                 (format!(""), None)
                             },
@@ -83,7 +83,7 @@ impl MersStatement for Object {
                                             format!(", {n}: _")
                                         })
                                         .collect::<String>(),
-                                    data::object::ObjectT(t.0.iter().take(self.elems.len()).cloned().collect())
+                                    data::object::ObjectT(t.0.iter().take(self.elems.len()).cloned().collect()).simplified_as_string(info)
                                 )
                             }, None)
                         ]));
@@ -93,14 +93,14 @@ impl MersStatement for Object {
                         ("can't init an ".to_owned(), None),
                         ("object".to_owned(), Some(EColor::InitTo)),
                         (" with type ".to_owned(), None),
-                        (t.to_string(), Some(EColor::InitFrom)),
+                        (t.simplified_as_string(info), Some(EColor::InitFrom)),
                         if print_is_part_of {
                             (", which is part of ".to_owned(), None)
                         } else {
                             (format!(""), None)
                         },
                         if print_is_part_of {
-                            (init_to.to_string(), Some(EColor::InitFrom))
+                            (init_to.simplified_as_string(info), Some(EColor::InitFrom))
                         } else {
                             (format!(""), None)
                         },

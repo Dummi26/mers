@@ -50,10 +50,13 @@ impl MersStatement for AsType {
                 ])
                 .msg(vec![
                     ("Type must be included in ".to_owned(), None),
-                    (as_type.to_string(), Some(EColor::AsTypeTypeAnnotation)),
+                    (
+                        as_type.simplified_as_string(info),
+                        Some(EColor::AsTypeTypeAnnotation),
+                    ),
                     (", but the actual type ".to_owned(), None),
                     (
-                        return_type.to_string(),
+                        return_type.simplified_as_string(info),
                         Some(EColor::AsTypeStatementWithTooBroadType),
                     ),
                     (" isn't.".to_owned(), None),

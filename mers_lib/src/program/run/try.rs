@@ -63,8 +63,10 @@ impl MersStatement for Try {
                     } else {
                         return Err(CheckError::new()
                             .msg_str(format!(
-                                "try: #{} is not a function, type is {ft} within {func}.",
-                                i + 1
+                                "try: #{} is not a function, type is {} within {}.",
+                                i + 1,
+                                ft.simplified_as_string(info),
+                                func.simplify_for_display(info),
                             ))
                             .src(vec![
                                 (self.source_range(), None),
@@ -86,7 +88,8 @@ impl MersStatement for Try {
             if !found {
                 let mut err = CheckError::new()
                     .msg_str(format!(
-                        "try: no function found for argument of type {arg}."
+                        "try: no function found for argument of type {}.",
+                        arg.simplified_as_string(info)
                     ))
                     .src(vec![(
                         self.pos_in_src.clone(),

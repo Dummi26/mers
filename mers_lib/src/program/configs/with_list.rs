@@ -320,6 +320,9 @@ impl MersType for ListT {
     fn to_any(self) -> Box<dyn std::any::Any> {
         Box::new(self)
     }
+    fn simplify_for_display(&self, info: &crate::program::run::CheckInfo) -> Option<Type> {
+        Some(Type::new(Self(self.0.simplify_for_display(info))))
+    }
 }
 impl Display for List {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

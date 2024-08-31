@@ -53,11 +53,11 @@ impl MersStatement for AssignTo {
                         ])
                         .msg(vec![
                             ("can't assign ".to_owned(), None),
-                            (source.to_string(), Some(EColor::AssignFrom)),
+                            (source.simplified_as_string(info), Some(EColor::AssignFrom)),
                             (" to ".to_owned(), None),
-                            (target.to_string(), Some(EColor::AssignTo)),
+                            (target.simplified_as_string(info), Some(EColor::AssignTo)),
                             (" because it isn't included in ".to_owned(), None),
-                            (t.to_string(), None),
+                            (t.simplified_as_string(info), None),
                         ]));
                 }
             } else {

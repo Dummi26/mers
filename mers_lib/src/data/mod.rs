@@ -86,6 +86,43 @@ pub trait MersType: Any + Debug + Display + Send + Sync {
     fn is_reference_to(&self) -> Option<&Type> {
         None
     }
+    /// may mutate `self` to simplify it
+    #[allow(unused)]
+    fn simplify_for_display(&self, info: &crate::program::run::CheckInfo) -> Option<Type> {
+        None
+    }
+    fn simplified_as_string(&self, info: &crate::program::run::CheckInfo) -> String {
+        self.simplify_for_display(info)
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| self.to_string())
+    }
+}
+#[derive(Clone, Debug)]
+pub(crate) struct TypeWithOnlyName(pub(crate) String);
+impl MersType for TypeWithOnlyName {
+    fn is_same_type_as(&self, _other: &dyn MersType) -> bool {
+        false
+    }
+    fn is_included_in(&self, _target: &dyn MersType) -> bool {
+        false
+    }
+    fn subtypes(&self, acc: &mut Type) {
+        acc.add(Arc::new(self.clone()))
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn mut_any(&mut self) -> &mut dyn Any {
+        self
+    }
+    fn to_any(self) -> Box<dyn Any> {
+        Box::new(self)
+    }
+}
+impl Display for TypeWithOnlyName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
 }
 
 #[derive(Debug)]
@@ -379,6 +416,38 @@ impl Type {
             }
         }
         Some(o)
+    }
+    pub fn simplify_for_display(&self, info: &crate::program::run::CheckInfo) -> Type {
+        let mut out = Type::empty();
+        'foreachtype: for ty in &self.types {
+            // find the outmost type alias that isn't shadowed
+            for (i, scope) in info.scopes.iter().enumerate() {
+                if let Some((n, _)) = scope.types.iter().find(|(_, t)| {
+                    t.as_ref()
+                        .is_ok_and(|t| t.is_same_type_as(&Type::newm(vec![Arc::clone(ty)])))
+                }) {
+                    if info
+                        .scopes
+                        .iter()
+                        .skip(i + 1)
+                        .all(|scope| !scope.types.contains_key(n))
+                    {
+                        out.add(Arc::new(TypeWithOnlyName(n.clone())));
+                        continue 'foreachtype;
+                    }
+                }
+            }
+            // no type alias
+            if let Some(ty) = ty.simplify_for_display(info) {
+                out.add_all(&ty);
+            } else {
+                out.add(Arc::clone(ty))
+            }
+        }
+        out
+    }
+    pub fn simplified_as_string(&self, info: &crate::program::run::CheckInfo) -> String {
+        self.simplify_for_display(info).to_string()
     }
 }
 impl Display for Type {

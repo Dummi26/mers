@@ -73,6 +73,14 @@ impl MersType for ObjectT {
     fn to_any(self) -> Box<dyn std::any::Any> {
         Box::new(self)
     }
+    fn simplify_for_display(&self, info: &crate::program::run::CheckInfo) -> Option<Type> {
+        Some(Type::new(Self(
+            self.0
+                .iter()
+                .map(|(n, t)| (n.clone(), t.simplify_for_display(info)))
+                .collect(),
+        )))
+    }
 }
 
 impl Display for Object {

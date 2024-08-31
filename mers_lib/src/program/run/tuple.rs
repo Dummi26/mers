@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::{
-    data::{self, tuple::TupleT, Data, Type},
+    data::{self, tuple::TupleT, Data, MersType, Type},
     errors::{CheckError, EColor, SourceRange},
 };
 
@@ -34,7 +34,7 @@ impl MersStatement for Tuple {
                             ("can't init a ".to_owned(), None),
                             ("tuple".to_owned(), Some(EColor::InitTo)),
                             (" with type ".to_owned(), None),
-                            (t.to_string(), Some(EColor::InitFrom)),
+                            (t.simplified_as_string(info), Some(EColor::InitFrom)),
                             (
                                 if print_is_part_of {
                                     ", which is part of ".to_owned()
@@ -44,7 +44,7 @@ impl MersStatement for Tuple {
                                 None,
                             ),
                             if print_is_part_of {
-                                (init_to.to_string(), Some(EColor::InitFrom))
+                                (init_to.simplified_as_string(info), Some(EColor::InitFrom))
                             } else {
                                 (String::new(), None)
                             },
@@ -62,7 +62,7 @@ impl MersStatement for Tuple {
                         ("can't init a ".to_owned(), None),
                         ("tuple".to_owned(), Some(EColor::InitTo)),
                         (" with type ".to_owned(), None),
-                        (t.to_string(), Some(EColor::InitFrom)),
+                        (t.simplified_as_string(info), Some(EColor::InitFrom)),
                         (
                             if print_is_part_of {
                                 ", which is part of ".to_owned()
@@ -72,7 +72,7 @@ impl MersStatement for Tuple {
                             None,
                         ),
                         if print_is_part_of {
-                            (init_to.to_string(), Some(EColor::InitFrom))
+                            (init_to.simplified_as_string(info), Some(EColor::InitFrom))
                         } else {
                             (String::new(), None)
                         },

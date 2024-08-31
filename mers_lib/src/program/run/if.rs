@@ -42,7 +42,7 @@ impl MersStatement for If {
                         None,
                     ),
                     (
-                        cond_return_type.to_string(),
+                        cond_return_type.simplified_as_string(info),
                         Some(EColor::IfConditionNotBool),
                     ),
                 ]));

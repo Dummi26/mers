@@ -57,7 +57,10 @@ impl MersStatement for Chain {
                                     ("Can't call ".to_owned(), None),
                                     ("this function".to_owned(), Some(EColor::Function)),
                                     (" with an argument of type ".to_owned(), None),
-                                    (arg.to_string(), Some(EColor::FunctionArgument)),
+                                    (
+                                        arg.simplified_as_string(info),
+                                        Some(EColor::FunctionArgument),
+                                    ),
                                     (":".to_owned(), None),
                                 ])
                                 .err(e)
@@ -75,7 +78,10 @@ impl MersStatement for Chain {
                     ])
                     .msg(vec![
                         ("cannot chain with a non-function (".to_owned(), None),
-                        (func.to_string(), Some(EColor::ChainWithNonFunction)),
+                        (
+                            func.simplified_as_string(info),
+                            Some(EColor::ChainWithNonFunction),
+                        ),
                         (")".to_owned(), None),
                     ]));
             }
