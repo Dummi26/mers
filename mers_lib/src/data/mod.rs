@@ -64,7 +64,7 @@ pub trait MersType: Any + Debug + Display + Send + Sync {
     /// If self and other are different types (`other.as_any().downcast_ref::<Self>().is_none()`),
     /// this *must* return false.
     fn is_same_type_as(&self, other: &dyn MersType) -> bool;
-    /// This doesn't handle the case where target is Type (is_included_in handles it)
+    /// This doesn't handle the case where target is Type (Type::is_included_in handles it)
     fn is_included_in(&self, target: &dyn MersType) -> bool;
     /// Returns all types that can result from the use of this type.
     /// Usually, this is just `acc.add(Arc::new(self.clone()))`
