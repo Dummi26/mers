@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    data::{self, Data, Type},
+    data::{self, Data, MersDataWInfo, Type},
     program::{self, run::CheckInfo},
 };
 
@@ -66,9 +66,9 @@ impl Config {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                     out: Ok(Arc::new(|a, _i| Ok(a.clone()))),
-                    run: Arc::new(|a, _i| {
+                    run: Arc::new(|a, i| {
                         let a2 = a.get();
-                        eprintln!("{} :: {}", a2.as_type(), a2);
+                        eprintln!("{} :: {}", a2.as_type().with_info(i), a2.with_info(i));
                         drop(a2);
                         Ok(a)
                     }),
@@ -81,8 +81,8 @@ impl Config {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                     out: Ok(Arc::new(|_a, _i| Ok(Type::empty_tuple()))),
-                    run: Arc::new(|a, _i| {
-                        eprint!("{}", a.get());
+                    run: Arc::new(|a, i| {
+                        eprint!("{}", a.get().with_info(i));
                         _ = std::io::stderr().lock().flush();
                         Ok(Data::empty_tuple())
                     }),
@@ -95,8 +95,8 @@ impl Config {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                     out: Ok(Arc::new(|_a, _i| Ok(Type::empty_tuple()))),
-                    run: Arc::new(|a, _i| {
-                        eprintln!("{}", a.get());
+                    run: Arc::new(|a, i| {
+                        eprintln!("{}", a.get().with_info(i));
                         Ok(Data::empty_tuple())
                     }),
                     inner_statements: None,
@@ -108,8 +108,8 @@ impl Config {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                     out: Ok(Arc::new(|_a, _i| Ok(Type::empty_tuple()))),
-                    run: Arc::new(|a, _i| {
-                        print!("{}", a.get());
+                    run: Arc::new(|a, i| {
+                        print!("{}", a.get().with_info(i));
                         _ = std::io::stdout().lock().flush();
                         Ok(Data::empty_tuple())
                     }),
@@ -122,8 +122,8 @@ impl Config {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                     out: Ok(Arc::new(|_a, _i| Ok(Type::empty_tuple()))),
-                    run: Arc::new(|a, _i| {
-                        println!("{}", a.get());
+                    run: Arc::new(|a, i| {
+                        println!("{}", a.get().with_info(i));
                         Ok(Data::empty_tuple())
                     }),
                     inner_statements: None,

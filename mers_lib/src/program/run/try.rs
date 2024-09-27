@@ -66,7 +66,7 @@ impl MersStatement for Try {
                                 "try: #{} is not a function, type is {} within {}.",
                                 i + 1,
                                 ft.simplified_as_string(info),
-                                func.simplify_for_display(info),
+                                func.simplify_for_display(info).with_info(info),
                             ))
                             .src(vec![
                                 (self.source_range(), None),

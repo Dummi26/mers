@@ -1,13 +1,61 @@
-use std::{fmt::Display, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
-use super::{Data, MersData, MersType, Type};
+use crate::info::DisplayInfo;
+
+use super::{Data, MersData, MersDataWInfo, MersType, Type};
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Object(pub Vec<(String, Data)>);
+pub struct Object(Vec<(usize, Data)>);
+impl Object {
+    pub fn new(v: Vec<(usize, Data)>) -> Self {
+        Self(v)
+    }
+    pub fn get(&self, f: usize) -> Option<&Data> {
+        self.iter().find(|v| v.0 == f).map(|v| &v.1)
+    }
+    pub fn iter(&self) -> std::slice::Iter<(usize, Data)> {
+        self.0.iter()
+    }
+}
 #[derive(Debug, Clone)]
-pub struct ObjectT(pub Vec<(String, Type)>);
+pub struct ObjectT(Vec<(usize, Type)>);
+impl ObjectT {
+    pub fn new(v: Vec<(usize, Type)>) -> Self {
+        Self(v)
+    }
+    pub fn get(&self, f: usize) -> Option<&Type> {
+        self.iter().find(|v| v.0 == f).map(|v| &v.1)
+    }
+    pub fn iter(&self) -> std::slice::Iter<(usize, Type)> {
+        self.0.iter()
+    }
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+}
 
 impl MersData for Object {
+    fn display(&self, info: &DisplayInfo<'_>, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let mut comma_sep = false;
+        write!(f, "{{")?;
+        for (field, val) in self.iter() {
+            if comma_sep {
+                write!(f, ", ")?;
+            }
+            write!(
+                f,
+                "{}: {}",
+                info.get_object_field_name(*field),
+                val.get().with_display(info)
+            )?;
+            comma_sep = true;
+        }
+        write!(f, "}}")?;
+        Ok(())
+    }
     fn is_eq(&self, other: &dyn MersData) -> bool {
         if let Some(other) = other.as_any().downcast_ref::<Self>() {
             self == other
@@ -20,8 +68,7 @@ impl MersData for Object {
     }
     fn as_type(&self) -> Type {
         Type::new(ObjectT(
-            self.0
-                .iter()
+            self.iter()
                 .map(|(n, v)| (n.clone(), v.get().as_type()))
                 .collect(),
         ))
@@ -38,14 +85,35 @@ impl MersData for Object {
 }
 
 impl MersType for ObjectT {
+    fn display(
+        &self,
+        info: &crate::info::DisplayInfo<'_>,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        let mut comma_sep = false;
+        write!(f, "{{")?;
+        for (field, t) in self.iter() {
+            if comma_sep {
+                write!(f, ", ")?;
+            }
+            write!(
+                f,
+                "{}: {}",
+                info.get_object_field_name(*field),
+                t.with_display(info)
+            )?;
+            comma_sep = true;
+        }
+        write!(f, "}}")?;
+        Ok(())
+    }
     fn is_same_type_as(&self, other: &dyn MersType) -> bool {
         other.as_any().downcast_ref::<Self>().is_some_and(|other| {
-            self.0.len() == other.0.len()
-                && self
-                    .0
-                    .iter()
-                    .zip(other.0.iter())
-                    .all(|((s1, t1), (s2, t2))| s1 == s2 && t1.is_same_type_as(t2))
+            self.len() == other.len()
+                && other.iter().all(|(field, target_type)| {
+                    self.get(*field)
+                        .is_some_and(|self_type| self_type.is_same_type_as(target_type))
+                })
         })
     }
     fn is_included_in(&self, target: &dyn MersType) -> bool {
@@ -53,16 +121,15 @@ impl MersType for ObjectT {
             .as_any()
             .downcast_ref::<Self>()
             .is_some_and(|target| {
-                self.0.len() >= target.0.len()
-                    && self
-                        .0
-                        .iter()
-                        .zip(target.0.iter())
-                        .all(|((s1, t1), (s2, t2))| s1 == s2 && t1.is_included_in(t2))
+                self.len() >= target.len()
+                    && target.iter().all(|(field, target_type)| {
+                        self.get(*field)
+                            .is_some_and(|self_type| self_type.is_included_in(target_type))
+                    })
             })
     }
     fn subtypes(&self, acc: &mut Type) {
-        self.gen_subtypes_recursively(acc, &mut Vec::with_capacity(self.0.len()));
+        self.gen_subtypes_recursively(acc, &mut Vec::with_capacity(self.len()));
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -83,44 +150,13 @@ impl MersType for ObjectT {
     }
 }
 
-impl Display for Object {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut comma_sep = false;
-        write!(f, "{{")?;
-        for (name, val) in self.0.iter() {
-            if comma_sep {
-                write!(f, ", ")?;
-            }
-            write!(f, "{name}: {}", val.get())?;
-            comma_sep = true;
-        }
-        write!(f, "}}")?;
-        Ok(())
-    }
-}
-impl Display for ObjectT {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut comma_sep = false;
-        write!(f, "{{")?;
-        for (name, t) in self.0.iter() {
-            if comma_sep {
-                write!(f, ", ")?;
-            }
-            write!(f, "{name}: {t}")?;
-            comma_sep = true;
-        }
-        write!(f, "}}")?;
-        Ok(())
-    }
-}
-
 impl ObjectT {
     pub fn gen_subtypes_recursively(
         &self,
         acc: &mut Type,
-        types: &mut Vec<(String, Arc<dyn MersType>)>,
+        types: &mut Vec<(usize, Arc<dyn MersType>)>,
     ) {
-        if types.len() >= self.0.len() {
+        if types.len() >= self.len() {
             let nt = Self(
                 types
                     .iter()
@@ -135,5 +171,20 @@ impl ObjectT {
                 types.pop();
             }
         }
+    }
+}
+
+pub(crate) trait ObjectFieldsMap {
+    fn get_or_add_field(&self, field: &str) -> usize;
+}
+impl ObjectFieldsMap for Arc<Mutex<HashMap<String, usize>>> {
+    fn get_or_add_field(&self, field: &str) -> usize {
+        let mut s = self.lock().unwrap();
+        if let Some(f) = s.get(field) {
+            return *f;
+        }
+        let o = s.len();
+        s.insert(field.to_owned(), o);
+        o
     }
 }

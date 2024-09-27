@@ -1,7 +1,7 @@
-use std::collections::VecDeque;
+use std::collections::HashMap;
 
 use crate::{
-    data::{self, object::ObjectT, Data, MersType, Type},
+    data::{self, object::ObjectT, Data, Type},
     errors::{CheckError, EColor, SourceRange},
 };
 
@@ -10,7 +10,7 @@ use super::MersStatement;
 #[derive(Debug)]
 pub struct Object {
     pub pos_in_src: SourceRange,
-    pub elems: Vec<(String, Box<dyn MersStatement>)>,
+    pub fields: Vec<(usize, Box<dyn MersStatement>)>,
 }
 impl MersStatement for Object {
     fn check_custom(
@@ -18,75 +18,16 @@ impl MersStatement for Object {
         info: &mut super::CheckInfo,
         init_to: Option<&Type>,
     ) -> Result<data::Type, super::CheckError> {
-        let mut assign_types = if let Some(init_to) = init_to {
-            let mut acc = (0..self.elems.len())
-                .map(|_| Type::empty())
-                .collect::<VecDeque<_>>();
+        let mut init_fields = if let Some(init_to) = init_to {
             let print_is_part_of = init_to.types.len() > 1;
+            let mut init_fields = HashMap::new();
             for t in init_to.types.iter() {
                 if let Some(t) = t.as_any().downcast_ref::<ObjectT>() {
-                    if self.elems.len() == t.0.len() {
-                        for (i, ((sn, _), (tn, t))) in self.elems.iter().zip(t.0.iter()).enumerate()
-                        {
-                            if sn != tn {
-                                return Err(CheckError::new().msg(vec![
-                                    ("can't init an ".to_owned(), None),
-                                    ("object".to_owned(), Some(EColor::InitTo)),
-                                    (" with type ".to_owned(), None),
-                                    (t.simplified_as_string(info), Some(EColor::InitFrom)),
-                                    if print_is_part_of {
-                                        (", which is part of ".to_owned(), None)
-                                    } else {
-                                        (String::new(), None)
-                                    },
-                                    if print_is_part_of {
-                                        (init_to.simplified_as_string(info), Some(EColor::InitFrom))
-                                    } else {
-                                        (String::new(), None)
-                                    },
-                                    (" - field mismatch: ".to_owned(), None),
-                                    (sn.to_owned(), None),
-                                    (" != ".to_owned(), None),
-                                    (tn.to_owned(), None),
-                                ]));
-                            }
-                            acc[i].add_all(&t);
-                        }
-                    } else {
-                        return Err(CheckError::new().msg(vec![
-                            ("can't init an ".to_owned(), None),
-                            ("object".to_owned(), Some(EColor::InitTo)),
-                            (" with type ".to_owned(), None),
-                            (t.simplified_as_string(info), Some(EColor::InitFrom)),
-                            if print_is_part_of {
-                                (", which is part of ".to_owned(), None)
-                            } else {
-                                (format!(""), None)
-                            },
-                            if print_is_part_of {
-                                (init_to.simplified_as_string(info), Some(EColor::InitFrom))
-                            } else {
-                                (format!(""), None)
-                            },
-                            (" - source has ".to_owned(), None),
-                            (if self.elems.len() > t.0.len() {
-                                format!("less fields ({}, not {})", t.0.len(), self.elems.len())
-                            } else {
-                                format!(
-                                    "more fields. Either ignore those fields (`{}`) - or remove them from the type (`... := [{}] ...`)",
-                                    t.0.iter()
-                                        .skip(self.elems.len())
-                                        .enumerate()
-                                        .map(|(i, (n, _))| if i == 0 {
-                                            format!("{n}: _")
-                                        } else {
-                                            format!(", {n}: _")
-                                        })
-                                        .collect::<String>(),
-                                    data::object::ObjectT(t.0.iter().take(self.elems.len()).cloned().collect()).simplified_as_string(info)
-                                )
-                            }, None)
-                        ]));
+                    for (field, t) in t.iter() {
+                        init_fields
+                            .entry(*field)
+                            .or_insert_with(Type::empty)
+                            .add_all(t);
                     }
                 } else {
                     return Err(CheckError::new().msg(vec![
@@ -111,20 +52,39 @@ impl MersStatement for Object {
                     ]));
                 }
             }
-            Some(acc)
+            Some(init_fields)
         } else {
             None
         };
-        Ok(Type::new(data::object::ObjectT(
-            self.elems
+        Ok(Type::new(data::object::ObjectT::new(
+            self.fields
                 .iter()
-                .map(|(n, v)| -> Result<_, CheckError> {
+                .map(|(field, v)| -> Result<_, CheckError> {
                     Ok((
-                        n.clone(),
+                        *field,
                         v.check(
                             info,
-                            if let Some(it) = &mut assign_types {
-                                Some(it.pop_front().unwrap())
+                            if let Some(f) = &mut init_fields {
+                                Some(if let Some(s) = f.remove(field) {
+                                    s
+                                } else {
+                                    return Err(CheckError::new().msg(vec![
+                                        ("can't init an ".to_owned(), None),
+                                        ("object".to_owned(), Some(EColor::InitTo)),
+                                        (" with type ".to_owned(), None),
+                                        (
+                                            init_to.as_ref().unwrap().simplified_as_string(info),
+                                            Some(EColor::InitFrom),
+                                        ),
+                                        (
+                                            format!(
+                                                " - field {} is missing",
+                                                info.display_info().get_object_field_name(*field)
+                                            ),
+                                            None,
+                                        ),
+                                    ]));
+                                })
                             } else {
                                 None
                             }
@@ -136,8 +96,8 @@ impl MersStatement for Object {
         )))
     }
     fn run_custom(&self, info: &mut super::Info) -> Result<Data, CheckError> {
-        Ok(Data::new(data::object::Object(
-            self.elems
+        Ok(Data::new(data::object::Object::new(
+            self.fields
                 .iter()
                 .map(|(n, s)| Ok::<_, CheckError>((n.clone(), s.run(info)?)))
                 .collect::<Result<_, _>>()?,
@@ -150,7 +110,7 @@ impl MersStatement for Object {
         self.pos_in_src.clone()
     }
     fn inner_statements(&self) -> Vec<&dyn MersStatement> {
-        self.elems.iter().map(|(_, s)| s.as_ref()).collect()
+        self.fields.iter().map(|(_, s)| s.as_ref()).collect()
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self

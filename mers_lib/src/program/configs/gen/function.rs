@@ -58,8 +58,12 @@ pub trait StaticMersFunc: Sized + 'static + Send + Sync {
                 Some(Err(e)) => Err(e),
                 None => Err(CheckError::from(format!(
                     "unexpected argument of type {}, expected {}",
-                    a.get().as_type(),
-                    Type::new(data::function::FunctionT(Err(Arc::new(Self::types()))))
+                    a.get().as_type().with_info(i),
+                    Type::new(data::function::FunctionT(
+                        Err(Arc::new(Self::types())),
+                        crate::info::Info::neverused()
+                    ))
+                    .with_info(i)
                 ))),
             }
         })

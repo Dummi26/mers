@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    data::{self, Type},
+    data::{self, object::ObjectFieldsMap, Type},
     errors::{CheckError, EColor},
 };
 
@@ -173,6 +173,19 @@ pub fn parse_single_type(src: &mut Source, srca: &Arc<Source>) -> Result<ParsedT
                     }
                 }
             }
+            for (i, a) in inner.iter().enumerate() {
+                if inner.iter().skip(1 + i).any(|b| a.0 == b.0) {
+                    return Err(CheckError::new()
+                        .src(vec![(
+                            (pos_in_src, src.get_pos(), srca).into(),
+                            Some(EColor::ObjectDuplicateField),
+                        )])
+                        .msg_str(format!(
+                            "This object type contains more than one field named `{}`",
+                            a.0
+                        )));
+                }
+            }
             ParsedType::Object(inner)
         }
         Some(_) => {
@@ -239,20 +252,24 @@ pub fn type_from_parsed(
                     .map(|v| type_from_parsed(v, info))
                     .collect::<Result<_, _>>()?,
             ))),
-            ParsedType::Object(o) => as_type.add(Arc::new(data::object::ObjectT(
+            ParsedType::Object(o) => as_type.add(Arc::new(data::object::ObjectT::new(
                 o.iter()
                     .map(|(s, v)| -> Result<_, CheckError> {
-                        Ok((s.clone(), type_from_parsed(v, info)?))
+                        Ok((
+                            info.global.object_fields.get_or_add_field(&s),
+                            type_from_parsed(v, info)?,
+                        ))
                     })
                     .collect::<Result<_, _>>()?,
             ))),
-            ParsedType::Function(v) => {
-                as_type.add(Arc::new(data::function::FunctionT(Err(Arc::new(
+            ParsedType::Function(v) => as_type.add(Arc::new(data::function::FunctionT(
+                Err(Arc::new(
                     v.iter()
                         .map(|(i, o)| Ok((type_from_parsed(i, info)?, type_from_parsed(o, info)?)))
                         .collect::<Result<_, CheckError>>()?,
-                )))))
-            }
+                )),
+                info.clone(),
+            ))),
             ParsedType::Type(name) => match info
                 .scopes
                 .iter()
@@ -274,7 +291,8 @@ pub fn type_from_parsed(
             {
                 Some(Ok(t)) => {
                     return Err(CheckError::new().msg_str(format!(
-                        "Type: specified type with info, but type {t} doesn't need it"
+                        "Type: specified type with info, but type {} doesn't need it",
+                        t.with_info(info)
                     )))
                 }
                 Some(Err(f)) => as_type.add_all(&*f(&additional_info, info)?),

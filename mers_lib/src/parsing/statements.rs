@@ -358,11 +358,24 @@ pub fn parse_no_chain(
             src.next_char();
             let pos_in_src_after_bracket = src.get_pos();
             {
-                let mut elems = vec![];
+                let mut elems: Vec<(String, _)> = vec![];
                 loop {
                     src.skip_whitespace();
                     if src.peek_char() == Some('}') {
                         src.next_char();
+                        for (i, a) in elems.iter().enumerate() {
+                            if elems.iter().skip(1 + i).any(|b| a.0 == b.0) {
+                                return Err(CheckError::new()
+                                    .src(vec![(
+                                        (pos_in_src, src.get_pos(), srca).into(),
+                                        Some(EColor::ObjectDuplicateField),
+                                    )])
+                                    .msg_str(format!(
+                                        "This object contains more than one field named `{}`",
+                                        a.0
+                                    )));
+                            }
+                        }
                         return Ok(Some(Box::new(program::parsed::object::Object {
                             pos_in_src: (pos_in_src, src.get_pos(), srca).into(),
                             elems,

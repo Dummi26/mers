@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     errors::{CheckError, SourceRange},
-    info,
+    info::{self, DisplayInfo},
 };
 
 #[cfg(feature = "parse")]
@@ -113,7 +113,7 @@ pub struct Local {
     pub vars: HashMap<String, (usize, usize)>,
     pub vars_count: usize,
 }
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct LocalGlobalInfo {
     pub depth: usize,
     pub enable_hooks: bool,
@@ -129,11 +129,33 @@ pub struct LocalGlobalInfo {
             )>,
         >,
     >,
+    pub object_fields: Arc<Mutex<HashMap<String, usize>>>,
+    pub object_fields_rev: Arc<Mutex<Vec<String>>>,
+}
+impl LocalGlobalInfo {
+    pub fn new(object_fields: Arc<Mutex<HashMap<String, usize>>>) -> Self {
+        Self {
+            depth: 0,
+            enable_hooks: false,
+            save_info_at: Default::default(),
+            object_fields,
+            object_fields_rev: Default::default(),
+        }
+    }
 }
 impl info::Local for Local {
     type VariableIdentifier = String;
     type VariableData = (usize, usize);
     type Global = LocalGlobalInfo;
+    fn neverused_global() -> Self::Global {
+        Self::Global {
+            depth: 0,
+            enable_hooks: false,
+            save_info_at: Default::default(),
+            object_fields: Default::default(),
+            object_fields_rev: Default::default(),
+        }
+    }
     fn init_var(&mut self, id: Self::VariableIdentifier, value: Self::VariableData) {
         self.vars_count += 1;
         self.vars.insert(id, value);
@@ -146,5 +168,11 @@ impl info::Local for Local {
     }
     fn duplicate(&self) -> Self {
         self.clone()
+    }
+    fn display_info<'a>(global: &'a Self::Global) -> DisplayInfo<'a> {
+        DisplayInfo {
+            object_fields: &global.object_fields,
+            object_fields_rev: &global.object_fields_rev,
+        }
     }
 }

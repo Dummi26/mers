@@ -1,7 +1,6 @@
 use crate::{
     errors::{CheckError, EColor, SourceRange},
-    info::Local,
-    program::{self},
+    program,
 };
 
 use super::{CompInfo, MersStatement};

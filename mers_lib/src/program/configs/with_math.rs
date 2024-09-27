@@ -326,7 +326,7 @@ fn num_iter_to_num(
     data::function::Function {
         info: program::run::Info::neverused(),
         info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-        out: Ok(Arc::new(move |a, _i| {
+        out: Ok(Arc::new(move |a, i| {
             if let Some(a) = a.iterable() {
                 let int_type = Type::new(data::int::IntT);
                 if a.is_included_in(&int_type) {
@@ -343,7 +343,7 @@ fn num_iter_to_num(
                         if a.is_included_in(&int_float_type) {
                             Ok(int_float_type)
                         } else {
-                            Err(format!("argument passed to {func_name} must be an iterator over values of type Int/String, but was an iterator over values of type {a}.").into())
+                            Err(format!("argument passed to {func_name} must be an iterator over values of type Int/String, but was an iterator over values of type {}.", a.with_info(i)).into())
                         }
                     }
                 }

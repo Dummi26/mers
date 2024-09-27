@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    data::{self, Data, Type},
+    data::{self, Data, MersTypeWInfo, Type},
     program::{self, run::CheckInfo},
 };
 
@@ -15,7 +15,7 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Ok(Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, i| {
                     let mut out = Type::empty();
                     for a in a.types.iter() {
                         if let Some(t) = a.as_any().downcast_ref::<data::tuple::TupleT>() {
@@ -25,7 +25,7 @@ impl Config {
                             if !t.0[1].is_included_in_single(&data::int::IntT) {
                                 return Err(format!(
                                     "called get with non-int index of type {}",
-                                    t.0[1]
+                                    t.0[1].with_info(i)
                                 )
                                 .into());
                             }
@@ -33,12 +33,16 @@ impl Config {
                                 out.add_all(&v);
                             } else {
                                 return Err(format!(
-                                    "called get on non-gettable type {t}, part of {a}"
+                                    "called get on non-gettable type {}, part of {}",
+                                    t.with_info(i),
+                                    a.with_info(i)
                                 )
                                 .into());
                             }
                         } else {
-                            return Err(format!("called get on non-tuple type {a}").into());
+                            return Err(
+                                format!("called get on non-tuple type {}", a.with_info(i)).into()
+                            );
                         }
                     }
                     Ok(Type::newm(vec![

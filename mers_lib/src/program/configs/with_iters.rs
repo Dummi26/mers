@@ -7,9 +7,10 @@ use crate::{
     data::{
         self,
         function::{Function, FunctionT},
-        Data, MersData, MersType, Type,
+        Data, MersData, MersType, MersTypeWInfo, Type,
     },
     errors::CheckError,
+    info::DisplayInfo,
     program::{self, run::CheckInfo},
 };
 
@@ -49,7 +50,7 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Ok(Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, i| {
                     for a in &a.types {
                         if let Some(tuple) = a.as_any().downcast_ref::<data::tuple::TupleT>() {
                             if let (Some(v), Some(f)) = (tuple.0.get(0), tuple.0.get(1)) {
@@ -70,7 +71,8 @@ impl Config {
                                     }
                                 } else {
                                     return Err(format!(
-                                        "for_each called on tuple not containing iterable and function: {v} is {}",
+                                        "for_each called on tuple not containing iterable and function: {} is {}",
+                                        v.with_info(i),
                                         if v.iterable().is_some() { "iterable" } else { "not iterable" },
                                     ).into());
                                 }
@@ -133,13 +135,13 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Ok(Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, i| {
                     let data = if let Some(a) = a.iterable() {
                         a
                     } else {
-                        return Err(format!("cannot call enumerate on non-iterable type {a}.").into());
+                        return Err(format!("cannot call enumerate on non-iterable type {}.", a.with_info(i)).into());
                     };
-                    Ok(Type::new(IterT::new(ItersT::Enumerate, data)?))
+                    Ok(Type::new(IterT::new(ItersT::Enumerate, data, i)?))
                 })),
                 run: Arc::new(|a, _i| Ok(Data::new(Iter(Iters::Enumerate, a.clone())))),
                 inner_statements: None,
@@ -150,13 +152,13 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Ok(Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, i| {
                     let data = if let Some(a) = a.iterable() {
                         a
                     } else {
-                        return Err(format!("cannot call chain on non-iterable type {a}.").into());
+                        return Err(format!("cannot call chain on non-iterable type {}.", a.with_info(i)).into());
                     };
-                    Ok(Type::new(IterT::new(ItersT::Chained, data)?))
+                    Ok(Type::new(IterT::new(ItersT::Chained, data, i)?))
                 })),
                 run: Arc::new(|a, _i| Ok(Data::new(Iter(Iters::Chained, a.clone())))),
                 inner_statements: None,
@@ -172,6 +174,7 @@ fn genfunc_iter_and_func(
 ) -> data::function::Function {
     fn iter_out_arg(
         a: &Type,
+        i: &mut CheckInfo,
         name: &str,
         func: impl Fn(FunctionT) -> ItersT + Sync + Send,
     ) -> Result<Type, CheckError> {
@@ -184,14 +187,16 @@ fn genfunc_iter_and_func(
                 if let Some(v) = t.0[0].iterable() {
                     for f in t.0[1].types.iter() {
                         if let Some(f) = f.executable() {
-                            out.add(Arc::new(IterT::new(func(f), v.clone())?));
+                            out.add(Arc::new(IterT::new(func(f), v.clone(), i)?));
                         } else {
-                            return Err(format!("cannot call {name} on tuple that isn't (_, function): got {} instead of function as part of {a}", t.0[1]).into());
+                            return Err(format!("cannot call {name} on tuple that isn't (_, function): got {} instead of function as part of {}", t.0[1].with_info(i), a.with_info(i)).into());
                         }
                     }
                 } else {
                     return Err(format!(
-                        "cannot call {name} on non-iterable type {t}, which is part of {a}."
+                        "cannot call {name} on non-iterable type {}, which is part of {}.",
+                        t.with_info(i),
+                        a.with_info(i)
                     )
                     .into());
                 }
@@ -202,7 +207,7 @@ fn genfunc_iter_and_func(
     data::function::Function {
         info: program::run::Info::neverused(),
         info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-        out: Ok(Arc::new(move |a, _i| iter_out_arg(a, name, |f| ft(f)))),
+        out: Ok(Arc::new(move |a, i| iter_out_arg(a, i, name, |f| ft(f)))),
         run: Arc::new(move |a, _i| {
             if let Some(tuple) = a.get().as_any().downcast_ref::<data::tuple::Tuple>() {
                 if let (Some(v), Some(f)) = (tuple.get(0), tuple.get(1)) {
@@ -225,10 +230,12 @@ fn genfunc_iter_and_arg<T: MersType, D: MersData>(
 ) -> data::function::Function {
     fn iter_out_arg<T: MersType>(
         a: &Type,
+        i: &mut CheckInfo,
         name: &str,
         func: impl Fn(&T) -> ItersT + Sync + Send,
         type_sample: &T,
     ) -> Result<Type, CheckError> {
+        let type_sample = type_sample.with_info(i);
         let mut out = Type::empty();
         for t in a.types.iter() {
             if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
@@ -238,14 +245,16 @@ fn genfunc_iter_and_arg<T: MersType, D: MersData>(
                 if let Some(v) = t.0[0].iterable() {
                     for f in t.0[1].types.iter() {
                         if let Some(f) = f.as_any().downcast_ref::<T>() {
-                            out.add(Arc::new(IterT::new(func(f), v.clone())?));
+                            out.add(Arc::new(IterT::new(func(f), v.clone(), i)?));
                         } else {
-                            return Err(format!("cannot call {name} on tuple that isn't (_, {type_sample}): got {} instead of {type_sample} as part of {a}", t.0[1]).into());
+                            return Err(format!("cannot call {name} on tuple that isn't (_, {type_sample}): got {} instead of {type_sample} as part of {}", t.0[1].with_info(i), a.with_info(i)).into());
                         }
                     }
                 } else {
                     return Err(format!(
-                        "cannot call {name} on non-iterable type {t}, which is part of {a}."
+                        "cannot call {name} on non-iterable type {}, which is part of {}.",
+                        t.with_info(i),
+                        a.with_info(i)
                     )
                     .into());
                 }
@@ -256,8 +265,8 @@ fn genfunc_iter_and_arg<T: MersType, D: MersData>(
     data::function::Function {
         info: program::run::Info::neverused(),
         info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-        out: Ok(Arc::new(move |a, _i| {
-            iter_out_arg(a, name, |f: &T| ft(f), type_sample)
+        out: Ok(Arc::new(move |a, i| {
+            iter_out_arg(a, i, name, |f: &T| ft(f), type_sample)
         })),
         run: Arc::new(move |a, _i| {
             if let Some(tuple) = a.get().as_any().downcast_ref::<data::tuple::Tuple>() {
@@ -303,6 +312,9 @@ pub struct Iter(pub Iters, pub Data);
 #[derive(Clone, Debug)]
 pub struct IterT(pub ItersT, pub Type, pub Type);
 impl MersData for Iter {
+    fn display(&self, _info: &DisplayInfo<'_>, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{self}")
+    }
     fn is_eq(&self, _other: &dyn MersData) -> bool {
         false
     }
@@ -396,7 +408,14 @@ impl MersData for Iter {
         Box::new(Clone::clone(self))
     }
     fn as_type(&self) -> data::Type {
-        Type::new(IterT::new(self.0.as_type(), self.1.get().as_type()).unwrap())
+        Type::new(
+            IterT::new(
+                self.0.as_type(),
+                self.1.get().as_type(),
+                &crate::info::Info::neverused(),
+            )
+            .unwrap(),
+        )
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -409,7 +428,8 @@ impl MersData for Iter {
     }
 }
 impl IterT {
-    pub fn new(iter: ItersT, data: Type) -> Result<Self, CheckError> {
+    /// `i` is only used for errors (this is important for `as_type()`)
+    pub fn new(iter: ItersT, data: Type, i: &CheckInfo) -> Result<Self, CheckError> {
         let t = match &iter {
             ItersT::Map(f) => f.o(&data)?,
             ItersT::Filter(f) => {
@@ -417,7 +437,8 @@ impl IterT {
                     data.clone()
                 } else {
                     return Err(format!(
-                        "Iter:Filter, but function doesn't return bool for argument {data}."
+                        "Iter:Filter, but function doesn't return bool for argument {}.",
+                        data.with_info(&i)
                     )
                     .into());
                 }
@@ -450,7 +471,8 @@ impl IterT {
                     out
                 } else {
                     return Err(format!(
-                        "Cannot create a chain from an iterator over the non-iterator type {data}."
+                        "Cannot create a chain from an iterator over the non-iterator type {}.",
+                        data.with_info(i)
                     )
                     .into());
                 }
@@ -460,6 +482,13 @@ impl IterT {
     }
 }
 impl MersType for IterT {
+    fn display(
+        &self,
+        info: &crate::info::DisplayInfo<'_>,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        write!(f, "<Iter: {}>", self.2.with_display(info))
+    }
     fn is_same_type_as(&self, other: &dyn MersType) -> bool {
         if let Some(other) = other.as_any().downcast_ref::<Self>() {
             self.2.is_same_type_as(&other.2)
@@ -496,11 +525,6 @@ impl Display for Iter {
         write!(f, "<Iter>")
     }
 }
-impl Display for IterT {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "<Iter: {}>", self.2)
-    }
-}
 impl Iters {
     fn as_type(&self) -> ItersT {
         match self {
@@ -527,15 +551,24 @@ fn genfunc_iter_in_val_out(
     Function {
         info: crate::info::Info::neverused(),
         info_check: Arc::new(Mutex::new(crate::info::Info::neverused())),
-        out: Ok(Arc::new(move |a, _i| {
+        out: Ok(Arc::new(move |a, i| {
             if let Some(iter_over) = a.iterable() {
                 if iter_over.is_included_in(&iter_type) {
                     Ok(out_type.clone())
                 } else {
-                    Err(format!("Cannot call function {name} on iterator over type {a}, which isn't {iter_type}.").into())
+                    Err(format!(
+                        "Cannot call function {name} on iterator over type {}, which isn't {}.",
+                        a.with_info(i),
+                        iter_type.with_info(i)
+                    )
+                    .into())
                 }
             } else {
-                Err(format!("Cannot call function {name} on non-iterable type {a}.").into())
+                Err(format!(
+                    "Cannot call function {name} on non-iterable type {}.",
+                    a.with_info(i)
+                )
+                .into())
             }
         })),
         run: Arc::new(run),

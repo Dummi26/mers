@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    data::{self, Data, Type},
+    data::{self, Data, MersTypeWInfo, Type},
     errors::{CheckError, SourceRange},
 };
 
@@ -28,7 +28,7 @@ impl MersStatement for Loop {
             if let Some(i) = i.as_any().downcast_ref::<data::tuple::TupleT>() {
                 if i.0.len() > 1 {
                     return Err(format!(
-                        "Loop: Inner statement must return ()/(T), not {t} (because of {i}, a tuple of length > 1)."
+                        "Loop: Inner statement must return ()/(T), not {} (because of {}, a tuple of length > 1).", t.with_info(info), i.with_info(info)
                     )
                     .into());
                 } else {
@@ -40,7 +40,7 @@ impl MersStatement for Loop {
                 }
             } else {
                 return Err(format!(
-                    "Loop: Inner statement must return ()/(T), not {t} (because of {i}, which isn't a tuple)."
+                    "Loop: Inner statement must return ()/(T), not {} (because of {}, which isn't a tuple).", t.with_info(info), i.with_info(info)
                 )
                 .into());
             }

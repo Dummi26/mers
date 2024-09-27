@@ -5,8 +5,9 @@ use std::{
 };
 
 use crate::{
-    data::{self, Data, MersData, MersType, Type},
+    data::{self, Data, MersData, MersType, MersTypeWInfo, Type},
     errors::CheckError,
+    info::DisplayInfo,
     parsing::{statements::to_string_literal, Source},
     program::{self, run::CheckInfo},
 };
@@ -57,10 +58,10 @@ impl Config {
             .add_var("thread_finished", data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Ok(Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, i| {
                     for t in a.types.iter() {
                         if !t.as_any().is::<ThreadT>() {
-                            return Err(CheckError::new().msg_str(format!("Cannot call thread_finished on a value of type {t}, which isn't a thread but part of the argument {a}.")));
+                            return Err(CheckError::new().msg_str(format!("Cannot call thread_finished on a value of type {}, which isn't a thread but part of the argument {}.", t.with_info(i), a.with_info(i))));
                         }
                     }
                     Ok(data::bool::bool_type())
@@ -78,13 +79,13 @@ impl Config {
             .add_var("thread_await", data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Ok(Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, i| {
                     let mut out = Type::empty();
                     for t in a.types.iter() {
                         if let Some(t) = t.as_any().downcast_ref::<ThreadT>() {
                             out.add_all(&t.0);
                         } else {
-                            return Err(CheckError::new().msg_str(format!("Cannot call thread_await on a value of type {t}, which isn't a thread but part of the argument {a}.")));
+                            return Err(CheckError::new().msg_str(format!("Cannot call thread_await on a value of type {}, which isn't a thread but part of the argument {}.", t.with_info(i), a.with_info(i))));
                         }
                     }
                     Ok(out)
@@ -112,6 +113,9 @@ pub struct Thread(
 pub struct ThreadT(pub Type);
 
 impl MersData for Thread {
+    fn display(&self, _info: &DisplayInfo<'_>, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{self}")
+    }
     fn is_eq(&self, _other: &dyn MersData) -> bool {
         false
     }
@@ -132,6 +136,17 @@ impl MersData for Thread {
     }
 }
 impl MersType for ThreadT {
+    fn display(
+        &self,
+        info: &crate::info::DisplayInfo<'_>,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        write!(
+            f,
+            "Thread<{}>",
+            to_string_literal(&self.0.with_display(info).to_string(), '>')
+        )
+    }
     fn is_same_type_as(&self, other: &dyn MersType) -> bool {
         if let Some(other) = other.as_any().downcast_ref::<Self>() {
             self.0.is_same_type_as(&other.0)
@@ -170,10 +185,5 @@ impl Debug for Thread {
 impl Display for Thread {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "<Thread>")
-    }
-}
-impl Display for ThreadT {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Thread<{}>", to_string_literal(&self.0.to_string(), '>'))
     }
 }

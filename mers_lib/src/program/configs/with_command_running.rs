@@ -6,8 +6,9 @@ use std::{
 };
 
 use crate::{
-    data::{self, Data, MersData, MersType, Type},
+    data::{self, object::ObjectFieldsMap, Data, MersData, MersDataWInfo, MersType, Type},
     errors::CheckError,
+    info::DisplayInfo,
     program::{self, run::CheckInfo},
 };
 
@@ -29,7 +30,7 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
-                out: Ok(Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, i| {
                     if a.types.iter().all(|t| t.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in_single(&data::string::StringT) && t.0[1].iterable().is_some_and(|t| t.is_included_in_single(&data::string::StringT)))) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![
@@ -37,13 +38,13 @@ impl Config {
                                 Type::new(data::string::StringT),
                                 Type::new(data::string::StringT),
                             ])),
-                            Arc::new(data::object::ObjectT(vec![("run_command_error".to_owned(), Type::new(data::string::StringT))]))
+                            Arc::new(data::object::ObjectT::new(vec![(i.global.object_fields.get_or_add_field("run_command_error"), Type::new(data::string::StringT))]))
                         ]))
                     } else {
                         return Err(format!("run_command called with invalid arguments (must be (String, Iter<String>))").into());
                     }
                 })),
-                run: Arc::new(|a, _i| {
+                run: Arc::new(|a, i| {
                     let a = a.get();
                     let cmd = a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
                     let (cmd, args) = (&cmd.0[0], &cmd.0[1]);
@@ -52,7 +53,7 @@ impl Config {
                         cmd.as_any().downcast_ref::<data::string::String>().unwrap(),
                         args.get().iterable().unwrap(),
                     );
-                    let args = args.map(|v| v.map(|v| v.get().to_string())).collect::<Result<Vec<_>, _>>()?;
+                    let args = args.map(|v| v.map(|v| v.get().with_info(i).to_string())).collect::<Result<Vec<_>, _>>()?;
                     match Command::new(&cmd.0)
                         .args(args)
                         .output()
@@ -73,7 +74,7 @@ impl Config {
                                 Data::new(data::string::String(stderr)),
                             ])))
                         }
-                        Err(e) => Ok(Data::new(data::object::Object(vec![("run_command_error".to_owned(), Data::new(data::string::String(e.to_string())))]))),
+                        Err(e) => Ok(Data::new(data::object::Object::new(vec![(i.global.object_fields.get_or_add_field("run_command_error"), Data::new(data::string::String(e.to_string())))]))),
                     }
                 }),
                 inner_statements: None,
@@ -84,17 +85,17 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
-                out: Ok(Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, i| {
                     if a.types.iter().all(|t| t.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in_single(&data::string::StringT) && t.0[1].iterable().is_some_and(|t| t.is_included_in_single(&data::string::StringT)))) {
                         Ok(Type::newm(vec![
                             Arc::new(ChildProcessT),
-                            Arc::new(data::object::ObjectT(vec![("run_command_error".to_owned(), Type::new(data::string::StringT))]))
+                            Arc::new(data::object::ObjectT::new(vec![(i.global.object_fields.get_or_add_field("run_command_error"), Type::new(data::string::StringT))]))
                         ]))
                     } else {
                         return Err(format!("spawn_command called with invalid arguments (must be (String, Iter<String>))").into());
                     }
                 })),
-                run: Arc::new(|a, _i| {
+                run: Arc::new(|a, i| {
                     let a = a.get();
                     let cmd = a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
                     let (cmd, args) = (&cmd.0[0], &cmd.0[1]);
@@ -103,7 +104,7 @@ impl Config {
                         cmd.as_any().downcast_ref::<data::string::String>().unwrap(),
                         args.get().iterable().unwrap(),
                     );
-                    let args = args.map(|v| v.map(|v| v.get().to_string())).collect::<Result<Vec<_>, _>>()?;
+                    let args = args.map(|v| v.map(|v| v.get().with_info(i).to_string())).collect::<Result<Vec<_>, _>>()?;
                     match Command::new(&cmd.0)
                         .args(args)
                         .stdin(Stdio::piped())
@@ -117,7 +118,7 @@ impl Config {
                             let c = BufReader::new(child.stderr.take().unwrap());
                             Ok(Data::new(ChildProcess(Arc::new(Mutex::new((child, a, b, c))))))
                         }
-                        Err(e) => Ok(Data::new(data::object::Object(vec![("run_command_error".to_owned(), Data::new(data::string::String(e.to_string())))]))),
+                        Err(e) => Ok(Data::new(data::object::Object::new(vec![(i.global.object_fields.get_or_add_field("run_command_error"), Data::new(data::string::String(e.to_string())))]))),
                     }
                 }),
                 inner_statements: None,
@@ -128,14 +129,14 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
-                out: Ok(Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, i| {
                     if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![data::bool::bool_type()])),
                             Arc::new(data::tuple::TupleT(vec![])),
                         ]))
                     } else {
-                        return Err(format!("childproc_exited called on non-ChildProcess type {a}").into());
+                        return Err(format!("childproc_exited called on non-ChildProcess type {}", a.with_info(i)).into());
                     }
                 })),
                 run: Arc::new(|a, _i| {
@@ -156,7 +157,7 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
-                out: Ok(Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, i| {
                     if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
                             Arc::new(data::int::IntT),
@@ -165,7 +166,7 @@ impl Config {
                             Arc::new(data::tuple::TupleT(vec![])),
                         ]))
                     } else {
-                        return Err(format!("childproc_await called on non-ChildProcess type {a}").into());
+                        return Err(format!("childproc_await called on non-ChildProcess type {}", a.with_info(i)).into());
                     }
                 })),
                 run: Arc::new(|a, _i| {
@@ -190,11 +191,11 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
-                out: Ok(Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, i| {
                     if a.types.iter().all(|a| a.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in_single(&ChildProcessT) && t.0[1].iterable().is_some_and(|i| i.is_included_in_single(&data::byte::ByteT)))) {
                         Ok(data::bool::bool_type())
                     } else {
-                        return Err(format!("childproc_write_bytes called on non-`(ChildProcess, Iter<Byte>)` type {a}").into());
+                        return Err(format!("childproc_write_bytes called on non-`(ChildProcess, Iter<Byte>)` type {}", a.with_info(i)).into());
                     }
                 })),
                 run: Arc::new(|a, _i| {
@@ -219,11 +220,11 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
-                out: Ok(Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, i| {
                     if a.is_included_in_single(&data::tuple::TupleT(vec![Type::new(ChildProcessT), Type::new(data::string::StringT)])) {
                         Ok(data::bool::bool_type())
                     } else {
-                        return Err(format!("childproc_write_string called on non-`(ChildProcess, String)` type {a}").into());
+                        return Err(format!("childproc_write_string called on non-`(ChildProcess, String)` type {}", a.with_info(i)).into());
                     }
                 })),
                 run: Arc::new(|a, _i| {
@@ -248,14 +249,14 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
-                out: Ok(Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, i| {
                     if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![Type::new(data::byte::ByteT)])),
                             Arc::new(data::tuple::TupleT(vec![])),
                         ]))
                     } else {
-                        return Err(format!("childproc_read_byte called on non-ChildProcess type {a}").into());
+                        return Err(format!("childproc_read_byte called on non-ChildProcess type {}", a.with_info(i)).into());
                     }
                 })),
                 run: Arc::new(|a, _i| {
@@ -277,14 +278,14 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
-                out: Ok(Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, i| {
                     if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![Type::new(data::byte::ByteT)])),
                             Arc::new(data::tuple::TupleT(vec![])),
                         ]))
                     } else {
-                        return Err(format!("childproc_readerr_byte called on non-ChildProcess type {a}").into());
+                        return Err(format!("childproc_readerr_byte called on non-ChildProcess type {}", a.with_info(i)).into());
                     }
                 })),
                 run: Arc::new(|a, _i| {
@@ -306,14 +307,14 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
-                out: Ok(Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, i| {
                     if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![Type::new(data::string::StringT)])),
                             Arc::new(data::tuple::TupleT(vec![])),
                         ]))
                     } else {
-                        return Err(format!("childproc_read_line called on non-ChildProcess type {a}").into());
+                        return Err(format!("childproc_read_line called on non-ChildProcess type {}", a.with_info(i)).into());
                     }
                 })),
                 run: Arc::new(|a, _i| {
@@ -335,14 +336,14 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
-                out: Ok(Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, i| {
                     if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![Type::new(data::string::StringT)])),
                             Arc::new(data::tuple::TupleT(vec![])),
                         ]))
                     } else {
-                        return Err(format!("childproc_read_line called on non-ChildProcess type {a}").into());
+                        return Err(format!("childproc_read_line called on non-ChildProcess type {}", a.with_info(i)).into());
                     }
                 })),
                 run: Arc::new(|a, _i| {
@@ -376,6 +377,9 @@ pub struct ChildProcess(
 #[derive(Clone, Debug)]
 pub struct ChildProcessT;
 impl MersData for ChildProcess {
+    fn display(&self, _info: &DisplayInfo<'_>, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{self}")
+    }
     fn iterable(&self) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
         None
     }
@@ -410,6 +414,13 @@ impl Display for ChildProcess {
     }
 }
 impl MersType for ChildProcessT {
+    fn display(
+        &self,
+        _info: &crate::info::DisplayInfo<'_>,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        write!(f, "{self}")
+    }
     fn iterable(&self) -> Option<Type> {
         None
     }

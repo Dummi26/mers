@@ -132,12 +132,12 @@ fn main() {
                             eprintln!("{e:?}");
                             exit(24);
                         }
-                        Ok(compiled) => match check(&*compiled, i3) {
+                        Ok(compiled) => match check_mut(&*compiled, &mut i3) {
                             Err(e) => {
                                 eprintln!("{e:?}");
                                 exit(28);
                             }
-                            Ok(output_type) => eprintln!("{output_type}"),
+                            Ok(output_type) => eprintln!("{}", output_type.with_info(&i3)),
                         },
                     }
                 }

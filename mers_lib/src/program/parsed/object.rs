@@ -1,7 +1,7 @@
 use crate::{
+    data::object::ObjectFieldsMap,
     errors::{CheckError, SourceRange},
-    info,
-    program::{self},
+    info, program,
 };
 
 use super::{CompInfo, MersStatement};
@@ -22,10 +22,15 @@ impl MersStatement for Object {
     ) -> Result<Box<dyn program::run::MersStatement>, CheckError> {
         Ok(Box::new(program::run::object::Object {
             pos_in_src: self.pos_in_src.clone(),
-            elems: self
+            fields: self
                 .elems
                 .iter()
-                .map(|(n, v)| -> Result<_, CheckError> { Ok((n.clone(), v.compile(info, comp)?)) })
+                .map(|(n, v)| -> Result<_, CheckError> {
+                    Ok((
+                        info.global.object_fields.get_or_add_field(n),
+                        v.compile(info, comp)?,
+                    ))
+                })
                 .collect::<Result<Vec<_>, _>>()?,
         }))
     }

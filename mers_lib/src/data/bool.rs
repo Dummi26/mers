@@ -1,11 +1,16 @@
 use std::{any::Any, fmt::Display, sync::Arc};
 
+use crate::info::DisplayInfo;
+
 use super::{MersData, MersType, Type};
 
 #[derive(Debug, Clone)]
 pub struct Bool(pub bool);
 
 impl MersData for Bool {
+    fn display(&self, _info: &DisplayInfo<'_>, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{self}")
+    }
     fn is_eq(&self, other: &dyn MersData) -> bool {
         if let Some(other) = other.as_any().downcast_ref::<Self>() {
             other.0 == self.0
@@ -43,6 +48,13 @@ pub fn bool_type() -> Type {
     Type::newm(vec![Arc::new(TrueT), Arc::new(FalseT)])
 }
 impl MersType for TrueT {
+    fn display(
+        &self,
+        _info: &crate::info::DisplayInfo<'_>,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        write!(f, "{self}")
+    }
     fn is_same_type_as(&self, other: &dyn MersType) -> bool {
         other.as_any().downcast_ref::<Self>().is_some()
     }
@@ -63,6 +75,13 @@ impl MersType for TrueT {
     }
 }
 impl MersType for FalseT {
+    fn display(
+        &self,
+        _info: &crate::info::DisplayInfo<'_>,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        write!(f, "{self}")
+    }
     fn is_same_type_as(&self, other: &dyn MersType) -> bool {
         other.as_any().downcast_ref::<Self>().is_some()
     }

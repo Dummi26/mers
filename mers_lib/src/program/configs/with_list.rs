@@ -1,11 +1,9 @@
-use std::{
-    fmt::Display,
-    sync::{Arc, Mutex, RwLock},
-};
+use std::sync::{Arc, Mutex, RwLock};
 
 use crate::{
-    data::{self, Data, MersData, MersType, Type},
+    data::{self, Data, MersData, MersType, MersTypeWInfo, Type},
     errors::CheckError,
+    info::DisplayInfo,
     parsing::{statements::to_string_literal, Source},
     program::{self, run::CheckInfo},
 };
@@ -34,7 +32,7 @@ impl Config {
             .add_var("get_mut", data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                    out: Ok(Arc::new(|a, _i| {
+                    out: Ok(Arc::new(|a, i| {
                             let mut out = Type::empty_tuple();
                             for t in a.types.iter() {
                                 if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
@@ -50,18 +48,18 @@ impl Config {
                                                     out.add(Arc::new(data::tuple::TupleT(vec![Type::new(data::reference::ReferenceT(t.0.clone()))])));
                                                 } else {
                                                     return Err(format!(
-                                                        "get_mut: first argument in tuple {t} isn't `&List<_>`."
+                                                        "get_mut: first argument in tuple {} isn't `&List<_>`.", t.with_info(i)
                                                     ).into());
                                                 }
                                             }
                                         } else {
                                             return Err(format!(
-                                                "get_mut: first type in tuple {t} isn't a reference."
+                                                "get_mut: first type in tuple {} isn't a reference.", t.with_info(i)
                                             ).into());
                                         }
                                     } else {
                                         return Err(format!(
-                                            "get_mut: Second type in tuple {t} wasn't `Int`."
+                                            "get_mut: Second type in tuple {} wasn't `Int`.", t.with_info(i)
                                         ).into());
                                     }
                                 } else {
@@ -103,7 +101,7 @@ impl Config {
                 data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                    out: Ok(Arc::new(|a, _i| {
+                    out: Ok(Arc::new(|a, i| {
                         if let Some(a) = a.dereference() {
                             let mut out = Type::empty();
                             for t in a.types.iter() {
@@ -111,7 +109,7 @@ impl Config {
                                     out.add_all(&t.0);
                                 } else {
                                     return Err(format!(
-                                        "pop: found a reference to {t}, which is not a list"
+                                        "pop: found a reference to {}, which is not a list", t.with_info(i)
                                     ).into());
                                 }
                             }
@@ -120,7 +118,7 @@ impl Config {
                                 Arc::new(data::tuple::TupleT(vec![]))
                             ]))
                         } else {
-                            return Err(format!("pop: not a reference: {a}").into());
+                            return Err(format!("pop: not a reference: {}", a.with_info(i)).into());
                         }
                     })),
                     run: Arc::new(|a, _i| {
@@ -151,7 +149,7 @@ impl Config {
                 data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                    out: Ok(Arc::new(|a, _i| {
+                    out: Ok(Arc::new(|a, i| {
                         for t in a.types.iter() {
                             if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
                                 if t.0.len() != 2 {
@@ -166,22 +164,22 @@ impl Config {
                                         if let Some(t) = t.as_any().downcast_ref::<ListT>() {
                                             if !new.is_included_in(&t.0) {
                                                 return Err(format!(
-                                            "push: found a reference to {t}, which is a list which can't contain elements of type {new}"
+                                            "push: found a reference to {}, which is a list which can't contain elements of type {}", t.with_info(i), new.with_info(i)
                                         ).into());
                                             }
                                         } else {
                                             return Err(format!(
-                                                    "push: found a reference to {t}, which is not a list"
+                                                    "push: found a reference to {}, which is not a list", t.with_info(i)
                                             ).into());
                                         }
                                     }
                                 } else {
                                     return Err(format!(
-                                        "push: first element in tuple not a reference: {a}"
+                                        "push: first element in tuple not a reference: {}", a.with_info(i)
                                     ).into());
                                 }
                             } else {
-                                return Err(format!("push: not a tuple: {t}")
+                                return Err(format!("push: not a tuple: {}", t.with_info(i))
                                 .into());
                             }
                         }
@@ -214,12 +212,12 @@ impl Config {
                 data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                    out: Ok(Arc::new(|a, _i| {
+                    out: Ok(Arc::new(|a, i| {
                         if let Some(v) = a.iterable() {
                             Ok(Type::new(ListT(v)))
                         } else {
                             Err(format!(
-                                "cannot iterate over type {a}"
+                                "cannot iterate over type {}", a.with_info(i)
                             ).into())
                         }
                     })),
@@ -251,6 +249,17 @@ impl Clone for List {
 #[derive(Debug)]
 pub struct ListT(pub Type);
 impl MersData for List {
+    fn display(&self, info: &DisplayInfo<'_>, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "[")?;
+        for (i, c) in self.0.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            c.read().unwrap().get().display(info, f)?;
+        }
+        write!(f, "]")?;
+        Ok(())
+    }
     fn is_eq(&self, other: &dyn MersData) -> bool {
         if let Some(other) = other.as_any().downcast_ref::<Self>() {
             other.0.len() == self.0.len()
@@ -288,6 +297,17 @@ impl MersData for List {
     }
 }
 impl MersType for ListT {
+    fn display(
+        &self,
+        info: &crate::info::DisplayInfo<'_>,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        write!(
+            f,
+            "List<{}>",
+            to_string_literal(&self.0.with_display(info).to_string(), '>')
+        )
+    }
     fn iterable(&self) -> Option<Type> {
         Some(self.0.clone())
     }
@@ -322,25 +342,6 @@ impl MersType for ListT {
     }
     fn simplify_for_display(&self, info: &crate::program::run::CheckInfo) -> Option<Type> {
         Some(Type::new(Self(self.0.simplify_for_display(info))))
-    }
-}
-impl Display for List {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[")?;
-        for (i, c) in self.0.iter().enumerate() {
-            if i > 0 {
-                write!(f, ", ")?;
-            }
-            write!(f, "{}", c.read().unwrap().get())?;
-        }
-        write!(f, "]")?;
-        Ok(())
-    }
-}
-impl Display for ListT {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "List<{}>", to_string_literal(&self.0.to_string(), '>'))?;
-        Ok(())
     }
 }
 impl List {

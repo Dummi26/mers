@@ -1,7 +1,6 @@
 use crate::{
     data::{self, Data, MersData, Type},
     errors::{CheckError, SourceRange},
-    info::Local,
 };
 
 use super::MersStatement;

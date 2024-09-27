@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    data::{self, bool::bool_type, Data, Type},
+    data::{self, bool::bool_type, Data, MersTypeWInfo, Type},
     errors::CheckError,
     program::run::{CheckInfo, Info},
 };
@@ -30,7 +30,7 @@ impl Config {
             .add_var("lock_update", data::function::Function {
                 info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Ok(Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, i| {
                     for t in a.types.iter() {
                         if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
                             if t.0.len() == 2 {
@@ -42,23 +42,23 @@ impl Config {
                                             match f.o(&arg) {
                                                 Ok(out) => {
                                                     if !out.is_included_in(&arg) {
-                                                        return Err(format!("Function returns a value of type {out}, which isn't included in the type of the reference, {arg}.").into());
+                                                        return Err(format!("Function returns a value of type {}, which isn't included in the type of the reference, {}.", out.with_info(i), arg.with_info(i)).into());
                                                     }
                                                 },
-                                                Err(e) => return Err(CheckError::new().msg_str(format!("Invalid argument type {arg} for function")).err(e)),
+                                                Err(e) => return Err(CheckError::new().msg_str(format!("Invalid argument type {} for function", arg.with_info(i))).err(e)),
                                             }
                                         } else {
                                             return Err(format!("Arguments must be (reference, function)").into());
                                         }
                                     }
                                 } else {
-                                    return Err(format!("Arguments must be (reference, function), but {arg_ref} isn't a reference").into());
+                                    return Err(format!("Arguments must be (reference, function), but {} isn't a reference", arg_ref.with_info(i)).into());
                                 }
                             } else {
-                                return Err(format!("Can't call lock_update on tuple type {t} with length != 2, which is part of the argument type {a}.").into());
+                                return Err(format!("Can't call lock_update on tuple type {} with length != 2, which is part of the argument type {}.", t.with_info(i), a.with_info(i)).into());
                             }
                         } else {
-                            return Err(format!("Can't call lock_update on non-tuple type {t}, which is part of the argument type {a}.").into());
+                            return Err(format!("Can't call lock_update on non-tuple type {}, which is part of the argument type {}.", t.with_info(i), a.with_info(i)).into());
                         }
                     }
                     Ok(Type::empty_tuple())
@@ -98,10 +98,10 @@ impl Config {
             data::function::Function {
                 info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Ok(Arc::new(|a, _i| {
+                out: Ok(Arc::new(|a, i| {
                     for t in &a.types {
                         if t.as_any().downcast_ref::<data::string::StringT>().is_none() && t.as_any().downcast_ref::<data::tuple::TupleT>().is_none() && t.iterable().is_none() {
-                            return Err(format!("cannot get length of {t} (must be a tuple, string or iterable)").into());
+                            return Err(format!("cannot get length of {} (must be a tuple, string or iterable)", t.with_info(i)).into());
                         }
                     }
                     Ok(Type::new(data::int::IntT))
@@ -174,7 +174,7 @@ impl Config {
             data::function::Function {
                 info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                out: Ok(Arc::new(|a, _i| if let Some(v) = a.dereference() { Ok(v) } else { Err(format!("cannot dereference type {a}").into())
+                out: Ok(Arc::new(|a, i| if let Some(v) = a.dereference() { Ok(v) } else { Err(format!("cannot dereference type {}", a.with_info(i)).into())
                 })),
                 run: Arc::new(|a, _i| {
                     if let Some(r) = a

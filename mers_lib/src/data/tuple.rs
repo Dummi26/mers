@@ -1,6 +1,6 @@
-use std::{any::Any, fmt::Display, sync::Arc};
+use std::{any::Any, sync::Arc};
 
-use crate::errors::CheckError;
+use crate::{errors::CheckError, info::DisplayInfo};
 
 use super::{Data, MersData, MersType, Type};
 
@@ -17,6 +17,17 @@ impl Tuple {
 }
 
 impl MersData for Tuple {
+    fn display(&self, info: &DisplayInfo<'_>, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "(")?;
+        for (i, c) in self.0.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            c.get().display(info, f)?;
+        }
+        write!(f, ")")?;
+        Ok(())
+    }
     fn is_eq(&self, other: &dyn MersData) -> bool {
         if let Some(other) = other.as_any().downcast_ref::<Self>() {
             other.0 == self.0
@@ -47,6 +58,21 @@ impl MersData for Tuple {
 #[derive(Debug)]
 pub struct TupleT(pub Vec<Type>);
 impl MersType for TupleT {
+    fn display(
+        &self,
+        info: &crate::info::DisplayInfo<'_>,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        write!(f, "(")?;
+        for (i, c) in self.0.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{}", c.with_display(info))?;
+        }
+        write!(f, ")")?;
+        Ok(())
+    }
     fn iterable(&self) -> Option<Type> {
         let mut o = Type::empty();
         for t in self.0.iter() {
@@ -97,33 +123,6 @@ impl MersType for TupleT {
                 .map(|v| v.simplify_for_display(info))
                 .collect(),
         )))
-    }
-}
-
-impl Display for Tuple {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "(")?;
-        for (i, c) in self.0.iter().enumerate() {
-            if i > 0 {
-                write!(f, ", ")?;
-            }
-            write!(f, "{}", c.get())?;
-        }
-        write!(f, ")")?;
-        Ok(())
-    }
-}
-impl Display for TupleT {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "(")?;
-        for (i, c) in self.0.iter().enumerate() {
-            if i > 0 {
-                write!(f, ", ")?;
-            }
-            write!(f, "{}", c)?;
-        }
-        write!(f, ")")?;
-        Ok(())
     }
 }
 

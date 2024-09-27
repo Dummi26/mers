@@ -3,9 +3,9 @@ use std::sync::{Arc, Mutex};
 use crate::{
     data::{self, Data},
     errors::{CheckError, EColor, SourceRange},
-    info::{self, Local},
+    info,
     parsing::Source,
-    program::{self},
+    program,
 };
 
 use super::{CompInfo, MersStatement};

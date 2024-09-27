@@ -1,10 +1,9 @@
 use std::{
     any::Any,
-    fmt::Display,
     sync::{Arc, RwLock},
 };
 
-use crate::errors::CheckError;
+use crate::{errors::CheckError, info::DisplayInfo};
 
 use super::{Data, MersData, MersType, Type};
 
@@ -12,6 +11,9 @@ use super::{Data, MersData, MersType, Type};
 pub struct Reference(pub Arc<RwLock<Data>>);
 
 impl MersData for Reference {
+    fn display(&self, info: &DisplayInfo<'_>, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        self.0.read().unwrap().get().display(info, f)
+    }
     fn executable(&self) -> Option<crate::data::function::FunctionT> {
         let inner = self.0.read().unwrap();
         let inner = inner.get();
@@ -88,6 +90,17 @@ impl MersData for Reference {
 #[derive(Debug, Clone)]
 pub struct ReferenceT(pub Type);
 impl MersType for ReferenceT {
+    fn display(
+        &self,
+        info: &crate::info::DisplayInfo<'_>,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        if self.0.types.len() > 1 {
+            write!(f, "&{{{}}}", self.0.with_display(info))
+        } else {
+            write!(f, "&{}", self.0.with_display(info))
+        }
+    }
     fn executable(&self) -> Option<crate::data::function::FunctionT> {
         let mut funcs: Vec<crate::data::function::FunctionT> = vec![];
         for func in self.0.types.iter() {
@@ -96,13 +109,16 @@ impl MersType for ReferenceT {
                     .downcast_ref::<crate::data::function::FunctionT>()?,
             ));
         }
-        Some(super::function::FunctionT(Ok(Arc::new(move |a| {
-            let mut out = Type::empty();
-            for func in funcs.iter() {
-                out.add_all(&func.o(a)?);
-            }
-            Ok(out)
-        }))))
+        Some(super::function::FunctionT(
+            Ok(Arc::new(move |a, _| {
+                let mut out = Type::empty();
+                for func in funcs.iter() {
+                    out.add_all(&func.o(a)?);
+                }
+                Ok(out)
+            })),
+            crate::info::Info::neverused(),
+        ))
     }
     fn iterable(&self) -> Option<Type> {
         let mut out = Type::empty();
@@ -154,20 +170,5 @@ impl MersType for ReferenceT {
     }
     fn is_reference_to(&self) -> Option<&Type> {
         Some(&self.0)
-    }
-}
-
-impl Display for Reference {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "&{}", self.0.read().unwrap().get())
-    }
-}
-impl Display for ReferenceT {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.0.types.len() > 1 {
-            write!(f, "&{{{}}}", self.0)
-        } else {
-            write!(f, "&{}", self.0)
-        }
     }
 }

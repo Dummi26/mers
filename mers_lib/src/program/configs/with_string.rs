@@ -1,4 +1,4 @@
-use crate::data::{self, Data, Type};
+use crate::data::{self, Data, MersDataWInfo, Type};
 
 use super::{
     gen::{function::func, AnyOrNone, IterToList, OneOf, OneOrNone},
@@ -58,19 +58,22 @@ impl Config {
             .add_var(
                 "concat",
                 util::to_mers_func(
-                    |a| {
+                    |a, i| {
                         if a.iterable().is_some() {
                             Ok(Type::new(data::string::StringT))
                         } else {
-                            Err(format!("concat called on non-iterable type {a}").into())
+                            Err(
+                                format!("concat called on non-iterable type {}", a.with_info(i))
+                                    .into(),
+                            )
                         }
                     },
-                    |a| {
+                    |a, i| {
                         Ok(Data::new(data::string::String(
                             a.get()
                                 .iterable()
                                 .unwrap()
-                                .map(|v| v.map(|v| v.get().to_string()))
+                                .map(|v| v.map(|v| v.get().with_info(i).to_string()))
                                 .collect::<Result<_, _>>()?,
                         )))
                     },
@@ -79,8 +82,12 @@ impl Config {
             .add_var(
                 "to_string",
                 util::to_mers_func(
-                    |_a| Ok(Type::new(data::string::StringT)),
-                    |a| Ok(Data::new(data::string::String(a.get().to_string()))),
+                    |_a, _| Ok(Type::new(data::string::StringT)),
+                    |a, i| {
+                        Ok(Data::new(data::string::String(
+                            a.get().with_info(i).to_string(),
+                        )))
+                    },
                 ),
             )
             .add_var(

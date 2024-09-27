@@ -4,7 +4,7 @@ use crate::{
     data::{self, Data, MersData, Type},
     errors::CheckError,
     info::Local,
-    program::run::CheckInfo,
+    program::run::{CheckInfo, CheckLocalGlobalInfo, RunLocalGlobalInfo},
 };
 
 pub mod gen;
@@ -63,7 +63,15 @@ impl Config {
     }
 
     pub fn new() -> Self {
-        let mut info_check: CheckInfo = Default::default();
+        let info_parsed = crate::program::parsed::Info::new(
+            crate::program::parsed::LocalGlobalInfo::new(Arc::new(Default::default())),
+        );
+        let mut info_check = CheckInfo::new(CheckLocalGlobalInfo::new(Arc::clone(
+            &info_parsed.global.object_fields,
+        )));
+        let info_run = crate::program::run::Info::new(RunLocalGlobalInfo::new(Arc::clone(
+            &info_parsed.global.object_fields,
+        )));
         macro_rules! init_d {
             ($e:expr) => {
                 let t = $e;
@@ -89,8 +97,8 @@ impl Config {
         init_d!(data::string::StringT);
         Self {
             globals: 0,
-            info_parsed: Default::default(),
-            info_run: Default::default(),
+            info_parsed,
+            info_run,
             info_check,
         }
     }

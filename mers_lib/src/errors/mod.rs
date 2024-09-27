@@ -83,6 +83,7 @@ pub enum EColor {
     BadCharInFunctionType,
     BadCharAtStartOfStatement,
     BadTypeFromParsed,
+    ObjectDuplicateField,
     TypeAnnotationNoClosingBracket,
     TryBadSyntax,
     TryNoFunctionFound,

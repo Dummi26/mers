@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     errors::CheckError,
-    info::Local,
+    info::DisplayInfo,
     program::run::{CheckInfo, Info},
 };
 
@@ -87,13 +87,13 @@ impl Function {
         (self.run)(arg, &mut self.info.duplicate())
     }
     pub fn get_as_type(&self) -> FunctionT {
+        let info = self.info_check.lock().unwrap().clone();
         match &self.out {
             Ok(out) => {
                 let out = Arc::clone(out);
-                let info = self.info_check.lock().unwrap().clone();
-                FunctionT(Ok(Arc::new(move |a| out(a, &mut info.clone()))))
+                FunctionT(Ok(Arc::new(move |a, i| out(a, &mut i.clone()))), info)
             }
-            Err(types) => FunctionT(Err(Arc::clone(types))),
+            Err(types) => FunctionT(Err(Arc::clone(types)), info),
         }
     }
 
@@ -108,6 +108,9 @@ impl Function {
 }
 
 impl MersData for Function {
+    fn display(&self, _info: &DisplayInfo<'_>, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{self}")
+    }
     fn executable(&self) -> Option<crate::data::function::FunctionT> {
         Some(self.get_as_type())
     }
@@ -151,18 +154,50 @@ impl MersData for Function {
 
 #[derive(Clone)]
 pub struct FunctionT(
-    pub Result<Arc<dyn Fn(&Type) -> Result<Type, CheckError> + Send + Sync>, Arc<Vec<(Type, Type)>>>,
+    pub  Result<
+        Arc<dyn Fn(&Type, &CheckInfo) -> Result<Type, CheckError> + Send + Sync>,
+        Arc<Vec<(Type, Type)>>,
+    >,
+    pub CheckInfo,
 );
 impl FunctionT {
     /// get output type
     pub fn o(&self, i: &Type) -> Result<Type, CheckError> {
         match &self.0 {
-            Ok(f) => f(i),
-            Err(v) => v.iter().find(|(a, _)| i.is_included_in(a)).map(|(_, o)| o.clone()).ok_or_else(|| format!("This function, which was defined with an explicit type, cannot be called with an argument of type {i}.").into()),
+            Ok(f) => f(i, &self.1),
+            Err(v) => v
+                .iter()
+                .find(|(a, _)| i.is_included_in(a))
+                .map(|(_, o)| o.clone())
+                .ok_or_else(|| format!("This function, which was defined with an explicit type, cannot be called with an argument of type {}.", i.with_info(&self.1)).into()),
         }
     }
 }
 impl MersType for FunctionT {
+    fn display(
+        &self,
+        info: &crate::info::DisplayInfo<'_>,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        match &self.0 {
+            Err(e) => {
+                write!(f, "(")?;
+                for (index, (i, o)) in e.iter().enumerate() {
+                    if index > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{} -> {}", i.with_display(info), o.with_display(info))?;
+                }
+                write!(f, ")")
+            }
+            Ok(_) => match self.o(&Type::empty_tuple()) {
+                Ok(t) => write!(f, "(() -> {}, ...)", t.with_display(info)),
+                Err(_) => {
+                    write!(f, "(... -> ...)",)
+                }
+            },
+        }
+    }
     fn executable(&self) -> Option<crate::data::function::FunctionT> {
         Some(self.clone())
     }
@@ -247,27 +282,5 @@ impl Debug for FunctionT {
 impl Display for Function {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "<function>")
-    }
-}
-impl Display for FunctionT {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self.0 {
-            Err(e) => {
-                write!(f, "(")?;
-                for (index, (i, o)) in e.iter().enumerate() {
-                    if index > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{i} -> {o}")?;
-                }
-                write!(f, ")")
-            }
-            Ok(_) => match self.o(&Type::empty_tuple()) {
-                Ok(t) => write!(f, "(() -> {t}, ...)"),
-                Err(_) => {
-                    write!(f, "(... -> ...)",)
-                }
-            },
-        }
     }
 }

@@ -4,7 +4,7 @@ use std::{
     sync::{atomic::AtomicUsize, Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
-use crate::errors::CheckError;
+use crate::{errors::CheckError, info::DisplayInfo};
 
 pub mod bool;
 pub mod byte;
@@ -18,7 +18,12 @@ pub mod tuple;
 
 pub mod defs;
 
-pub trait MersData: Any + Debug + Display + Send + Sync {
+pub trait MersData: Any + Debug + Send + Sync {
+    fn display(
+        &self,
+        info: &crate::info::DisplayInfo<'_>,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result;
     /// must be the same as the `executable` impl on the MersType
     #[allow(unused_variables)]
     fn executable(&self) -> Option<crate::data::function::FunctionT> {
@@ -46,7 +51,66 @@ pub trait MersData: Any + Debug + Display + Send + Sync {
     fn to_any(self) -> Box<dyn Any>;
 }
 
-pub trait MersType: Any + Debug + Display + Send + Sync {
+pub trait MersDataWInfo {
+    fn with_display<'a>(&'a self, info: &DisplayInfo<'a>) -> MersDataWithInfo<'a, Self> {
+        MersDataWithInfo(self, *info)
+    }
+    fn with_info<'a>(
+        &'a self,
+        info: &'a crate::info::Info<impl crate::info::Local>,
+    ) -> MersDataWithInfo<'a, Self> {
+        MersDataWithInfo(self, info.display_info())
+    }
+}
+pub trait MersTypeWInfo {
+    fn with_display<'a>(&'a self, info: &DisplayInfo<'a>) -> MersTypeWithInfo<'a, Self> {
+        MersTypeWithInfo(self, *info)
+    }
+    fn with_info<'a>(
+        &'a self,
+        info: &'a crate::info::Info<impl crate::info::Local>,
+    ) -> MersTypeWithInfo<'a, Self> {
+        MersTypeWithInfo(self, info.display_info())
+    }
+}
+impl Type {
+    pub fn with_display<'a>(&'a self, info: &DisplayInfo<'a>) -> TypeWithInfo<'a> {
+        TypeWithInfo(self, *info)
+    }
+    pub fn with_info<'a>(
+        &'a self,
+        info: &'a crate::info::Info<impl crate::info::Local>,
+    ) -> TypeWithInfo<'a> {
+        TypeWithInfo(self, info.display_info())
+    }
+}
+impl<T: MersData + ?Sized> MersDataWInfo for T {}
+impl<T: MersType + ?Sized> MersTypeWInfo for T {}
+pub struct MersDataWithInfo<'a, T: ?Sized>(&'a T, crate::info::DisplayInfo<'a>);
+pub struct MersTypeWithInfo<'a, T: ?Sized>(&'a T, crate::info::DisplayInfo<'a>);
+pub struct TypeWithInfo<'a>(&'a Type, crate::info::DisplayInfo<'a>);
+impl<'a, T: ?Sized + MersData> Display for MersDataWithInfo<'a, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.display(&self.1, f)
+    }
+}
+impl<'a, T: ?Sized + MersType> Display for MersTypeWithInfo<'a, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.display(&self.1, f)
+    }
+}
+impl<'a> Display for TypeWithInfo<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.display(&self.1, f)
+    }
+}
+
+pub trait MersType: Any + Debug + Send + Sync {
+    fn display(
+        &self,
+        info: &crate::info::DisplayInfo<'_>,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result;
     #[allow(unused_variables)]
     fn executable(&self) -> Option<crate::data::function::FunctionT> {
         None
@@ -93,13 +157,20 @@ pub trait MersType: Any + Debug + Display + Send + Sync {
     }
     fn simplified_as_string(&self, info: &crate::program::run::CheckInfo) -> String {
         self.simplify_for_display(info)
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| self.to_string())
+            .map(|s| s.with_info(info).to_string())
+            .unwrap_or_else(|| self.with_info(info).to_string())
     }
 }
 #[derive(Clone, Debug)]
 pub(crate) struct TypeWithOnlyName(pub(crate) String);
 impl MersType for TypeWithOnlyName {
+    fn display(
+        &self,
+        _info: &crate::info::DisplayInfo<'_>,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        write!(f, "{self}")
+    }
     fn is_same_type_as(&self, _other: &dyn MersType) -> bool {
         false
     }
@@ -447,20 +518,20 @@ impl Type {
         out
     }
     pub fn simplified_as_string(&self, info: &crate::program::run::CheckInfo) -> String {
-        self.simplify_for_display(info).to_string()
+        self.simplify_for_display(info).with_info(info).to_string()
     }
 }
-impl Display for Type {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Type {
+    fn display(&self, info: &DisplayInfo, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.types.is_empty() {
             write!(f, "<unreachable>")
         } else {
             // if self.types.len() > 1 {
             //     write!(f, "{{")?;
             // }
-            write!(f, "{}", self.types[0])?;
+            write!(f, "{}", self.types[0].with_display(info))?;
             for t in self.types.iter().skip(1) {
-                write!(f, "/{t}")?;
+                write!(f, "/{}", t.with_display(info))?;
             }
             // if self.types.len() > 1 {
             //     write!(f, "}}")?;

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use mers_lib::{
-    data::{Data, Type},
+    data::{Data, MersDataWInfo, Type},
     errors::CheckError,
     prelude_compile::{parse, Config, Source},
     program::parsed::CompInfo,
@@ -25,11 +25,17 @@ fn show(src: String) {
     eprintln!("{src}");
     match parse_compile_check_run(src) {
         Err(e) => eprintln!("{e:?}"),
-        Ok((t, v)) => eprintln!("Returned `{}` :: `{t}`", v.get()),
+        Ok((t, v, i)) => eprintln!(
+            "Returned `{}` :: `{}`",
+            v.get().with_info(&i),
+            t.with_info(&i)
+        ),
     }
 }
 
-fn parse_compile_check_run(src: String) -> Result<(Type, Data), CheckError> {
+fn parse_compile_check_run(
+    src: String,
+) -> Result<(Type, Data, mers_lib::program::run::Info), CheckError> {
     // prepare the string for parsing
     let mut source = Source::new_from_string(src);
     // this is used for error messages
@@ -47,5 +53,5 @@ fn parse_compile_check_run(src: String) -> Result<(Type, Data), CheckError> {
     // check that the predicted output type was correct
     assert!(output_value.get().as_type().is_included_in(&output_type));
     // return the produced value
-    Ok((output_type, output_value))
+    Ok((output_type, output_value, i2))
 }

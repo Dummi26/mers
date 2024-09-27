@@ -1,11 +1,16 @@
 use std::{any::Any, fmt::Display, sync::Arc};
 
+use crate::info::DisplayInfo;
+
 use super::{MersData, MersType, Type};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Byte(pub u8);
 
 impl MersData for Byte {
+    fn display(&self, _info: &DisplayInfo<'_>, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{self}")
+    }
     fn is_eq(&self, other: &dyn MersData) -> bool {
         if let Some(other) = other.as_any().downcast_ref::<Self>() {
             other.0 == self.0
@@ -33,6 +38,13 @@ impl MersData for Byte {
 #[derive(Debug, Clone)]
 pub struct ByteT;
 impl MersType for ByteT {
+    fn display(
+        &self,
+        _info: &crate::info::DisplayInfo<'_>,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        write!(f, "{self}")
+    }
     fn is_same_type_as(&self, other: &dyn MersType) -> bool {
         other.as_any().downcast_ref::<Self>().is_some()
     }

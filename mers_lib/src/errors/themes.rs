@@ -78,7 +78,7 @@ pub fn default_theme<C>(
         TryBadSyntax => hard_err,
         TypeAnnotationNoClosingBracket | BracketedRefTypeNoClosingBracket => missing,
 
-        BadTypeFromParsed => type_wrong_b,
+        BadTypeFromParsed | ObjectDuplicateField => type_wrong_b,
 
         // -- type-errors --
         IfConditionNotBool => type_wrong,

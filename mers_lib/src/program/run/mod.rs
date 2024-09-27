@@ -8,7 +8,7 @@ use std::{
 use crate::{
     data::{self, Data, Type},
     errors::{CheckError, EColor, SourceRange},
-    info,
+    info::{self, DisplayInfo},
 };
 
 #[cfg(feature = "run")]
@@ -126,10 +126,21 @@ pub type CheckInfo = info::Info<CheckLocal>;
 pub struct RunLocal {
     pub vars: Vec<Arc<RwLock<Data>>>,
 }
-#[derive(Default, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct RunLocalGlobalInfo {
     /// if set, if `Instant::now()` is equal to or after the set `Instant`, stop the program with an error.
     pub limit_runtime: Option<Instant>,
+    pub object_fields: Arc<Mutex<HashMap<String, usize>>>,
+    pub object_fields_rev: Arc<Mutex<Vec<String>>>,
+}
+impl RunLocalGlobalInfo {
+    pub fn new(object_fields: Arc<Mutex<HashMap<String, usize>>>) -> Self {
+        Self {
+            limit_runtime: None,
+            object_fields,
+            object_fields_rev: Default::default(),
+        }
+    }
 }
 #[derive(Default, Clone)]
 pub struct CheckLocal {
@@ -142,7 +153,7 @@ pub struct CheckLocal {
         >,
     >,
 }
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct CheckLocalGlobalInfo {
     pub depth: usize,
     pub enable_hooks: bool,
@@ -160,6 +171,8 @@ pub struct CheckLocalGlobalInfo {
         >,
     >,
     pub unused_try_statements: Arc<Mutex<Vec<(SourceRange, Vec<Option<SourceRange>>)>>>,
+    pub object_fields: Arc<Mutex<HashMap<String, usize>>>,
+    pub object_fields_rev: Arc<Mutex<Vec<String>>>,
 }
 impl CheckLocalGlobalInfo {
     pub fn show_warnings_to_stderr(&mut self) {
@@ -170,6 +183,18 @@ impl CheckLocalGlobalInfo {
             let theme = crate::errors::themes::NoTheme;
             eprintln!("{}", e.display(theme));
         }));
+    }
+
+    pub fn new(object_fields: Arc<Mutex<HashMap<String, usize>>>) -> Self {
+        Self {
+            depth: 0,
+            enable_hooks: false,
+            show_warnings: None,
+            save_info_at: Default::default(),
+            unused_try_statements: Default::default(),
+            object_fields,
+            object_fields_rev: Default::default(),
+        }
     }
 }
 impl Debug for CheckLocalGlobalInfo {
@@ -186,6 +211,13 @@ impl info::Local for RunLocal {
     type VariableIdentifier = usize;
     type VariableData = Arc<RwLock<Data>>;
     type Global = RunLocalGlobalInfo;
+    fn neverused_global() -> Self::Global {
+        Self::Global {
+            limit_runtime: None,
+            object_fields: Default::default(),
+            object_fields_rev: Default::default(),
+        }
+    }
     fn init_var(&mut self, id: Self::VariableIdentifier, value: Self::VariableData) {
         let nothing = Arc::new(RwLock::new(Data::new(data::bool::Bool(false))));
         while self.vars.len() <= id {
@@ -214,11 +246,28 @@ impl info::Local for RunLocal {
                 .collect(),
         }
     }
+    fn display_info<'a>(global: &'a Self::Global) -> DisplayInfo<'a> {
+        DisplayInfo {
+            object_fields: &global.object_fields,
+            object_fields_rev: &global.object_fields_rev,
+        }
+    }
 }
 impl info::Local for CheckLocal {
     type VariableIdentifier = usize;
     type VariableData = Type;
     type Global = CheckLocalGlobalInfo;
+    fn neverused_global() -> Self::Global {
+        Self::Global {
+            depth: 0,
+            enable_hooks: false,
+            show_warnings: None,
+            save_info_at: Default::default(),
+            unused_try_statements: Default::default(),
+            object_fields: Default::default(),
+            object_fields_rev: Default::default(),
+        }
+    }
     fn init_var(&mut self, id: Self::VariableIdentifier, value: Self::VariableData) {
         while self.vars.len() <= id {
             self.vars.push(Type::empty());
@@ -239,5 +288,11 @@ impl info::Local for CheckLocal {
     }
     fn duplicate(&self) -> Self {
         self.clone()
+    }
+    fn display_info<'a>(global: &'a Self::Global) -> DisplayInfo<'a> {
+        DisplayInfo {
+            object_fields: &global.object_fields,
+            object_fields_rev: &global.object_fields_rev,
+        }
     }
 }

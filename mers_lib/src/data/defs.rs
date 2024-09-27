@@ -28,7 +28,10 @@ pub fn assign(from: &Data, target: &Data) {
             .as_any()
             .downcast_ref::<crate::data::object::Object>(),
     ) {
-        for ((_, from), (_, target)) in from.0.iter().zip(target.0.iter()) {
+        for (field, target) in target.iter() {
+            let from = from
+                .get(*field)
+                .expect("type-checks should guarantee that from has every field of target");
             assign(from, target);
         }
     } else {
