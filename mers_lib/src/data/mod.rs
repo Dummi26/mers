@@ -413,6 +413,39 @@ impl Type {
         let n = new.as_any();
         if let Some(s) = n.downcast_ref::<Self>() {
             self.add_all(s);
+        } else if let Some(n) = n.downcast_ref::<crate::data::int::IntT>() {
+            let n = n.clone();
+            let mut newt = None;
+            for a in &self.types {
+                if let Some(t) = a.as_any().downcast_ref::<crate::data::int::IntT>() {
+                    if t.0 <= n.0 && n.1 <= t.1 {
+                        // we are included in this type
+                        return;
+                    }
+                    if t.0 <= n.1.saturating_add(1) && n.0.saturating_sub(1) <= t.1 {
+                        // this type will be added instead of the original `new`, and `t` will be removed from `self.types`.
+                        newt = Some(crate::data::int::IntT(t.0.min(n.0), t.1.max(n.1)));
+                        break;
+                    }
+                }
+            }
+            let newt2 = newt.is_some();
+            // remove types that are included in `self` before adding `self`
+            let newt = newt.unwrap_or(n);
+            let mut rmstack = vec![];
+            for (i, a) in self.types.iter().enumerate() {
+                if let Some(t) = a.as_any().downcast_ref::<crate::data::int::IntT>() {
+                    if newt.0 <= t.0 && t.1 <= newt.1 {
+                        rmstack.push(i);
+                    }
+                }
+            }
+            for i in rmstack.into_iter().rev() {
+                self.types.remove(i);
+            }
+            if !newt2 {
+                self.types.push(new);
+            }
         } else {
             if !self.types.iter().any(|t| new.is_included_in(t.as_ref())) {
                 self.types.push(new);

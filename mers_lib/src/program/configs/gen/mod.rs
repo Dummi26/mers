@@ -379,27 +379,33 @@ impl ToMersData for u8 {
     }
 }
 
-impl FromMersData for isize {
+/// An integer within the range `N..=M`
+pub struct IntR<const N: isize, const M: isize>(pub isize);
+impl<const N: isize, const M: isize> FromMersData for IntR<N, M> {
     fn as_type_from() -> Type {
         Self::as_type_to()
     }
     fn can_represent(t: &Type) -> bool {
-        t.is_included_in(&Type::new(data::int::IntT))
+        t.is_included_in(&Type::new(data::int::IntT(N, M)))
     }
     fn try_represent<O, F: FnOnce(Option<Self>) -> O>(d: &(impl MersData + ?Sized), f: F) -> O {
         if let Some(v) = d.as_any().downcast_ref::<data::int::Int>() {
-            f(Some(v.0))
+            if N <= v.0 && v.0 <= M {
+                f(Some(Self(v.0)))
+            } else {
+                f(None)
+            }
         } else {
             f(None)
         }
     }
 }
-impl ToMersData for isize {
+impl<const N: isize, const M: isize> ToMersData for IntR<N, M> {
     fn as_type_to() -> Type {
-        Type::new(data::int::IntT)
+        Type::new(data::int::IntT(N, M))
     }
     fn represent(self) -> Data {
-        Data::new(data::int::Int(self))
+        Data::new(data::int::Int(self.0))
     }
 }
 

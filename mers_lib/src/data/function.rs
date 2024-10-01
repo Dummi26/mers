@@ -51,13 +51,13 @@ impl Function {
         }
     }
     pub fn new_generic(
-        out: impl Fn(&Type) -> Result<Type, CheckError> + Send + Sync + 'static,
+        out: impl Fn(&Type, &mut CheckInfo) -> Result<Type, CheckError> + Send + Sync + 'static,
         run: impl Fn(Data, &mut Info) -> Result<Data, CheckError> + Send + Sync + 'static,
     ) -> Self {
         Self {
             info: crate::info::Info::neverused(),
             info_check: Arc::new(Mutex::new(crate::info::Info::neverused())),
-            out: Ok(Arc::new(move |a, _| out(a))),
+            out: Ok(Arc::new(move |a, i| out(a, i))),
             run: Arc::new(run),
             inner_statements: None,
         }

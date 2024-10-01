@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    data::{self, Data, MersTypeWInfo, Type},
+    data::{self, int::INT_MAX, Data, MersTypeWInfo, Type},
     program::{self, run::CheckInfo},
 };
 
@@ -22,7 +22,7 @@ impl Config {
                             if t.0.len() != 2 {
                                 return Err(format!("called get on tuple with len != 2").into());
                             }
-                            if !t.0[1].is_included_in_single(&data::int::IntT) {
+                            if !t.0[1].is_included_in_single(&data::int::IntT(0, INT_MAX)) {
                                 return Err(format!(
                                     "called get with non-int index of type {}",
                                     t.0[1].with_info(i)

@@ -1,7 +1,11 @@
 use std::sync::{Arc, RwLock};
 
 use crate::{
-    data::{self, Data, MersData, Type},
+    data::{
+        self,
+        int::{INT_MAX, INT_MIN},
+        Data, MersData, Type,
+    },
     errors::CheckError,
     info::Local,
     program::run::{CheckInfo, CheckLocalGlobalInfo, RunLocalGlobalInfo},
@@ -92,7 +96,42 @@ impl Config {
             .types
             .insert("Bool".to_owned(), Ok(Arc::new(data::bool::bool_type())));
         init_d!(data::byte::ByteT);
-        init_d!(data::int::IntT);
+        info_check.scopes.last_mut().unwrap().types.insert(
+            "Int".to_owned(),
+            // Ok(Arc::new(data::Type::new(data::int::INT_T_ALL))),
+            Err(Arc::new(|range, _| {
+                Ok(Arc::new(Type::new({
+                    let range = range.trim();
+                    if range.is_empty() {
+                        data::int::IntT(INT_MIN, INT_MAX)
+                    } else if let Some((min, max)) = range.split_once("..") {
+                        let (min, max) = (min.trim(), max.trim());
+                        let min = if min.is_empty() {
+                            data::int::INT_MIN
+                        } else if let Ok(v) = min.parse() {
+                            v
+                        } else {
+                            return Err(CheckError::new().msg_str(format!("In type `Int<{min}..{max}>`: min was present but not a valid integer.")));
+                        };
+                        let max = if max.is_empty() {
+                            data::int::INT_MAX
+                        } else if let Ok(v) = max.parse() {
+                            v
+                        } else {
+                            return Err(CheckError::new().msg_str(format!("In type `Int<{min}..{max}>`: max was present but not a valid integer.")));
+                        };
+                        if min > max {
+                            return Err(CheckError::new().msg_str(format!("In type `Int<{min}..{max}>`: min ({min}) must be smaller than or equal to max ({max}). Did you mean `Int<{max}..{min}>`?")));
+                        }
+                        crate::data::int::IntT(min, max)
+                    } else if let Ok(v) = range.parse() {
+                        crate::data::int::IntT(v, v)
+                    } else {
+                        return Err(CheckError::new().msg_str(format!("In type `Int<{range}>`: Invalid range. Either use `Int` (or `Int<>` or `Int<..>`) for the entire integer range, `Int<n>` for a specific number, `Int<n..>` for all numbers `>=n`, `Int<..m>` for all numbers `<=m`, or `Int<n..m>` for all numbers `>=n` and `<= m`.")));
+                    }
+                })))
+            })),
+        );
         init_d!(data::float::FloatT);
         init_d!(data::string::StringT);
         Self {

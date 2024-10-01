@@ -4,7 +4,12 @@ use std::{
 };
 
 use crate::{
-    data::{self, bool::bool_type, Data, MersTypeWInfo, Type},
+    data::{
+        self,
+        bool::bool_type,
+        int::{INT_MAX, INT_MIN},
+        Data, MersTypeWInfo, Type,
+    },
     errors::CheckError,
     program::run::{CheckInfo, Info},
 };
@@ -12,7 +17,7 @@ use crate::{
 use super::{
     gen::{
         function::{func, func_end, func_err},
-        OneOf,
+        IntR, OneOf,
     },
     Config,
 };
@@ -75,9 +80,9 @@ impl Config {
                 }),
                 inner_statements: None,
             })
-            .add_var("sleep", func(|dur: OneOf<isize, f64>, i| {
+            .add_var("sleep", func(|dur: OneOf<IntR<0, INT_MAX>, f64>, i| {
                 let mut sleep_dur = match dur {
-                    OneOf::A(dur) => Duration::from_secs(dur.max(0).try_into().unwrap_or(u64::MAX)),
+                    OneOf::A(dur) => Duration::from_secs(dur.0.max(0).try_into().unwrap_or(u64::MAX)),
                     OneOf::B(dur) => Duration::from_secs_f64(dur.max(0.0)),
                 };
                 // limit how long sleep can take
@@ -87,8 +92,8 @@ impl Config {
                 std::thread::sleep(sleep_dur);
                 Ok(())
             }))
-            .add_var("exit", func_end(|code: isize, _| {
-                std::process::exit(code.try_into().unwrap_or(255));
+            .add_var("exit", func_end(|code: IntR<INT_MIN, INT_MAX>, _| {
+                std::process::exit(code.0.try_into().unwrap_or(255));
             }))
             .add_var("panic", func_err(|message: &str, _| {
                 CheckError::from(message)
@@ -104,18 +109,17 @@ impl Config {
                             return Err(format!("cannot get length of {} (must be a tuple, string or iterable)", t.with_info(i)).into());
                         }
                     }
-                    Ok(Type::new(data::int::IntT))
+                    Ok(Type::new(data::int::IntT(0, INT_MAX)))
                 })),
                 run: Arc::new(|a, _i| {
                     Ok(Data::new(data::int::Int(if let Some(t) = a.get().as_any().downcast_ref::<data::tuple::Tuple>() {
-                        t.0.len() as _
+                        t.0.len().try_into().unwrap_or(INT_MAX)
                     } else if let Some(s) = a.get().as_any().downcast_ref::<data::string::String>() {
-                        s.0.len() as _
+                        s.0.len().try_into().unwrap_or(INT_MAX)
                     } else if let Some(i) = a.get().iterable() {
-                        // -1 if more elements than isize can represent
-                        i.take(isize::MAX as usize + 1).count().try_into().unwrap_or(-1)
+                        i.count().try_into().unwrap_or(INT_MAX)
                     } else {
-                        return Err("called len on {a:?}, which isn't a tuple or a string".into());
+                        return Err("called len on {a:?}, which isn't a tuple, a string, or something iterable.".into());
                     })))
                 }),
                 inner_statements: None,

@@ -1,7 +1,11 @@
-use crate::data::{self, Data, MersDataWInfo, Type};
+use crate::data::{
+    self,
+    int::{INT_MAX, INT_MIN},
+    Data, MersDataWInfo, Type,
+};
 
 use super::{
-    gen::{function::func, AnyOrNone, IterToList, OneOf, OneOrNone},
+    gen::{function::func, AnyOrNone, IntR, IterToList, OneOf, OneOrNone},
     util, Config,
 };
 
@@ -21,11 +25,17 @@ impl Config {
         self.add_var("trim", func(|v: &str, _| Ok(v.trim().to_owned())))
             .add_var(
                 "index_of",
-                func(|(v, p): (&str, &str), _| Ok(OneOrNone(v.find(p).map(|v| v as isize)))),
+                func(|(v, p): (&str, &str), _| {
+                    Ok(OneOrNone(v.find(p).map(|v| IntR::<0, INT_MAX>(v as isize))))
+                }),
             )
             .add_var(
                 "index_of_rev",
-                func(|(v, p): (&str, &str), _| Ok(OneOrNone(v.rfind(p).map(|v| v as isize)))),
+                func(|(v, p): (&str, &str), _| {
+                    Ok(OneOrNone(
+                        v.rfind(p).map(|v| IntR::<0, INT_MAX>(v as isize)),
+                    ))
+                }),
             )
             .add_var(
                 "starts_with",
@@ -92,31 +102,37 @@ impl Config {
             )
             .add_var(
                 "substring",
-                func(|v: OneOf<(&str, isize), (&str, isize, isize)>, _| {
-                    let (s, start, end) = match v {
-                        OneOf::A((t, s)) => (t, s, None),
-                        OneOf::B((t, s, e)) => (t, s, Some(e)),
-                    };
-                    let start = if start < 0 {
-                        s.len().saturating_sub(start.abs() as usize)
-                    } else {
-                        start as usize
-                    };
-                    let end = end
-                        .map(|i| {
-                            if i < 0 {
-                                s.len().saturating_sub(i.abs() as usize)
-                            } else {
-                                i as usize
-                            }
-                        })
-                        .unwrap_or(usize::MAX);
-                    let end = end.min(s.len());
-                    if end < start {
-                        return Ok(String::new());
-                    }
-                    Ok(s[start..end].to_owned())
-                }),
+                func(
+                    |v: OneOf<
+                        (&str, IntR<INT_MIN, INT_MAX>),
+                        (&str, IntR<INT_MIN, INT_MAX>, IntR<INT_MIN, INT_MAX>),
+                    >,
+                     _| {
+                        let (s, start, end) = match v {
+                            OneOf::A((t, s)) => (t, s.0, None),
+                            OneOf::B((t, s, e)) => (t, s.0, Some(e.0)),
+                        };
+                        let start = if start < 0 {
+                            s.len().saturating_sub(start.abs() as usize)
+                        } else {
+                            start as usize
+                        };
+                        let end = end
+                            .map(|i| {
+                                if i < 0 {
+                                    s.len().saturating_sub(i.abs() as usize)
+                                } else {
+                                    i as usize
+                                }
+                            })
+                            .unwrap_or(usize::MAX);
+                        let end = end.min(s.len());
+                        if end < start {
+                            return Ok(String::new());
+                        }
+                        Ok(s[start..end].to_owned())
+                    },
+                ),
             )
     }
 }

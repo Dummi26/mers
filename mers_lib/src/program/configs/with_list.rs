@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex, RwLock};
 
 use crate::{
-    data::{self, Data, MersData, MersType, MersTypeWInfo, Type},
+    data::{self, int::INT_MAX, Data, MersData, MersType, MersTypeWInfo, Type},
     errors::CheckError,
     info::DisplayInfo,
     parsing::{statements::to_string_literal, Source},
@@ -41,7 +41,7 @@ impl Config {
                                             "get_mut: argument must be a 2-tuple `(&List<_>, Int)`."
                                         ).into());
                                     }
-                                    if t.0[1].is_included_in_single(&data::int::IntT) {
+                                    if t.0[1].is_included_in_single(&data::int::IntT(0, INT_MAX)) {
                                         if let Some(t) = t.0[0].dereference() {
                                             for t in t.types.iter() {
                                                 if let Some(t) = t.as_any().downcast_ref::<ListT>() {

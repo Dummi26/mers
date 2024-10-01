@@ -7,6 +7,7 @@ use crate::{
     data::{
         self,
         function::{Function, FunctionT},
+        int::INT_MAX,
         Data, MersData, MersType, MersTypeWInfo, Type,
     },
     errors::CheckError,
@@ -128,8 +129,8 @@ impl Config {
             genfunc_iter_and_func("map_while", ItersT::MapWhile, Iters::MapWhile),
         )
         .add_var("take", genfunc_iter_and_arg("take", |_: &data::int::IntT| ItersT::Take, |v: &data::int::Int| {
-            Iters::Take(v.0.max(0) as _)
-        }, &data::int::IntT))
+            Iters::Take(v.0.max(0).try_into().unwrap_or(usize::MAX))
+        }, &data::int::IntT(0, INT_MAX)))
         .add_var(
             "enumerate",
             data::function::Function {
@@ -463,7 +464,7 @@ impl IterT {
             }
             ItersT::Take => data.clone(),
             ItersT::Enumerate => Type::new(data::tuple::TupleT(vec![
-                Type::new(data::int::IntT),
+                Type::new(data::int::IntT(0, INT_MAX)),
                 data.clone(),
             ])),
             ItersT::Chained => {

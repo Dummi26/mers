@@ -6,7 +6,12 @@ use std::{
 };
 
 use crate::{
-    data::{self, object::ObjectFieldsMap, Data, MersData, MersDataWInfo, MersType, Type},
+    data::{
+        self,
+        int::{INT_MAX, INT_MIN},
+        object::ObjectFieldsMap,
+        Data, MersData, MersDataWInfo, MersType, Type,
+    },
     errors::CheckError,
     info::DisplayInfo,
     program::{self, run::CheckInfo},
@@ -34,7 +39,7 @@ impl Config {
                     if a.types.iter().all(|t| t.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in_single(&data::string::StringT) && t.0[1].iterable().is_some_and(|t| t.is_included_in_single(&data::string::StringT)))) {
                         Ok(Type::newm(vec![
                             Arc::new(data::tuple::TupleT(vec![
-                                Type::newm(vec![Arc::new(data::int::IntT), Arc::new(data::bool::TrueT), Arc::new(data::bool::FalseT)]),
+                                Type::newm(vec![Arc::new(data::int::IntT(INT_MIN, INT_MAX)), Arc::new(data::bool::TrueT), Arc::new(data::bool::FalseT)]),
                                 Type::new(data::string::StringT),
                                 Type::new(data::string::StringT),
                             ])),
@@ -160,7 +165,7 @@ impl Config {
                 out: Ok(Arc::new(|a, i| {
                     if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
-                            Arc::new(data::int::IntT),
+                            Arc::new(data::int::IntT(INT_MIN, INT_MAX)),
                             Arc::new(data::bool::TrueT),
                             Arc::new(data::bool::FalseT),
                             Arc::new(data::tuple::TupleT(vec![])),

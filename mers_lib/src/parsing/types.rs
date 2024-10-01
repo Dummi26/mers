@@ -277,11 +277,11 @@ pub fn type_from_parsed(
                 .find_map(|scope| scope.types.iter().find(|v| v.0 == name).map(|(_, v)| v))
             {
                 Some(Ok(t)) => as_type.add_all(&*t),
-                Some(Err(_)) => {
-                    return Err(CheckError::new().msg_str(format!(
-                        "Type: specified type without info, but type needs additional info"
-                    )))
-                }
+                Some(Err(f)) => as_type.add_all(&*f("", info).map_err(|e| {
+                    e.msg_str(format!(
+                        "Note: specified type `{name}` without info, but type needs additional info: `{name}<...>`"
+                    ))
+                })?),
                 None => return Err(CheckError::new().msg_str(format!("Unknown type '{name}'"))),
             },
             ParsedType::TypeWithInfo(name, additional_info) => match info

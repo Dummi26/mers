@@ -15,8 +15,8 @@ fn variable() -> Res {
         assert_eq!(
             run_code(Config::new(), format!("x := {n}, x"))?,
             TypedData(
-                Type::new(data::int::IntT),
-                Data::new(data::int::Int(n as _)),
+                Type::new(data::int::IntT(n, n)),
+                Data::new(data::int::Int(n)),
                 mers_lib::info::Info::neverused(),
             )
         );
@@ -27,9 +27,9 @@ fn variable() -> Res {
 #[test]
 fn mutating_a_variable() -> Res {
     assert_eq!(
-        run_code(Config::new(), "x := 5, &x = 2, x")?,
+        run_code(Config::new(), "x := [Int<2..5>] 5, &x = 2, x")?,
         TypedData(
-            Type::new(data::int::IntT),
+            Type::new(data::int::IntT(2, 5)),
             Data::new(data::int::Int(2)),
             mers_lib::info::Info::neverused()
         ),
@@ -40,9 +40,9 @@ fn mutating_a_variable() -> Res {
 #[test]
 fn variable_shadowing() -> Res {
     assert_eq!(
-        run_code(Config::new(), "x := 5, { x := 2, &x = 3 }, x")?,
+        run_code(Config::new(), "x := 5, { x := 2, &x = 2 }, x")?,
         TypedData(
-            Type::new(data::int::IntT),
+            Type::new(data::int::IntT(5, 5)),
             Data::new(data::int::Int(5)),
             mers_lib::info::Info::neverused()
         )
@@ -55,7 +55,7 @@ fn identity_function() -> Res {
     assert_eq!(
         run_code(Config::new(), "id := x -> x, 4.id")?,
         TypedData(
-            Type::new(data::int::IntT),
+            Type::new(data::int::IntT(4, 4)),
             Data::new(data::int::Int(4)),
             mers_lib::info::Info::neverused()
         )
