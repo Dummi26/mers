@@ -6,11 +6,11 @@ use super::{MersData, MersType, Type};
 
 /// The smallest representable integer.
 /// Depends on the system for which mers is being compiled, as mers uses pointer-sized signed integers.
-/// `-2^W`, `W` is the bit-width of a pointer on the system, often `32` or `64`.
+/// `-2^W`, `W` is the bit-width of a pointer on the system, often `32` or `64`, minus one.
 pub const INT_MIN: isize = isize::MIN;
 /// The largest representable integer.
 /// Depends on the system for which mers is being compiled, as mers uses pointer-sized signed integers.
-/// `2^W-1`, `W` is the bit-width of a pointer on the system, often `32` or `64`.
+/// `2^W-1`, `W` is the bit-width of a pointer on the system, often `32` or `64`, minus one.
 pub const INT_MAX: isize = isize::MAX;
 /// The smallest integer representable by mers and by a signed 32-bit number.
 /// `max(INT_MIN, -2^31)`
@@ -97,21 +97,26 @@ impl MersType for IntT {
         }
     }
     fn subtypes(&self, acc: &mut Type) {
-        acc.add(Arc::new(self.clone()));
-        // INT_MIN .. INT32U_MIN .. INT32S_MIN .. 0 .. INT32S_MAX .. INT32U_MAX .. INT_MAX
+        // INT_MIN .. INT32U_MIN .. INT32S_MIN .. -128 .. -1 .. 0 .. 1 .. 127 .. 255 .. 65535 .. INT32S_MAX .. INT32U_MAX .. INT_MAX
         let mut add_range = |min, max| {
             // the range is non-empty, self starts before or where the range ends, and self ends after or where the range starts.
-            if min <= max && self.0 <= max && self.1 >= min {
+            if min <= max && self.0 <= max && min <= self.1 {
                 acc.add(Arc::new(IntT(self.0.max(min), self.1.min(max))));
             }
         };
-        add_range(INT_MIN, INT32U_MIN - 1);
-        add_range(INT32U_MIN, INT32S_MIN - 1);
-        add_range(INT32S_MIN, -1);
+        add_range(INT_MIN, INT32U_MIN.saturating_sub(1));
+        add_range(INT32U_MIN, INT32S_MIN.saturating_sub(1));
+        add_range(INT32S_MIN, -129);
+        add_range(-128, -2);
+        add_range(-1, -1);
         add_range(0, 0);
-        add_range(1, INT32S_MAX);
-        add_range(INT32S_MAX + 1, INT32U_MAX);
-        add_range(INT32U_MAX + 1, INT_MAX);
+        add_range(1, 1);
+        add_range(2, 127);
+        add_range(128, 255);
+        add_range(256, 65535);
+        add_range(65536, INT32S_MAX);
+        add_range(INT32S_MAX.saturating_add(1), INT32U_MAX);
+        add_range(INT32U_MAX.saturating_add(1), INT_MAX);
     }
     fn as_any(&self) -> &dyn Any {
         self

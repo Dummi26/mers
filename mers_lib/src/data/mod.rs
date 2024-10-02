@@ -340,18 +340,26 @@ pub struct Type {
     // TODO: Maybe make sure this is always sorted by (recursive?!?) TypeId,
     // that way is_same_type_as can work more efficiently (cuz good code but also branch prediction)
     pub types: Vec<Arc<dyn MersType>>,
+    pub smart_type_simplification: bool,
 }
 impl Type {
     pub fn new<T: MersType>(t: T) -> Self {
         Self {
             types: vec![Arc::new(t)],
+            smart_type_simplification: true,
         }
     }
     pub fn newm(types: Vec<Arc<dyn MersType>>) -> Self {
-        Self { types }
+        Self {
+            types,
+            smart_type_simplification: true,
+        }
     }
     pub fn empty() -> Self {
-        Self { types: vec![] }
+        Self {
+            types: vec![],
+            smart_type_simplification: true,
+        }
     }
     pub fn empty_tuple() -> Self {
         Self::new(tuple::TupleT(vec![]))
@@ -413,7 +421,11 @@ impl Type {
         let n = new.as_any();
         if let Some(s) = n.downcast_ref::<Self>() {
             self.add_all(s);
-        } else if let Some(n) = n.downcast_ref::<crate::data::int::IntT>() {
+        } else if let Some(n) = self
+            .smart_type_simplification
+            .then(|| n.downcast_ref::<crate::data::int::IntT>())
+            .flatten()
+        {
             let n = n.clone();
             let mut newt = None;
             for a in &self.types {
@@ -429,7 +441,6 @@ impl Type {
                     }
                 }
             }
-            let newt2 = newt.is_some();
             // remove types that are included in `self` before adding `self`
             let newt = newt.unwrap_or(n);
             let mut rmstack = vec![];
@@ -443,9 +454,7 @@ impl Type {
             for i in rmstack.into_iter().rev() {
                 self.types.remove(i);
             }
-            if !newt2 {
-                self.types.push(new);
-            }
+            self.types.push(Arc::new(newt));
         } else {
             if !self.types.iter().any(|t| new.is_included_in(t.as_ref())) {
                 self.types.push(new);
@@ -500,6 +509,7 @@ impl Type {
     }
     pub fn subtypes_type(&self) -> Type {
         let mut acc = Type::empty();
+        acc.smart_type_simplification = false;
         self.subtypes(&mut acc);
         acc
     }
