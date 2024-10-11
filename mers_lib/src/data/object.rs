@@ -174,7 +174,7 @@ impl ObjectT {
     }
 }
 
-pub(crate) trait ObjectFieldsMap {
+pub trait ObjectFieldsMap {
     fn get_or_add_field(&self, field: &str) -> usize;
 }
 impl ObjectFieldsMap for Arc<Mutex<HashMap<String, usize>>> {
