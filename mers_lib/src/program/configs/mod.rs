@@ -157,6 +157,20 @@ impl Config {
         val: Arc<RwLock<Data>>,
         val_type: crate::data::Type,
     ) -> Self {
+        // give the correct DisplayInfo to functions' inner scopes.
+        {
+            let data = val.write().unwrap();
+            let mut data = data.get_mut_unchecked();
+            if let Some(f) = data.mut_any().downcast_mut::<data::function::Function>() {
+                f.info.global.object_fields = Arc::clone(&self.info_check.global.object_fields);
+                f.info.global.object_fields_rev =
+                    Arc::clone(&self.info_check.global.object_fields_rev);
+                let mut info_check = f.info_check.lock().unwrap();
+                info_check.global.object_fields = Arc::clone(&self.info_check.global.object_fields);
+                info_check.global.object_fields_rev =
+                    Arc::clone(&self.info_check.global.object_fields_rev);
+            }
+        }
         self.info_parsed.scopes[0].init_var(name, (0, self.globals));
         self.info_run.scopes[0].init_var(self.globals, val);
         self.info_check.scopes[0].init_var(self.globals, val_type);
