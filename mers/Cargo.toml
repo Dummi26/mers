@@ -1,6 +1,6 @@
 [package]
 name = "mers"
-version = "0.9.8"
+version = "0.9.9"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "dynamically typed but type-checked programming language"
@@ -15,7 +15,7 @@ default = ["colored-output"]
 colored-output = ["mers_lib/ecolor-term", "mers_lib/pretty-print", "dep:colored"]
 
 [dependencies]
-mers_lib = "0.9.8"
+mers_lib = "0.9.9"
 # mers_lib = { path = "../mers_lib" }
 clap = { version = "4.3.19", features = ["derive"] }
 colored = { version = "2.1.0", optional = true }

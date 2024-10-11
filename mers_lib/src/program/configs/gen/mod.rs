@@ -288,7 +288,7 @@ impl<A: FromMersData, B: FromMersData, C: FromMersData> FromMersData for (A, B, 
         if let Some(v) = d
             .as_any()
             .downcast_ref::<data::tuple::Tuple>()
-            .filter(|v| v.0.len() == 2)
+            .filter(|v| v.0.len() == 3)
         {
             A::try_represent(v.0[0].get().as_ref(), |v1| {
                 if let Some(va) = v1 {
