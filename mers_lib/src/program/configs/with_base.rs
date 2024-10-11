@@ -92,9 +92,6 @@ impl Config {
                 std::thread::sleep(sleep_dur);
                 Ok(())
             }))
-            .add_var("exit", func_end(|code: IntR<INT_MIN, INT_MAX>, _| {
-                std::process::exit(code.0.try_into().unwrap_or(255));
-            }))
             .add_var("panic", func_err(|message: &str, _| {
                 CheckError::from(message)
             }))

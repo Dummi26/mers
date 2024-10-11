@@ -4,12 +4,19 @@ use std::{
 };
 
 use crate::{
-    data::{self, Data, MersDataWInfo, Type},
+    data::{
+        self,
+        int::{INT_MAX, INT_MIN},
+        Data, MersDataWInfo, Type,
+    },
     program::{self, run::CheckInfo},
 };
 
 use super::{
-    gen::{function::func, OneOrNone},
+    gen::{
+        function::{func, func_end},
+        IntR, OneOrNone,
+    },
     Config,
 };
 
@@ -20,6 +27,7 @@ impl Config {
     /// `eprint: fn` prints to stderr
     /// `debug: fn` debug-prints any value
     /// `read_line: fn` reads a line from stdin and returns it
+    /// `exit: fn` exits the program with the given exit code. returns `<unreachable>`, just like `panic`
     pub fn with_stdio(self) -> Self {
         self
             //     .add_var(
@@ -50,6 +58,12 @@ impl Config {
             //         inner_statements: None,
             //     },
             // )
+            .add_var(
+                "exit",
+                func_end(|code: IntR<INT_MIN, INT_MAX>, _| {
+                    std::process::exit(code.0.try_into().unwrap_or(255));
+                }),
+            )
             .add_var(
                 "read_line",
                 func(|_: (), _| {
