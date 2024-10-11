@@ -5,6 +5,11 @@ use std::{path::PathBuf, process::exit, sync::Arc};
 mod cfg_globals;
 
 #[derive(Parser)]
+#[command(version,
+    about = Some("mers - a type-checked, dynamically typed programming language focusing on safety and simplicity.\n        run with --help for more info :)"),
+    long_about = Some("mers - a type-checked, dynamically typed programming language focusing on safety and simplicity.
+Safety in mers means that a valid, type-checked mers program will not crash at runtime, and that mers tries to make writing \"bad\" code difficult.
+Simplicity means that mers is easy to learn, it has little syntax and few edge-cases, but it does not mean that it is easy to write."))]
 struct Args {
     #[command(subcommand)]
     command: Command,
