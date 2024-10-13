@@ -1,5 +1,5 @@
 use std::{
-    io::Write,
+    io::{BufRead, Write},
     sync::{Arc, Mutex},
 };
 
@@ -66,8 +66,13 @@ impl Config {
             )
             .add_var(
                 "read_line",
-                func(|_: (), _| {
-                    Ok(if let Some(Ok(line)) = std::io::stdin().lines().next() {
+                func(|_: (), i| {
+                    let next_line = if let Some(stdin) = &mut *i.global.stdin.lock().unwrap() {
+                        std::io::BufReader::new(stdin).lines().next()
+                    } else {
+                        std::io::stdin().lines().next()
+                    };
+                    Ok(if let Some(Ok(line)) = next_line {
                         OneOrNone(Some(line))
                     } else {
                         OneOrNone(None)
@@ -82,7 +87,15 @@ impl Config {
                     out: Ok(Arc::new(|a, _i| Ok(a.clone()))),
                     run: Arc::new(|a, i| {
                         let a2 = a.get();
-                        eprintln!("{} :: {}", a2.as_type().with_info(i), a2.with_info(i));
+                        let ty = a2.as_type();
+                        let ty = ty.with_info(i);
+                        let v = a2.with_info(i);
+                        if let Some((_, stderr)) = &mut *i.global.stdout.lock().unwrap() {
+                            let _ = write!(stderr, "{ty} :: {v}");
+                            let _ = stderr.flush();
+                        } else {
+                            eprintln!("{ty} :: {v}");
+                        }
                         drop(a2);
                         Ok(a)
                     }),
@@ -96,8 +109,13 @@ impl Config {
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                     out: Ok(Arc::new(|_a, _i| Ok(Type::empty_tuple()))),
                     run: Arc::new(|a, i| {
-                        eprint!("{}", a.get().with_info(i));
-                        _ = std::io::stderr().lock().flush();
+                        if let Some((_, stderr)) = &mut *i.global.stdout.lock().unwrap() {
+                            let _ = write!(stderr, "{}", a.get().with_info(i));
+                            let _ = stderr.flush();
+                        } else {
+                            eprint!("{}", a.get().with_info(i));
+                            let _ = std::io::stderr().lock().flush();
+                        }
                         Ok(Data::empty_tuple())
                     }),
                     inner_statements: None,
@@ -110,7 +128,12 @@ impl Config {
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                     out: Ok(Arc::new(|_a, _i| Ok(Type::empty_tuple()))),
                     run: Arc::new(|a, i| {
-                        eprintln!("{}", a.get().with_info(i));
+                        if let Some((_, stderr)) = &mut *i.global.stdout.lock().unwrap() {
+                            let _ = writeln!(stderr, "{}", a.get().with_info(i));
+                            let _ = stderr.flush();
+                        } else {
+                            eprintln!("{}", a.get().with_info(i));
+                        }
                         Ok(Data::empty_tuple())
                     }),
                     inner_statements: None,
@@ -123,8 +146,13 @@ impl Config {
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                     out: Ok(Arc::new(|_a, _i| Ok(Type::empty_tuple()))),
                     run: Arc::new(|a, i| {
-                        print!("{}", a.get().with_info(i));
-                        _ = std::io::stdout().lock().flush();
+                        if let Some((stdout, _)) = &mut *i.global.stdout.lock().unwrap() {
+                            let _ = write!(stdout, "{}", a.get().with_info(i));
+                            let _ = stdout.flush();
+                        } else {
+                            print!("{}", a.get().with_info(i));
+                            let _ = std::io::stdout().lock().flush();
+                        }
                         Ok(Data::empty_tuple())
                     }),
                     inner_statements: None,
@@ -137,7 +165,12 @@ impl Config {
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
                     out: Ok(Arc::new(|_a, _i| Ok(Type::empty_tuple()))),
                     run: Arc::new(|a, i| {
-                        println!("{}", a.get().with_info(i));
+                        if let Some((stdout, _)) = &mut *i.global.stdout.lock().unwrap() {
+                            let _ = writeln!(stdout, "{}", a.get().with_info(i));
+                            let _ = stdout.flush();
+                        } else {
+                            println!("{}", a.get().with_info(i));
+                        }
                         Ok(Data::empty_tuple())
                     }),
                     inner_statements: None,

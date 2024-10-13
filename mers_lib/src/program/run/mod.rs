@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     fmt::Debug,
+    io::{Read, Write},
     sync::{Arc, Mutex, RwLock},
     time::Instant,
 };
@@ -126,12 +127,38 @@ pub type CheckInfo = info::Info<CheckLocal>;
 pub struct RunLocal {
     pub vars: Vec<Arc<RwLock<Data>>>,
 }
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct RunLocalGlobalInfo {
     /// if set, if `Instant::now()` is equal to or after the set `Instant`, stop the program with an error.
     pub limit_runtime: Option<Instant>,
     pub object_fields: Arc<Mutex<HashMap<String, usize>>>,
     pub object_fields_rev: Arc<Mutex<Vec<String>>>,
+    pub stdin: Arc<Mutex<Option<Box<dyn Read + Send + Sync>>>>,
+    pub stdout: Arc<Mutex<Option<(Box<dyn Write + Send + Sync>, Box<dyn Write + Send + Sync>)>>>,
+}
+#[derive(Debug)]
+#[allow(unused)]
+struct RunLocalGlobalInfoDebug<'a> {
+    pub limit_runtime: &'a Option<Instant>,
+    pub object_fields: &'a Arc<Mutex<HashMap<String, usize>>>,
+    pub object_fields_rev: &'a Arc<Mutex<Vec<String>>>,
+    pub stdin: bool,
+    pub stdout: bool,
+}
+impl Debug for RunLocalGlobalInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{:?}",
+            RunLocalGlobalInfoDebug {
+                limit_runtime: &self.limit_runtime,
+                object_fields: &self.object_fields,
+                object_fields_rev: &self.object_fields_rev,
+                stdin: self.stdin.lock().unwrap().is_some(),
+                stdout: self.stdout.lock().unwrap().is_some()
+            }
+        )
+    }
 }
 impl RunLocalGlobalInfo {
     pub fn new(object_fields: Arc<Mutex<HashMap<String, usize>>>) -> Self {
@@ -139,6 +166,8 @@ impl RunLocalGlobalInfo {
             limit_runtime: None,
             object_fields,
             object_fields_rev: Default::default(),
+            stdin: Arc::new(Mutex::new(None)),
+            stdout: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -216,6 +245,8 @@ impl info::Local for RunLocal {
             limit_runtime: None,
             object_fields: Default::default(),
             object_fields_rev: Default::default(),
+            stdin: Default::default(),
+            stdout: Default::default(),
         }
     }
     fn init_var(&mut self, id: Self::VariableIdentifier, value: Self::VariableData) {

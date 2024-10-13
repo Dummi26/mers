@@ -4,19 +4,14 @@ use std::{
 };
 
 use crate::{
-    data::{
-        self,
-        bool::bool_type,
-        int::{INT_MAX, INT_MIN},
-        Data, MersTypeWInfo, Type,
-    },
+    data::{self, bool::bool_type, int::INT_MAX, Data, MersTypeWInfo, Type},
     errors::CheckError,
     program::run::{CheckInfo, Info},
 };
 
 use super::{
     gen::{
-        function::{func, func_end, func_err},
+        function::{func, func_err},
         IntR, OneOf,
     },
     Config,
