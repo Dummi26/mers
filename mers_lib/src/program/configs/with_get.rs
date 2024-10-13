@@ -50,14 +50,14 @@ impl Config {
                         Arc::new(data::tuple::TupleT(vec![])),
                     ]))
                 })),
-                run: Arc::new(|a, _i| {
+                run: Arc::new(|a, i| {
                     let a = a.get();
-                    if let (Some(v), Some(i)) = (a.get(0), a.get(1)) {
-                        let (v, i2) = (v?, i?);
-                        let o = if let Some(i3) = i2.get().as_any().downcast_ref::<data::int::Int>()
+                    if let (Some(v), Some(x)) = (a.get(0, &i.global), a.get(1, &i.global)) {
+                        let (v, x2) = (v?, x?);
+                        let o = if let Some(x3) = x2.get().as_any().downcast_ref::<data::int::Int>()
                         {
-                            if let Ok(i) = i3.0.try_into() {
-                                if let Some(v) = v.get().get(i) {
+                            if let Ok(x) = x3.0.try_into() {
+                                if let Some(v) = v.get().get(x, &i.global) {
                                     Ok(Data::one_tuple(v?))
                                 } else {
                                     Ok(Data::empty_tuple())

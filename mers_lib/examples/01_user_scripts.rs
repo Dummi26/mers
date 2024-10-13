@@ -8,7 +8,7 @@ use mers_lib::{
 };
 
 fn main() -> Result<(), CheckError> {
-    let (_, func) = parse_compile_check_run(
+    let (_, func, info) = parse_compile_check_run(
         // The `[(String -> String)]` type annotation ensures that decorate.mers returns a `String -> String` function.
         "[(String -> String)] #include \"examples/decorate.mers\"".to_owned(),
     )?;
@@ -23,7 +23,10 @@ fn main() -> Result<(), CheckError> {
 
     // use the function to decorate these 3 test strings
     for input in ["my test string", "Main Menu", "O.o"] {
-        let result = func.run_immut(Data::new(data::string::String(input.to_owned())))?;
+        let result = func.run_immut(
+            Data::new(data::string::String(input.to_owned())),
+            info.global.clone(),
+        )?;
         let result = result.get();
         let result = &result
             .as_any()
@@ -37,7 +40,9 @@ fn main() -> Result<(), CheckError> {
 }
 
 /// example 00
-fn parse_compile_check_run(src: String) -> Result<(Type, Data), CheckError> {
+fn parse_compile_check_run(
+    src: String,
+) -> Result<(Type, Data, mers_lib::program::run::Info), CheckError> {
     let mut source = Source::new_from_string(src);
     let srca = Arc::new(source.clone());
     let parsed = parse(&mut source, &srca)?;
@@ -45,5 +50,5 @@ fn parse_compile_check_run(src: String) -> Result<(Type, Data), CheckError> {
     let compiled = parsed.compile(&mut i1, CompInfo::default())?;
     let output_type = compiled.check(&mut i3, None)?;
     let output_value = compiled.run(&mut i2)?;
-    Ok((output_type, output_value))
+    Ok((output_type, output_value, i2))
 }

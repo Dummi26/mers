@@ -80,11 +80,25 @@ impl Function {
     pub fn check(&self, arg: &Type) -> Result<Type, CheckError> {
         self.get_as_type().o(arg)
     }
-    pub fn run_mut(&mut self, arg: Data) -> Result<Data, CheckError> {
+    pub fn run_mut(
+        &mut self,
+        arg: Data,
+        gi: crate::program::run::RunLocalGlobalInfo,
+    ) -> Result<Data, CheckError> {
+        self.info.global = gi;
+        self.run_mut_with_prev_gi(arg)
+    }
+    pub fn run_mut_with_prev_gi(&mut self, arg: Data) -> Result<Data, CheckError> {
         (self.run)(arg, &mut self.info)
     }
-    pub fn run_immut(&self, arg: Data) -> Result<Data, CheckError> {
-        (self.run)(arg, &mut self.info.duplicate())
+    pub fn run_immut(
+        &self,
+        arg: Data,
+        gi: crate::program::run::RunLocalGlobalInfo,
+    ) -> Result<Data, CheckError> {
+        let mut i = self.info.duplicate();
+        i.global = gi;
+        (self.run)(arg, &mut i)
     }
     pub fn get_as_type(&self) -> FunctionT {
         let info = self.info_check.lock().unwrap().clone();
@@ -114,13 +128,25 @@ impl MersData for Function {
     fn executable(&self) -> Option<crate::data::function::FunctionT> {
         Some(self.get_as_type())
     }
-    fn execute(&self, arg: Data) -> Option<Result<Data, CheckError>> {
-        Some(self.run_immut(arg))
+    fn execute(
+        &self,
+        arg: Data,
+        gi: &crate::program::run::RunLocalGlobalInfo,
+    ) -> Option<Result<Data, CheckError>> {
+        Some(self.run_immut(arg, gi.clone()))
     }
-    fn iterable(&self) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
+    fn iterable(
+        &self,
+        gi: &crate::program::run::RunLocalGlobalInfo,
+    ) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
         let mut s = Clone::clone(self);
+        let mut gi = Some(gi.clone());
         Some(Box::new(std::iter::from_fn(move || {
-            match s.run_mut(Data::empty_tuple()) {
+            match if let Some(gi) = gi.take() {
+                s.run_mut(Data::empty_tuple(), gi)
+            } else {
+                s.run_mut_with_prev_gi(Data::empty_tuple())
+            } {
                 Err(e) => Some(Err(e)),
                 Ok(v) => {
                     if let Some(v) = v.one_tuple_content() {

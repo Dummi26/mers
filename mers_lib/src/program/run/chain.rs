@@ -92,7 +92,7 @@ impl MersStatement for Chain {
         let f = self.first.run(info)?;
         let c = self.chained.run(info)?;
         let c = c.get();
-        match c.execute(f) {
+        match c.execute(f, &info.global) {
             Some(Ok(v)) => Ok(v),
             Some(Err(e)) => Err(if let Some(_) = &self.as_part_of_include {
                 CheckError::new().err_with_diff_src(e).src(vec![(

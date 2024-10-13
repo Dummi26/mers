@@ -63,14 +63,14 @@ impl Config {
                     }
                     Ok(Type::empty_tuple())
                 })),
-                run: Arc::new(|a, _i| {
+                run: Arc::new(|a, i| {
                     let a = a.get();
                     let a = a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
                     let arg_ref = a.0[0].get();
                     let arg_ref = arg_ref.as_any().downcast_ref::<data::reference::Reference>().unwrap();
                     let mut arg = arg_ref.0.write().unwrap();
                     let func = a.0[1].get();
-                    *arg = func.execute(arg.clone()).unwrap()?;
+                    *arg = func.execute(arg.clone(), &i.global).unwrap()?;
                     Ok(Data::empty_tuple())
                 }),
                 inner_statements: None,
@@ -103,12 +103,12 @@ impl Config {
                     }
                     Ok(Type::new(data::int::IntT(0, INT_MAX)))
                 })),
-                run: Arc::new(|a, _i| {
+                run: Arc::new(|a, i| {
                     Ok(Data::new(data::int::Int(if let Some(t) = a.get().as_any().downcast_ref::<data::tuple::Tuple>() {
                         t.0.len().try_into().unwrap_or(INT_MAX)
                     } else if let Some(s) = a.get().as_any().downcast_ref::<data::string::String>() {
                         s.0.len().try_into().unwrap_or(INT_MAX)
-                    } else if let Some(i) = a.get().iterable() {
+                    } else if let Some(i) = a.get().iterable(&i.global) {
                         i.count().try_into().unwrap_or(INT_MAX)
                     } else {
                         return Err("called len on {a:?}, which isn't a tuple, a string, or something iterable.".into());
@@ -130,8 +130,8 @@ impl Config {
                     }
                         Ok(bool_type())
                     })),
-                run: Arc::new(|a, _i| {
-                    Ok(Data::new(data::bool::Bool(if let Some(mut i) = a.get().iterable() {
+                run: Arc::new(|a, i| {
+                    Ok(Data::new(data::bool::Bool(if let Some(mut i) = a.get().iterable(&i.global) {
                         if let Some(f) = i.next() {
                             let f = f?;
                             let mut o = true;

@@ -35,7 +35,10 @@ impl MersData for Tuple {
             false
         }
     }
-    fn iterable(&self) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
+    fn iterable(
+        &self,
+        _gi: &crate::program::run::RunLocalGlobalInfo,
+    ) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
         Some(Box::new(self.0.clone().into_iter().map(Ok)))
     }
     fn clone(&self) -> Box<dyn MersData> {

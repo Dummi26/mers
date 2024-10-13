@@ -27,7 +27,11 @@ impl MersData for Reference {
             None
         }
     }
-    fn execute(&self, arg: Data) -> Option<Result<Data, CheckError>> {
+    fn execute(
+        &self,
+        arg: Data,
+        gi: &crate::program::run::RunLocalGlobalInfo,
+    ) -> Option<Result<Data, CheckError>> {
         let mut inner = self.0.write().unwrap();
         let mut inner = inner.get_mut();
         if let Some(func) = inner
@@ -35,13 +39,17 @@ impl MersData for Reference {
             .mut_any()
             .downcast_mut::<crate::data::function::Function>()
         {
-            Some(func.run_mut(arg))
+            Some(func.run_mut(arg, gi.clone()))
         } else {
             None
         }
     }
-    fn iterable(&self) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
+    fn iterable(
+        &self,
+        gi: &crate::program::run::RunLocalGlobalInfo,
+    ) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
         let inner = Arc::clone(&self.0);
+        let gi = gi.clone();
         Some(Box::new(std::iter::from_fn(move || {
             match inner
                 .write()
@@ -50,7 +58,7 @@ impl MersData for Reference {
                 .mut_any()
                 .downcast_mut::<crate::data::function::Function>()
                 .unwrap()
-                .run_mut(Data::empty_tuple())
+                .run_mut(Data::empty_tuple(), gi.clone())
             {
                 Err(e) => Some(Err(e)),
                 Ok(v) => {

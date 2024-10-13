@@ -116,7 +116,7 @@ impl MersStatement for Try {
             match func.executable().map(|func| func.o(&arg_type)) {
                 Some(Ok(_)) => {
                     drop(ar);
-                    return func.execute(arg).unwrap();
+                    return func.execute(arg, &info.global).unwrap();
                 }
                 None | Some(Err(_)) => (),
             }

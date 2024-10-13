@@ -47,9 +47,10 @@ impl Config {
                     }
                     Ok(Type::new(ThreadT(out)))
                 })),
-                run: Arc::new(|a, _i| {
+                run: Arc::new(|a, i| {
+                    let gi = i.global.clone();
                     Ok(Data::new(Thread(Arc::new(Mutex::new(Ok(std::thread::spawn(
-                        move || a.get().execute(Data::empty_tuple()).unwrap(),
+                        move || a.get().execute(Data::empty_tuple(), &gi).unwrap(),
                     )))))))
                 }),
                 inner_statements: None,

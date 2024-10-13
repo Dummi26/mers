@@ -12,7 +12,6 @@ use crate::{
         object::ObjectFieldsMap,
         Data, MersData, MersDataWInfo, MersType, Type,
     },
-    errors::CheckError,
     info::DisplayInfo,
     program::{self, run::CheckInfo},
 };
@@ -56,7 +55,7 @@ impl Config {
                     let cmd = cmd.get();
                     let (cmd, args) = (
                         cmd.as_any().downcast_ref::<data::string::String>().unwrap(),
-                        args.get().iterable().unwrap(),
+                        args.get().iterable(&i.global).unwrap(),
                     );
                     let args = args.map(|v| v.map(|v| v.get().with_info(i).to_string())).collect::<Result<Vec<_>, _>>()?;
                     match Command::new(&cmd.0)
@@ -107,7 +106,7 @@ impl Config {
                     let cmd = cmd.get();
                     let (cmd, args) = (
                         cmd.as_any().downcast_ref::<data::string::String>().unwrap(),
-                        args.get().iterable().unwrap(),
+                        args.get().iterable(&i.global).unwrap(),
                     );
                     let args = args.map(|v| v.map(|v| v.get().with_info(i).to_string())).collect::<Result<Vec<_>, _>>()?;
                     match Command::new(&cmd.0)
@@ -203,14 +202,14 @@ impl Config {
                         return Err(format!("childproc_write_bytes called on non-`(ChildProcess, Iter<Byte>)` type {}", a.with_info(i)).into());
                     }
                 })),
-                run: Arc::new(|a, _i| {
+                run: Arc::new(|a, i| {
                     let a = a.get();
                     let tuple = a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
                     let child = tuple.0[0].get();
                     let bytes = tuple.0[1].get();
                     let child = child.as_any().downcast_ref::<ChildProcess>().unwrap();
                     let mut child = child.0.lock().unwrap();
-                    let buf = bytes.iterable().unwrap().map(|v| v.map(|v| v.get().as_any().downcast_ref::<data::byte::Byte>().unwrap().0)).collect::<Result<Vec<_>, _>>()?;
+                    let buf = bytes.iterable(&i.global).unwrap().map(|v| v.map(|v| v.get().as_any().downcast_ref::<data::byte::Byte>().unwrap().0)).collect::<Result<Vec<_>, _>>()?;
                     Ok(if child.1.as_mut().is_some_and(|v| v.write_all(&buf).is_ok() && v.flush().is_ok()) {
                         Data::new(data::bool::Bool(true))
                     } else {
@@ -384,12 +383,6 @@ pub struct ChildProcessT;
 impl MersData for ChildProcess {
     fn display(&self, _info: &DisplayInfo<'_>, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{self}")
-    }
-    fn iterable(&self) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
-        None
-    }
-    fn get(&self, _i: usize) -> Option<Result<Data, CheckError>> {
-        None
     }
     fn is_eq(&self, other: &dyn MersData) -> bool {
         other

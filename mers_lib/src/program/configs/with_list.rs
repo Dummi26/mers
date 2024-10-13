@@ -221,9 +221,9 @@ impl Config {
                             ).into())
                         }
                     })),
-                    run: Arc::new(|a, _i| {
-                        if let Some(i) = a.get().iterable() {
-                            Ok(Data::new(List(i.map(|v| Ok::<_, CheckError>(Arc::new(RwLock::new(v?)))).collect::<Result<_, _>>()?)))
+                    run: Arc::new(|a, i| {
+                        if let Some(iter) = a.get().iterable(&i.global) {
+                            Ok(Data::new(List(iter.map(|v| Ok::<_, CheckError>(Arc::new(RwLock::new(v?)))).collect::<Result<_, _>>()?)))
                         } else {
                             Err("as_list called on non-iterable".into())
                         }
@@ -272,7 +272,10 @@ impl MersData for List {
             false
         }
     }
-    fn iterable(&self) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
+    fn iterable(
+        &self,
+        _gi: &crate::program::run::RunLocalGlobalInfo,
+    ) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
         Some(Box::new(
             self.0
                 .clone()

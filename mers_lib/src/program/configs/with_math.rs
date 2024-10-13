@@ -501,10 +501,10 @@ impl Config {
                     }
                     Ok(o)
                 },
-                |a, _| {
+                |a, i| {
                     let mut min_int = None;
                     let mut min_float = None;
-                    for a in a.get().iterable().expect("called `min` on non-itereable") {
+                    for a in a.get().iterable(&i.global).expect("called `min` on non-itereable") {
                         let a = a?;
                         let a = a.get();
                         let a = a.as_any().downcast_ref::<data::int::Int>().map(|v| Ok(v.0)).or_else(|| a.as_any().downcast_ref::<data::float::Float>().map(|v| Err(v.0))).expect("found non-Int/Float element in argument to `min`");
@@ -581,10 +581,10 @@ impl Config {
                     }
                     Ok(o)
                 },
-                |a, _| {
+                |a, i| {
                     let mut min_int = None;
                     let mut min_float = None;
-                    for a in a.get().iterable().expect("called `min` on non-itereable") {
+                    for a in a.get().iterable(&i.global).expect("called `min` on non-itereable") {
                         let a = a?;
                         let a = a.get();
                         let a = a.as_any().downcast_ref::<data::int::Int>().map(|v| Ok(v.0)).or_else(|| a.as_any().downcast_ref::<data::float::Float>().map(|v| Err(v.0))).expect("found non-Int/Float element in argument to `min`");
@@ -796,7 +796,7 @@ fn func_math_op(
             }
             Ok(o)
         },
-        move |a, _| {
+        move |a, i| {
             let a = a.get();
             Ok(
                 if let Some(a) = &a
@@ -839,7 +839,7 @@ fn func_math_op(
                     let (mut acc, _) = iter_version
                         .expect("no iter version for this math op, but argument not a 2-tuple...");
                     for a in a
-                        .iterable()
+                        .iterable(&i.global)
                         .expect("math op with iter version called on non-iterable")
                     {
                         let a = a?;

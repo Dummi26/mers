@@ -81,7 +81,7 @@ impl Config {
                     |a, i| {
                         Ok(Data::new(data::string::String(
                             a.get()
-                                .iterable()
+                                .iterable(&i.global)
                                 .unwrap()
                                 .map(|v| v.map(|v| v.get().with_info(i).to_string()))
                                 .collect::<Result<_, _>>()?,

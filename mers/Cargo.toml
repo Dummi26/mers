@@ -15,7 +15,7 @@ default = ["colored-output"]
 colored-output = ["mers_lib/ecolor-term", "mers_lib/pretty-print", "dep:colored"]
 
 [dependencies]
-mers_lib = "0.9.10"
+mers_lib = "0.9.12"
 # mers_lib = { path = "../mers_lib" }
 clap = { version = "4.3.19", features = ["derive"] }
 colored = { version = "2.1.0", optional = true }

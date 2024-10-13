@@ -30,16 +30,28 @@ pub trait MersData: Any + Debug + Send + Sync {
         None
     }
     #[allow(unused_variables)]
-    fn execute(&self, arg: Data) -> Option<Result<Data, CheckError>> {
+    fn execute(
+        &self,
+        arg: Data,
+        gi: &crate::program::run::RunLocalGlobalInfo,
+    ) -> Option<Result<Data, CheckError>> {
         None
     }
-    fn iterable(&self) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
+    #[allow(unused_variables)]
+    fn iterable(
+        &self,
+        gi: &crate::program::run::RunLocalGlobalInfo,
+    ) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
         None
     }
     /// By default, uses `iterable` to get an iterator and `nth` to retrieve the nth element.
     /// Should have a custom implementation for better performance on most types
-    fn get(&self, i: usize) -> Option<Result<Data, CheckError>> {
-        self.iterable()?.nth(i)
+    fn get(
+        &self,
+        i: usize,
+        gi: &crate::program::run::RunLocalGlobalInfo,
+    ) -> Option<Result<Data, CheckError>> {
+        self.iterable(gi)?.nth(i)
     }
     /// If self and other are different types (`other.as_any().downcast_ref::<Self>().is_none()`),
     /// this *must* return false.

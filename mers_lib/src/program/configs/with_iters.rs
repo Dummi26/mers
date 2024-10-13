@@ -30,16 +30,16 @@ impl Config {
     /// `all: fn` returns true if all elements of the iterator are true
     pub fn with_iters(self) -> Self {
         self
-            .add_var("any", genfunc_iter_in_val_out("all".to_string(), data::bool::bool_type(), data::bool::bool_type(), |a, _i| {
-                for v in a.get().iterable().unwrap().map(|v| v.map(|v| v.get().as_any().downcast_ref::<data::bool::Bool>().is_some_and(|v| v.0))) {
+            .add_var("any", genfunc_iter_in_val_out("all".to_string(), data::bool::bool_type(), data::bool::bool_type(), |a, i| {
+                for v in a.get().iterable(&i.global).unwrap().map(|v| v.map(|v| v.get().as_any().downcast_ref::<data::bool::Bool>().is_some_and(|v| v.0))) {
                     if v? {
                         return Ok(Data::new(data::bool::Bool(true)));
                     }
                 }
                 Ok(Data::new(data::bool::Bool(false)))
             }))
-            .add_var("all", genfunc_iter_in_val_out("all".to_string(), data::bool::bool_type(), data::bool::bool_type(), |a, _i| {
-                for v in a.get().iterable().unwrap().map(|v| v.map(|v| v.get().as_any().downcast_ref::<data::bool::Bool>().is_some_and(|v| v.0))) {
+            .add_var("all", genfunc_iter_in_val_out("all".to_string(), data::bool::bool_type(), data::bool::bool_type(), |a, i| {
+                for v in a.get().iterable(&i.global).unwrap().map(|v| v.map(|v| v.get().as_any().downcast_ref::<data::bool::Bool>().is_some_and(|v| v.0))) {
                     if !v? {
                         return Ok(Data::new(data::bool::Bool(false)));
                     }
@@ -88,13 +88,13 @@ impl Config {
                     }
                     Ok(Type::empty_tuple())
                 })),
-                run: Arc::new(|a, _i| {
+                run: Arc::new(|a, i| {
                     if let Some(tuple) = a.get().as_any().downcast_ref::<data::tuple::Tuple>() {
                         if let (Some(v), Some(f)) = (tuple.get(0), tuple.get(1)) {
-                            if let Some(iter) = v.get().iterable() {
+                            if let Some(iter) = v.get().iterable(&i.global) {
                                 let f = f.get();
                                 for v in iter {
-                                    f.execute(v?).unwrap()?;
+                                    f.execute(v?, &i.global).unwrap()?;
                                 }
                                 Ok(Data::empty_tuple())
                             } else {
@@ -319,21 +319,25 @@ impl MersData for Iter {
     fn is_eq(&self, _other: &dyn MersData) -> bool {
         false
     }
-    fn iterable(&self) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
+    fn iterable(
+        &self,
+        gi: &crate::program::run::RunLocalGlobalInfo,
+    ) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
+        let gi = gi.clone();
         Some(match &self.0 {
             Iters::Map(f) => {
                 let f = Clone::clone(f);
-                Box::new(self.1.get().iterable()?.map(move |v| {
+                Box::new(self.1.get().iterable(&gi)?.map(move |v| {
                     f.get()
-                        .execute(v?)
+                        .execute(v?, &gi)
                         .ok_or_else(|| CheckError::from("called map with non-function argument"))?
                 }))
             }
             Iters::Filter(f) => {
                 let f = Clone::clone(f);
-                Box::new(self.1.get().iterable()?.filter_map(move |v| {
+                Box::new(self.1.get().iterable(&gi)?.filter_map(move |v| {
                     match v {
-                        Ok(v) => match f.get().execute(v.clone()) {
+                        Ok(v) => match f.get().execute(v.clone(), &gi) {
                             Some(Ok(f)) => {
                                 if f.get()
                                     .as_any()
@@ -356,8 +360,8 @@ impl MersData for Iter {
             }
             Iters::FilterMap(f) => {
                 let f = Clone::clone(f);
-                Box::new(self.1.get().iterable()?.filter_map(move |v| match v {
-                    Ok(v) => match f.get().execute(v) {
+                Box::new(self.1.get().iterable(&gi)?.filter_map(move |v| match v {
+                    Ok(v) => match f.get().execute(v, &gi) {
                         Some(Ok(r)) => Some(Ok(r.one_tuple_content()?)),
                         Some(Err(e)) => Some(Err(e)),
                         None => Some(Err(CheckError::from(
@@ -369,8 +373,8 @@ impl MersData for Iter {
             }
             Iters::MapWhile(f) => {
                 let f = Clone::clone(f);
-                Box::new(self.1.get().iterable()?.map_while(move |v| match v {
-                    Ok(v) => match f.get().execute(v) {
+                Box::new(self.1.get().iterable(&gi)?.map_while(move |v| match v {
+                    Ok(v) => match f.get().execute(v, &gi) {
                         Some(Ok(r)) => Some(Ok(r.one_tuple_content()?)),
                         Some(Err(e)) => Some(Err(e)),
                         None => Some(Err(CheckError::from(
@@ -380,22 +384,28 @@ impl MersData for Iter {
                     Err(e) => Some(Err(e)),
                 }))
             }
-            Iters::Take(limit) => Box::new(self.1.get().iterable()?.take(*limit)),
+            Iters::Take(limit) => Box::new(self.1.get().iterable(&gi)?.take(*limit)),
             Iters::Enumerate => {
-                Box::new(self.1.get().iterable()?.enumerate().map(|(i, v)| match v {
-                    Ok(v) => Ok(Data::new(data::tuple::Tuple(vec![
-                        Data::new(data::int::Int(i as _)),
-                        v,
-                    ]))),
-                    Err(e) => Err(e),
-                }))
+                Box::new(
+                    self.1
+                        .get()
+                        .iterable(&gi)?
+                        .enumerate()
+                        .map(|(i, v)| match v {
+                            Ok(v) => Ok(Data::new(data::tuple::Tuple(vec![
+                                Data::new(data::int::Int(i as _)),
+                                v,
+                            ]))),
+                            Err(e) => Err(e),
+                        }),
+                )
             }
             Iters::Chained => {
                 match self
                     .1
                     .get()
-                    .iterable()?
-                    .map(|v| Ok(v?.get().iterable()))
+                    .iterable(&gi)?
+                    .map(move |v| Ok(v?.get().iterable(&gi)))
                     .collect::<Result<Option<Vec<_>>, CheckError>>()
                 {
                     Ok(Some(iters)) => Box::new(iters.into_iter().flatten()),
