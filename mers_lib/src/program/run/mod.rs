@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     fmt::Debug,
     io::{Read, Write},
-    sync::{Arc, Mutex, RwLock},
+    sync::{atomic::AtomicBool, Arc, Mutex, RwLock},
     time::Instant,
 };
 
@@ -135,6 +135,7 @@ pub struct RunLocalGlobalInfo {
     pub object_fields_rev: Arc<Mutex<Vec<String>>>,
     pub stdin: Arc<Mutex<Option<Box<dyn Read + Send + Sync>>>>,
     pub stdout: Arc<Mutex<Option<(Box<dyn Write + Send + Sync>, Box<dyn Write + Send + Sync>)>>>,
+    pub allow_process_exit_via_exit: Arc<AtomicBool>,
 }
 #[derive(Debug)]
 #[allow(unused)]
@@ -144,6 +145,7 @@ struct RunLocalGlobalInfoDebug<'a> {
     pub object_fields_rev: &'a Arc<Mutex<Vec<String>>>,
     pub stdin: bool,
     pub stdout: bool,
+    pub allow_process_exit_via_exit: bool,
 }
 impl Debug for RunLocalGlobalInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -155,7 +157,10 @@ impl Debug for RunLocalGlobalInfo {
                 object_fields: &self.object_fields,
                 object_fields_rev: &self.object_fields_rev,
                 stdin: self.stdin.lock().unwrap().is_some(),
-                stdout: self.stdout.lock().unwrap().is_some()
+                stdout: self.stdout.lock().unwrap().is_some(),
+                allow_process_exit_via_exit: self
+                    .allow_process_exit_via_exit
+                    .load(std::sync::atomic::Ordering::Relaxed),
             }
         )
     }
@@ -168,6 +173,7 @@ impl RunLocalGlobalInfo {
             object_fields_rev: Default::default(),
             stdin: Arc::new(Mutex::new(None)),
             stdout: Arc::new(Mutex::new(None)),
+            allow_process_exit_via_exit: Arc::new(AtomicBool::new(true)),
         }
     }
 }
@@ -247,6 +253,7 @@ impl info::Local for RunLocal {
             object_fields_rev: Default::default(),
             stdin: Default::default(),
             stdout: Default::default(),
+            allow_process_exit_via_exit: Arc::new(AtomicBool::new(false)),
         }
     }
     fn init_var(&mut self, id: Self::VariableIdentifier, value: Self::VariableData) {

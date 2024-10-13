@@ -14,7 +14,7 @@ use crate::{
 
 use super::{
     gen::{
-        function::{func, func_end},
+        function::{func, func_err},
         IntR, OneOrNone,
     },
     Config,
@@ -60,8 +60,15 @@ impl Config {
             // )
             .add_var(
                 "exit",
-                func_end(|code: IntR<INT_MIN, INT_MAX>, _| {
-                    std::process::exit(code.0.try_into().unwrap_or(255));
+                func_err(|code: IntR<INT_MIN, INT_MAX>, i| {
+                    if i.global
+                        .allow_process_exit_via_exit
+                        .load(std::sync::atomic::Ordering::Relaxed)
+                    {
+                        std::process::exit(code.0.try_into().unwrap_or(255));
+                    } else {
+                        format!("Program exited with status code {}", code.0).into()
+                    }
                 }),
             )
             .add_var(
