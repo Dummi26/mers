@@ -582,19 +582,19 @@ impl Config {
                     Ok(o)
                 },
                 |a, i| {
-                    let mut min_int = None;
-                    let mut min_float = None;
+                    let mut max_int = None;
+                    let mut max_float = None;
                     for a in a.get().iterable(&i.global).expect("called `min` on non-itereable") {
                         let a = a?;
                         let a = a.get();
                         let a = a.as_any().downcast_ref::<data::int::Int>().map(|v| Ok(v.0)).or_else(|| a.as_any().downcast_ref::<data::float::Float>().map(|v| Err(v.0))).expect("found non-Int/Float element in argument to `min`");
                         match a {
-                            Ok(a) => if min_int.is_none() || a < min_int.unwrap() { min_int = Some(a); },
-                            Err(a) => if min_float.is_none() || a < min_float.unwrap() { min_float = Some(a); },
+                            Ok(a) => if max_int.is_none() || a > max_int.unwrap() { max_int = Some(a); },
+                            Err(a) => if max_float.is_none() || a > max_float.unwrap() { max_float = Some(a); },
                         }
                     }
-                    Ok(match (min_float, min_int) {
-                        (Some(a), Some(b)) => if a < b as f64  { Data::new(data::float::Float(a)) } else { Data::new(data::int::Int(b))},
+                    Ok(match (max_float, max_int) {
+                        (Some(a), Some(b)) => if a > b as f64  { Data::new(data::float::Float(a)) } else { Data::new(data::int::Int(b))},
                         (Some(a), None) => Data::new(data::float::Float(a)),
                         (None, Some(b)) => Data::new(data::int::Int(b)),
                         (None, None) => Data::empty_tuple(),
