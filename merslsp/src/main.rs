@@ -22,6 +22,11 @@ struct TextDocument {
     source: String,
     file_path: Option<PathBuf>,
     srca: Option<Arc<mers_lib::prelude_compile::Source>>,
+    infos: Option<(
+        mers_lib::program::parsed::Info,
+        mers_lib::program::run::Info,
+        mers_lib::program::run::CheckInfo,
+    )>,
     parsed: Option<Result<Box<dyn mers_lib::program::parsed::MersStatement>, CheckError>>,
     compiled: Option<Result<Box<dyn mers_lib::program::run::MersStatement>, CheckError>>,
     checked: Option<Result<mers_lib::data::Type, CheckError>>,
@@ -29,6 +34,7 @@ struct TextDocument {
 impl TextDocument {
     pub fn changed(&mut self) {
         self.srca = None;
+        self.infos = None;
         self.parsed = None;
         self.compiled = None;
         self.checked = None;
@@ -47,41 +53,83 @@ impl TextDocument {
     }
     pub fn parsed(
         &mut self,
-    ) -> &Result<Box<dyn mers_lib::program::parsed::MersStatement>, CheckError> {
-        if self.parsed.is_none() {
+        force: bool,
+    ) -> (
+        &Result<Box<dyn mers_lib::program::parsed::MersStatement>, CheckError>,
+        &mut (
+            mers_lib::program::parsed::Info,
+            mers_lib::program::run::Info,
+            mers_lib::program::run::CheckInfo,
+        ),
+    ) {
+        if force || self.parsed.is_none() {
             self.parsed = Some(mers_lib::prelude_compile::parse(
                 &mut mers_lib::prelude_compile::Source::clone(self.srca()),
                 self.srca(),
             ))
         }
-        self.parsed.as_ref().unwrap()
+        (
+            self.parsed.as_ref().unwrap(),
+            self.infos.get_or_insert_with(gen_infos),
+        )
     }
     pub fn compiled(
         &mut self,
-    ) -> &Result<Box<dyn mers_lib::program::run::MersStatement>, CheckError> {
-        if self.compiled.is_none() {
-            self.compiled =
-                Some(self.parsed().as_ref().map_err(|e| e.clone()).and_then(|v| {
-                    mers_lib::prelude_compile::compile(&**v, mers_config().infos().0)
-                }));
-        }
-        self.compiled.as_ref().unwrap()
-    }
-    pub fn checked(&mut self) -> &Result<mers_lib::data::Type, CheckError> {
-        if self.checked.is_none() {
-            self.checked = Some(
-                self.compiled()
+        force: bool,
+    ) -> (
+        &Result<Box<dyn mers_lib::program::run::MersStatement>, CheckError>,
+        &mut (
+            mers_lib::program::parsed::Info,
+            mers_lib::program::run::Info,
+            mers_lib::program::run::CheckInfo,
+        ),
+    ) {
+        if force || self.compiled.is_none() {
+            let (parsed, infos) = self.parsed(false);
+            self.compiled = Some(
+                parsed
                     .as_ref()
                     .map_err(|e| e.clone())
-                    .and_then(|v| mers_lib::prelude_compile::check(&**v, mers_config().infos().2)),
+                    .and_then(|v| mers_lib::prelude_compile::compile_mut(&**v, &mut infos.0)),
             );
         }
-        self.checked.as_ref().unwrap()
+        (
+            self.compiled.as_ref().unwrap(),
+            self.infos.get_or_insert_with(gen_infos),
+        )
+    }
+    pub fn checked(
+        &mut self,
+        force: bool,
+    ) -> (
+        &Result<mers_lib::data::Type, CheckError>,
+        &mut (
+            mers_lib::program::parsed::Info,
+            mers_lib::program::run::Info,
+            mers_lib::program::run::CheckInfo,
+        ),
+    ) {
+        if force || self.checked.is_none() {
+            let (compiled, infos) = self.compiled(false);
+            self.checked = Some(
+                compiled
+                    .as_ref()
+                    .map_err(|e| e.clone())
+                    .and_then(|v| mers_lib::prelude_compile::check_mut(&**v, &mut infos.2)),
+            );
+        }
+        (
+            self.checked.as_ref().unwrap(),
+            self.infos.get_or_insert_with(gen_infos),
+        )
     }
 }
-
-fn mers_config() -> Config {
-    Config::new().bundle_std()
+fn gen_infos() -> (
+    mers_lib::program::parsed::Info,
+    mers_lib::program::run::Info,
+    mers_lib::program::run::CheckInfo,
+) {
+    Config::new().bundle_std().infos()
 }
 
 #[lspower::async_trait]
@@ -109,6 +157,7 @@ impl LanguageServer for Backend {
                 source: params.text_document.text,
                 file_path: fp.ok(),
                 srca: None,
+                infos: None,
                 parsed: None,
                 compiled: None,
                 checked: None,
@@ -155,22 +204,20 @@ impl LanguageServer for Backend {
         {
             let byte_pos = doc_byte_pos(&doc.source, params.text_document_position.position);
             let byte_pos_in_src = doc.srca().pos_from_og(byte_pos, false);
-            if let Ok(parsed) = doc.parsed() {
-                let (mut i1, _, mut i3) = mers_config().infos();
+            if let (Ok(parsed), (i1, _, _)) = doc.parsed(false) {
                 i1.global.enable_hooks = true;
                 let mut save_info_at = i1.global.save_info_at.lock().unwrap();
                 let my_saved_info_index = save_info_at.len();
                 save_info_at.push((vec![], byte_pos_in_src, 0));
-                drop(save_info_at);
-                let variable_types = if let Ok(compiled) =
-                    mers_lib::prelude_compile::compile_mut(&**parsed, &mut i1)
-                {
+                drop((save_info_at, parsed));
+                let variable_types = if let (Ok(_), (_, _, i3)) = doc.compiled(true) {
                     i3.global.enable_hooks = true;
                     let mut save_info_at = i3.global.save_info_at.lock().unwrap();
                     let my_saved_info_index = save_info_at.len();
                     save_info_at.push((vec![], byte_pos_in_src, 0));
                     drop(save_info_at);
-                    _ = mers_lib::prelude_compile::check_mut(&*compiled, &mut i3);
+                    _ = doc.checked(true);
+                    let (_, _, i3) = doc.infos.get_or_insert_with(gen_infos);
                     let save_info_at = i3.global.save_info_at.lock().unwrap();
                     let my_saved_info = &save_info_at[my_saved_info_index].0;
                     let mut variable_types: HashMap<(usize, usize), Type> = HashMap::new();
@@ -191,6 +238,7 @@ impl LanguageServer for Backend {
                 } else {
                     None
                 };
+                let (i1, _, i3) = doc.infos.get_or_insert_with(gen_infos);
                 let save_info_at = i1.global.save_info_at.lock().unwrap();
                 let result = &save_info_at[my_saved_info_index].0;
                 let mut variables = HashMap::new();
@@ -212,7 +260,7 @@ impl LanguageServer for Backend {
                             if let Some(typ) =
                                 variable_types.as_ref().and_then(|types| types.get(&v.1 .1))
                             {
-                                format!("var: `{typ}`")
+                                format!("var: `{}`", typ.with_info(i3))
                             } else {
                                 format!("variable")
                             },
@@ -232,15 +280,16 @@ impl LanguageServer for Backend {
             if let Some(doc) = self.documents.lock().unwrap().get_mut(&this_doc) {
                 let pos = params.text_document_position_params.position;
                 let byte_pos = doc_byte_pos(&doc.source, pos);
-                Some(match doc.compiled() {
-                    Ok(compiled) => {
+                Some(match doc.compiled(false) {
+                    (Ok(compiled), infos) => {
                         let file = Arc::clone(compiled.source_range().in_file());
                         let pos = file.pos_from_og(byte_pos, false);
-                        let (_, _, mut i3) = mers_config().infos();
+                        let (_, _, i3) = infos;
                         i3.global.enable_hooks = true;
                         let save_info_at = Arc::new(Mutex::new(vec![(vec![], pos, 0)]));
                         i3.global.save_info_at = Arc::clone(&save_info_at);
-                        _ = mers_lib::prelude_compile::check_mut(&**compiled, &mut i3);
+                        _ = doc.checked(true);
+                        let (_, _, i3) = doc.infos.get_or_insert_with(gen_infos);
                         let hook_res = &save_info_at.lock().unwrap()[0];
                         Hover {
                             contents: HoverContents::Markup(MarkupContent {
@@ -251,7 +300,7 @@ impl LanguageServer for Backend {
                                         .0
                                         .iter()
                                         .map(|(_, _, t)| match t {
-                                            Ok(t) => format!("\n- {t}"),
+                                            Ok(t) => format!("\n- {}", t.with_info(&i3)),
                                             Err(e) => format!("\n- {}", e.display_notheme()),
                                         })
                                         .collect::<String>()
@@ -260,7 +309,7 @@ impl LanguageServer for Backend {
                             range: None,
                         }
                     }
-                    Err(e) => Hover {
+                    (Err(e), _) => Hover {
                         contents: HoverContents::Markup(MarkupContent {
                             kind: MarkupKind::PlainText,
                             value: format!("{}", e.display_notheme()),
