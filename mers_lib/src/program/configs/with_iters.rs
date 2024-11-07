@@ -51,11 +51,14 @@ impl Config {
                         if a.0.len() == 2 {
                             let mut min = None;
                             let mut max = None;
-                            for v in a.0[0].types.iter().chain(a.0[1].types.iter()) {
+                            for v in &a.0[0].types {
                                 let v = v.as_any().downcast_ref::<data::int::IntT>().ok_or_else(|| CheckError::from(format!("expected int as first argument, but got {}", v.with_info(i))))?;
                                 if min.is_none_or(|min| min > v.0) {
                                     min = Some(v.0);
                                 }
+                            }
+                            for v in &a.0[1].types {
+                                let v = v.as_any().downcast_ref::<data::int::IntT>().ok_or_else(|| CheckError::from(format!("expected int as second argument, but got {}", v.with_info(i))))?;
                                 if max.is_none_or(|max| max < v.1) {
                                     max = Some(v.1);
                                 }
@@ -84,11 +87,14 @@ impl Config {
                         if a.0.len() == 2 {
                             let mut min = None;
                             let mut max = None;
-                            for v in a.0[0].types.iter().chain(a.0[1].types.iter()) {
+                            for v in &a.0[0].types {
                                 let v = v.as_any().downcast_ref::<data::int::IntT>().ok_or_else(|| CheckError::from(format!("expected int as first argument, but got {}", v.with_info(i))))?;
                                 if min.is_none_or(|min| min > v.0) {
                                     min = Some(v.0);
                                 }
+                            }
+                            for v in &a.0[1].types {
+                                let v = v.as_any().downcast_ref::<data::int::IntT>().ok_or_else(|| CheckError::from(format!("expected int as second argument, but got {}", v.with_info(i))))?;
                                 if max.is_none_or(|max| max < v.1) {
                                     max = Some(v.1);
                                 }
@@ -97,7 +103,7 @@ impl Config {
                                 if let Some(max) = max.checked_sub(1) {
                                     o.add(Arc::new(RangeT(min, max)));
                                 } else {
-                                    o.add(Arc::new(RangeT(min.saturating_add(1), max)));
+                                    o.add(Arc::new(RangeT(if min == isize::MIN { min + 1 } else { min }, isize::MIN)));
                                 }
                             }
                         } else {
