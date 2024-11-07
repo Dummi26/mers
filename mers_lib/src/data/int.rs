@@ -41,7 +41,7 @@ pub const INT32U_MAX: isize = if isize::BITS > u32::BITS {
     isize::MAX
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Int(pub isize);
 
 impl MersData for Int {

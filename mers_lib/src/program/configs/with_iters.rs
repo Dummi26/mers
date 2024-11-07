@@ -7,7 +7,7 @@ use crate::{
     data::{
         self,
         function::{Function, FunctionT},
-        int::INT_MAX,
+        int::{Int, IntT, INT_MAX},
         Data, MersData, MersType, MersTypeWInfo, Type,
     },
     errors::CheckError,
@@ -28,8 +28,95 @@ impl Config {
     /// `enumerate: fn` transforms an iterator over T into one over (Int, T), where Int is the index of the element
     /// `any: fn` returns true if any element of the iterator are true
     /// `all: fn` returns true if all elements of the iterator are true
+    /// `range_inc: fn` returns an iterable `Range` starting at the first argument, counting up to the second one (inclusive).
+    /// `range_exc: fn` returns an iterable `Range` starting at the first argument, counting up to the second one (exclusive).
     pub fn with_iters(self) -> Self {
         self
+            .add_type("Range".to_owned(), Err(Arc::new(|str, _i| {
+                if let Some((val, end)) = str.split_once("..") {
+                    if let (Ok(val), Ok(end)) = (val.trim().parse(), end.trim().parse()) {
+                        Ok(RangeT(val, end))
+                    } else {
+                        Err(CheckError::from(format!("bad Range type, got <{str}> but expected <start..end> where start and end are Ints")))
+                    }
+                } else {
+                    Err(CheckError::from(format!("bad Range type, got <{str}> but expected <start..end>")))
+                }.map(|v| Arc::new(Type::new(v)))
+            })))
+            .add_var("range_inc", Function::new_generic(
+                |a, i| {
+                    let mut o = Type::empty();
+                    for a in &a.types {
+                        let a = a.as_any().downcast_ref::<data::tuple::TupleT>().ok_or_else(|| CheckError::from(format!("expected 2- or 3-tuple, but found {}", a.with_info(i))))?;
+                        if a.0.len() == 2 {
+                            let mut min = None;
+                            let mut max = None;
+                            for v in a.0[0].types.iter().chain(a.0[1].types.iter()) {
+                                let v = v.as_any().downcast_ref::<data::int::IntT>().ok_or_else(|| CheckError::from(format!("expected int as first argument, but got {}", v.with_info(i))))?;
+                                if min.is_none_or(|min| min > v.0) {
+                                    min = Some(v.0);
+                                }
+                                if max.is_none_or(|max| max < v.1) {
+                                    max = Some(v.1);
+                                }
+                            }
+                            if let (Some(min), Some(max)) = (min, max) {
+                                o.add(Arc::new(RangeT(min, max)));
+                            }
+                        } else {
+                            return Err(CheckError::from(format!("expected 2-tuple, but found {}", a.with_info(i))));
+                        }
+                    }
+                    Ok(o)
+                }, |a, _| {
+                    let a = a.get();
+                    let a = a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
+                    let (v, e) = (a.0[0].get(), a.0[1].get());
+                    let (v, e) = (v.as_any().downcast_ref::<data::int::Int>().unwrap(), e.as_any().downcast_ref::<data::int::Int>().unwrap());
+                    Ok(Data::new(Range(v.0, e.0)))
+                }
+            ))
+            .add_var("range_exc", Function::new_generic(
+                |a, i| {
+                    let mut o = Type::empty();
+                    for a in &a.types {
+                        let a = a.as_any().downcast_ref::<data::tuple::TupleT>().ok_or_else(|| CheckError::from(format!("expected 2- or 3-tuple, but found {}", a.with_info(i))))?;
+                        if a.0.len() == 2 {
+                            let mut min = None;
+                            let mut max = None;
+                            for v in a.0[0].types.iter().chain(a.0[1].types.iter()) {
+                                let v = v.as_any().downcast_ref::<data::int::IntT>().ok_or_else(|| CheckError::from(format!("expected int as first argument, but got {}", v.with_info(i))))?;
+                                if min.is_none_or(|min| min > v.0) {
+                                    min = Some(v.0);
+                                }
+                                if max.is_none_or(|max| max < v.1) {
+                                    max = Some(v.1);
+                                }
+                            }
+                            if let (Some(min), Some(max)) = (min, max) {
+                                if let Some(max) = max.checked_sub(1) {
+                                    o.add(Arc::new(RangeT(min, max)));
+                                } else {
+                                    o.add(Arc::new(RangeT(min.saturating_add(1), max)));
+                                }
+                            }
+                        } else {
+                            return Err(CheckError::from(format!("expected 2-tuple, but found {}", a.with_info(i))));
+                        }
+                    }
+                    Ok(o)
+                }, |a, _| {
+                    let a = a.get();
+                    let a = a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
+                    let (v, e) = (a.0[0].get(), a.0[1].get());
+                    let (v, e) = (v.as_any().downcast_ref::<data::int::Int>().unwrap(), e.as_any().downcast_ref::<data::int::Int>().unwrap());
+                    if let Some(e) = e.0.checked_sub(1) {
+                        Ok(Data::new(Range(v.0, e)))
+                    } else {
+                        Ok(Data::new(Range(v.0.saturating_add(1), e.0)))
+                    }
+                }
+            ))
             .add_var("any", genfunc_iter_in_val_out("all".to_string(), data::bool::bool_type(), data::bool::bool_type(), |a, i| {
                 for v in a.get().iterable(&i.global).unwrap().map(|v| v.map(|v| v.get().as_any().downcast_ref::<data::bool::Bool>().is_some_and(|v| v.0))) {
                     if v? {
@@ -584,5 +671,106 @@ fn genfunc_iter_in_val_out(
         })),
         run: Arc::new(run),
         inner_statements: None,
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Range(isize, isize);
+#[derive(Clone, Debug, PartialEq)]
+pub struct RangeT(isize, isize);
+impl MersData for Range {
+    fn display(&self, _info: &DisplayInfo, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}.range_inc({})", self.0, self.1)
+    }
+    fn iterable(
+        &self,
+        _gi: &crate::program::run::RunLocalGlobalInfo,
+    ) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
+        Some(Box::new(
+            RangeInt(self.0, self.1, false).map(|v| Ok(Data::new(Int(v)))),
+        ))
+    }
+    fn clone(&self) -> Box<dyn MersData> {
+        Box::new(Clone::clone(self))
+    }
+    fn is_eq(&self, other: &dyn MersData) -> bool {
+        other
+            .as_any()
+            .downcast_ref::<Self>()
+            .is_some_and(|other| other == self)
+    }
+    fn as_type(&self) -> Type {
+        Type::new(RangeT(self.0, self.1))
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn mut_any(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+    fn to_any(self) -> Box<dyn std::any::Any> {
+        Box::new(self)
+    }
+}
+impl MersType for RangeT {
+    fn display(
+        &self,
+        _info: &crate::info::DisplayInfo<'_>,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        write!(f, "Range<{}..{}>", self.0, self.1)
+    }
+    fn iterable(&self) -> Option<Type> {
+        Some(Type::new(IntT(self.0, self.0.max(self.1))))
+    }
+    fn is_same_type_as(&self, other: &dyn MersType) -> bool {
+        other
+            .as_any()
+            .downcast_ref::<Self>()
+            .is_some_and(|other| *self == *other)
+    }
+    fn is_included_in(&self, target: &dyn MersType) -> bool {
+        target
+            .as_any()
+            .downcast_ref::<Self>()
+            .is_some_and(|target| {
+                // prolly good
+                self.is_empty() || (!target.is_empty() && self.0 >= target.0 && self.1 <= target.1)
+            })
+    }
+    fn subtypes(&self, acc: &mut Type) {
+        acc.add(Arc::new(Clone::clone(self)))
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn mut_any(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+    fn to_any(self) -> Box<dyn std::any::Any> {
+        Box::new(self)
+    }
+}
+impl RangeT {
+    pub fn is_empty(&self) -> bool {
+        self.1 < self.0
+    }
+}
+
+struct RangeInt(isize, isize, bool);
+impl Iterator for RangeInt {
+    type Item = isize;
+    fn next(&mut self) -> Option<Self::Item> {
+        if !self.2 {
+            let o = self.0;
+            if self.0 < self.1 {
+                self.0 += 1;
+            } else {
+                self.2 = true;
+            }
+            Some(o)
+        } else {
+            None
+        }
     }
 }

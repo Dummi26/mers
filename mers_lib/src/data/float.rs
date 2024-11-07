@@ -4,7 +4,7 @@ use crate::info::DisplayInfo;
 
 use super::{MersData, MersType, Type};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Float(pub f64);
 
 impl MersData for Float {
