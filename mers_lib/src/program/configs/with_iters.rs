@@ -721,7 +721,11 @@ impl MersType for RangeT {
         write!(f, "Range<{}..{}>", self.0, self.1)
     }
     fn iterable(&self) -> Option<Type> {
-        Some(Type::new(IntT(self.0, self.0.max(self.1))))
+        Some(if self.is_empty() {
+            Type::empty()
+        } else {
+            Type::new(IntT(self.0, self.1))
+        })
     }
     fn is_same_type_as(&self, other: &dyn MersType) -> bool {
         other
@@ -761,7 +765,7 @@ struct RangeInt(isize, isize, bool);
 impl Iterator for RangeInt {
     type Item = isize;
     fn next(&mut self) -> Option<Self::Item> {
-        if !self.2 {
+        if !self.2 && self.0 <= self.1 {
             let o = self.0;
             if self.0 < self.1 {
                 self.0 += 1;
