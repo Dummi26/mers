@@ -18,7 +18,9 @@ impl MersStatement for Object {
         info: &mut super::CheckInfo,
         init_to: Option<&Type>,
     ) -> Result<data::Type, super::CheckError> {
+        let mut init_to_is_empty_type = false;
         let mut init_fields = if let Some(init_to) = init_to {
+            init_to_is_empty_type = init_to.types.is_empty();
             let print_is_part_of = init_to.types.len() > 1;
             let mut init_fields = HashMap::new();
             for t in init_to.types.iter() {
@@ -67,6 +69,8 @@ impl MersStatement for Object {
                             if let Some(f) = &mut init_fields {
                                 Some(if let Some(s) = f.remove(field) {
                                     s
+                                } else if init_to_is_empty_type {
+                                    Type::empty()
                                 } else {
                                     return Err(CheckError::new().msg(vec![
                                         ("can't init an ".to_owned(), None),
