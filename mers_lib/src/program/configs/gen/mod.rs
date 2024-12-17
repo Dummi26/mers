@@ -1,6 +1,6 @@
 pub mod function;
 
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use crate::data::{self, bool::bool_type, Data, MersData, Type};
 
@@ -164,9 +164,7 @@ impl<T: ToMersData, I: Iterator<Item = T>> ToMersData for IterToList<T, I> {
     }
     fn represent(self) -> Data {
         Data::new(super::with_list::List(
-            self.0
-                .map(|v| Arc::new(RwLock::new(v.represent())))
-                .collect(),
+            self.0.map(|v| v.represent()).collect(),
         ))
     }
 }

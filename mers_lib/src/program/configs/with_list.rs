@@ -1,7 +1,11 @@
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 
 use crate::{
-    data::{self, int::INT_MAX, Data, MersData, MersType, MersTypeWInfo, Type},
+    data::{
+        self,
+        int::{IntT, INT_MAX},
+        Data, MersData, MersType, MersTypeWInfo, Type,
+    },
     errors::CheckError,
     info::DisplayInfo,
     parsing::{statements::to_string_literal, Source},
@@ -16,10 +20,9 @@ impl Config {
     /// `as_list: fn` turns a tuple into a list
     /// `push: fn` adds an element to a list
     /// `pop: fn` removes the last element from a list. returns (element) or ().
-    /// `get_mut: fn` like get, but returns a reference to the object
-    /// TODO!
-    /// `remove_at: fn` [TODO]
-    /// `insert_at: fn` [TODO]
+    /// `insert: fn` changes the element at the given index to a new value, then returns true (index <= len) or false (index > len)
+    /// `replace: fn` replaces and returns the element at the given index with some new value (index < len) or returns `()` (index >= len)
+    /// `remove: fn` removes and returns the element at the given index (index < len) or returns `()` (index >= len)
     pub fn with_list(self) -> Self {
         // TODO: Type with generics
         self
@@ -29,73 +32,6 @@ impl Config {
                 let srca = Arc::new(src.clone());
                 let t = crate::parsing::types::parse_type(&mut src, &srca)?;
                 Ok(Arc::new(Type::new(ListT(crate::parsing::types::type_from_parsed(&t, i)?))))})))
-            .add_var("get_mut", data::function::Function {
-                    info: program::run::Info::neverused(),
-                    info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
-                    out: Ok(Arc::new(|a, i| {
-                            let mut out = Type::empty_tuple();
-                            for t in a.types.iter() {
-                                if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
-                                    if t.0.len() != 2 {
-                                        return Err(format!(
-                                            "get_mut: argument must be a 2-tuple `(&List<_>, Int)`."
-                                        ).into());
-                                    }
-                                    if t.0[1].is_included_in_single(&data::int::IntT(0, INT_MAX)) {
-                                        if let Some(t) = t.0[0].dereference() {
-                                            for t in t.types.iter() {
-                                                if let Some(t) = t.as_any().downcast_ref::<ListT>() {
-                                                    out.add(Arc::new(data::tuple::TupleT(vec![Type::new(data::reference::ReferenceT(t.0.clone()))])));
-                                                } else {
-                                                    return Err(format!(
-                                                        "get_mut: first argument in tuple {} isn't `&List<_>`.", t.with_info(i)
-                                                    ).into());
-                                                }
-                                            }
-                                        } else {
-                                            return Err(format!(
-                                                "get_mut: first type in tuple {} isn't a reference.", t.with_info(i)
-                                            ).into());
-                                        }
-                                    } else {
-                                        return Err(format!(
-                                            "get_mut: Second type in tuple {} wasn't `Int`.", t.with_info(i)
-                                        ).into());
-                                    }
-                                } else {
-                                    return Err(format!(
-                                        "get_mut: argument must be a 2-tuple `(&List<_>, Int)`."
-                                    ).into());
-                                }
-                            }
-                            Ok(out)
-                    })),
-                    run: Arc::new(|a, _i| {
-                        let t = a.get();
-                        let t = t.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
-                        let i = t.0[1].get().as_any().downcast_ref::<data::int::Int>().unwrap().0.max(0) as usize;
-                        let list = t.0[0].get();
-                        let list = &list
-                            .as_any()
-                            .downcast_ref::<data::reference::Reference>()
-                            .unwrap().0;
-                        let mut list = list
-                            .write()
-                            .unwrap();
-                        let list = list.get_mut();
-                        let list = list.as_any()
-                            .downcast_ref::<List>()
-                            .unwrap();
-                        let o = match list.0.get(i) {
-                            Some(data) => {
-                                Data::one_tuple(Data::new(data::reference::Reference(Arc::clone(data))))
-                            }
-                            None => Data::empty_tuple(),
-                        };
-                        Ok(o)
-                    }),
-                inner_statements: None,
-            })
             .add_var(
                 "pop",
                 data::function::Function {
@@ -137,7 +73,7 @@ impl Config {
                             .0
                             .pop()
                         {
-                            Some(data) => Data::one_tuple(data.read().unwrap().clone()),
+                            Some(data) => Data::one_tuple(data),
                             None => Data::empty_tuple(),
                         })
                     }),
@@ -201,8 +137,229 @@ impl Config {
                             .downcast_mut::<List>()
                             .unwrap()
                             .0
-                            .push(Arc::new(RwLock::new(tuple.0[1].clone())));
+                            .push(tuple.0[1].clone());
                             Ok(Data::empty_tuple())
+                    }),
+                inner_statements: None,
+                },
+            )
+            .add_var(
+                "insert",
+                data::function::Function {
+                    info: program::run::Info::neverused(),
+                    info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                    out: Ok(Arc::new(|a, i| {
+                        for t in a.types.iter() {
+                            if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
+                                if t.0.len() != 3 {
+                                    return Err(format!(
+                                        "insert: tuple must have length 3"
+                                    ).into());
+                                }
+                                let a = &t.0[0];
+                                let index = &t.0[1];
+                                let new = &t.0[2];
+                                if !index.is_included_in_single(&IntT(0, INT_MAX)) {
+                                    return Err(format!("insert: index should be an Int<0..>, but was {}", index.with_info(i)).into());
+                                }
+                                if let Some(a) = a.dereference() {
+                                    for t in a.types.iter() {
+                                        if let Some(t) = t.as_any().downcast_ref::<ListT>() {
+                                            if !new.is_included_in(&t.0) {
+                                                return Err(format!(
+                                            "insert: found a reference to {}, which is a list which can't contain elements of type {}", t.with_info(i), new.with_info(i)
+                                        ).into());
+                                            }
+                                        } else {
+                                            return Err(format!(
+                                                    "insert: found a reference to {}, which is not a list", t.with_info(i)
+                                            ).into());
+                                        }
+                                    }
+                                } else {
+                                    return Err(format!(
+                                        "insert: first element in tuple not a reference: {}", a.with_info(i)
+                                    ).into());
+                                }
+                            } else {
+                                return Err(format!("insert: not a tuple: {}", t.with_info(i))
+                                .into());
+                            }
+                        }
+                        Ok(data::bool::bool_type())
+                    })),
+                    run: Arc::new(|a, _i| {
+                        let tuple = a.get();
+                        let tuple = tuple.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
+                        let index = tuple.0[1].get().as_any().downcast_ref::<data::int::Int>().unwrap().0 as usize;
+                            let list = tuple.0[0]
+                            .get();
+                            let mut list = list
+                            .as_any()
+                            .downcast_ref::<data::reference::Reference>()
+                            .unwrap()
+                            .0
+                            .write().unwrap();
+                            let mut list = list
+                            .get_mut();
+                            let list = list
+                            .mut_any()
+                            .downcast_mut::<List>()
+                            .unwrap();
+                        if index > list.0.len() {
+                            Ok(Data::new(data::bool::Bool(false)))
+                        } else {
+                            list.0.insert(index, tuple.0[2].clone());
+                            Ok(Data::new(data::bool::Bool(true)))
+                        }
+                    }),
+                inner_statements: None,
+                },
+            )
+            .add_var(
+                "replace",
+                data::function::Function {
+                    info: program::run::Info::neverused(),
+                    info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                    out: Ok(Arc::new(|a, i| {
+                        let mut o = Type::empty();
+                        for t in a.types.iter() {
+                            if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
+                                if t.0.len() != 3 {
+                                    return Err(format!(
+                                        "replace: tuple must have length 3"
+                                    ).into());
+                                }
+                                let a = &t.0[0];
+                                let index = &t.0[1];
+                                let new = &t.0[2];
+                                if !index.is_included_in_single(&IntT(0, INT_MAX)) {
+                                    return Err(format!("replace: index should be an Int<0..>, but was {}", index.with_info(i)).into());
+                                }
+                                if let Some(a) = a.dereference() {
+                                    for t in a.types.iter() {
+                                        if let Some(t) = t.as_any().downcast_ref::<ListT>() {
+                                            if !new.is_included_in(&t.0) {
+                                                return Err(format!(
+                                            "replace: found a reference to {}, which is a list which can't contain elements of type {}", t.with_info(i), new.with_info(i)
+                                        ).into());
+                                            }
+                                            o.add_all(&t.0);
+                                        } else {
+                                            return Err(format!(
+                                                    "replace: found a reference to {}, which is not a list", t.with_info(i)
+                                            ).into());
+                                        }
+                                    }
+                                } else {
+                                    return Err(format!(
+                                        "replace: first element in tuple not a reference: {}", a.with_info(i)
+                                    ).into());
+                                }
+                            } else {
+                                return Err(format!("replace: not a tuple: {}", t.with_info(i))
+                                .into());
+                            }
+                        }
+                        Ok(Type::newm(vec![
+                            Arc::new(data::tuple::TupleT(vec![o])),
+                            Arc::new(data::tuple::TupleT(vec![])),
+                        ]))
+                    })),
+                    run: Arc::new(|a, _i| {
+                        let tuple = a.get();
+                        let tuple = tuple.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
+                        let index = tuple.0[1].get().as_any().downcast_ref::<data::int::Int>().unwrap().0 as usize;
+                            let list = tuple.0[0]
+                            .get();
+                            let mut list = list
+                            .as_any()
+                            .downcast_ref::<data::reference::Reference>()
+                            .unwrap()
+                            .0
+                            .write().unwrap();
+                            let mut list = list
+                            .get_mut();
+                            let list = list
+                            .mut_any()
+                            .downcast_mut::<List>()
+                            .unwrap();
+                        if index < list.0.len() {
+                            Ok(Data::one_tuple(std::mem::replace(&mut list.0[index], tuple.0[2].clone())))
+                        } else {
+                            Ok(Data::empty_tuple())
+                        }
+                    }),
+                inner_statements: None,
+                },
+            )
+            .add_var(
+                "remove",
+                data::function::Function {
+                    info: program::run::Info::neverused(),
+                    info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                    out: Ok(Arc::new(|a, i| {
+                        let mut o = Type::empty();
+                        for t in a.types.iter() {
+                            if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
+                                if t.0.len() != 2 {
+                                    return Err(format!(
+                                        "remove: tuple must have length 2"
+                                    ).into());
+                                }
+                                let a = &t.0[0];
+                                let index = &t.0[1];
+                                if !index.is_included_in_single(&IntT(0, INT_MAX)) {
+                                    return Err(format!("remove: index should be an Int<0..>, but was {}", index.with_info(i)).into());
+                                }
+                                if let Some(a) = a.dereference() {
+                                    for t in a.types.iter() {
+                                        if let Some(t) = t.as_any().downcast_ref::<ListT>() {
+                                            o.add_all(&t.0);
+                                        } else {
+                                            return Err(format!(
+                                                    "remove: found a reference to {}, which is not a list", t.with_info(i)
+                                            ).into());
+                                        }
+                                    }
+                                } else {
+                                    return Err(format!(
+                                        "remove: first element in tuple not a reference: {}", a.with_info(i)
+                                    ).into());
+                                }
+                            } else {
+                                return Err(format!("remove: not a tuple: {}", t.with_info(i))
+                                .into());
+                            }
+                        }
+                        Ok(Type::newm(vec![
+                            Arc::new(data::tuple::TupleT(vec![o])),
+                            Arc::new(data::tuple::TupleT(vec![])),
+                        ]))
+                    })),
+                    run: Arc::new(|a, _i| {
+                        let tuple = a.get();
+                        let tuple = tuple.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
+                        let index = tuple.0[1].get().as_any().downcast_ref::<data::int::Int>().unwrap().0 as usize;
+                            let list = tuple.0[0]
+                            .get();
+                            let mut list = list
+                            .as_any()
+                            .downcast_ref::<data::reference::Reference>()
+                            .unwrap()
+                            .0
+                            .write().unwrap();
+                            let mut list = list
+                            .get_mut();
+                            let list = list
+                            .mut_any()
+                            .downcast_mut::<List>()
+                            .unwrap();
+                        if index < list.0.len() {
+                            Ok(Data::one_tuple(list.0.remove(index)))
+                        } else {
+                            Ok(Data::empty_tuple())
+                        }
                     }),
                 inner_statements: None,
                 },
@@ -223,7 +380,7 @@ impl Config {
                     })),
                     run: Arc::new(|a, i| {
                         if let Some(iter) = a.get().iterable(&i.global) {
-                            Ok(Data::new(List(iter.map(|v| Ok::<_, CheckError>(Arc::new(RwLock::new(v?)))).collect::<Result<_, _>>()?)))
+                            Ok(Data::new(List(iter.collect::<Result<_, _>>()?)))
                         } else {
                             Err("as_list called on non-iterable".into())
                         }
@@ -234,18 +391,8 @@ impl Config {
     }
 }
 
-#[derive(Debug)]
-pub struct List(pub Vec<Arc<RwLock<Data>>>);
-impl Clone for List {
-    fn clone(&self) -> Self {
-        Self(
-            self.0
-                .iter()
-                .map(|v| Arc::new(RwLock::new(v.read().unwrap().clone())))
-                .collect(),
-        )
-    }
-}
+#[derive(Debug, Clone)]
+pub struct List(pub Vec<Data>);
 #[derive(Debug)]
 pub struct ListT(pub Type);
 impl MersData for List {
@@ -255,7 +402,7 @@ impl MersData for List {
             if i > 0 {
                 write!(f, ", ")?;
             }
-            c.read().unwrap().get().display(info, f)?;
+            c.get().display(info, f)?;
         }
         write!(f, "]")?;
         Ok(())
@@ -263,11 +410,7 @@ impl MersData for List {
     fn is_eq(&self, other: &dyn MersData) -> bool {
         if let Some(other) = other.as_any().downcast_ref::<Self>() {
             other.0.len() == self.0.len()
-                && self
-                    .0
-                    .iter()
-                    .zip(other.0.iter())
-                    .all(|(s, o)| *s.read().unwrap() == *o.read().unwrap())
+                && self.0.iter().zip(other.0.iter()).all(|(s, o)| *s == *o)
         } else {
             false
         }
@@ -276,12 +419,7 @@ impl MersData for List {
         &self,
         _gi: &crate::program::run::RunLocalGlobalInfo,
     ) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
-        Some(Box::new(
-            self.0
-                .clone()
-                .into_iter()
-                .map(|v| Ok(v.read().unwrap().clone())),
-        ))
+        Some(Box::new(self.0.clone().into_iter().map(|v| Ok(v))))
     }
     fn clone(&self) -> Box<dyn MersData> {
         Box::new(Clone::clone(self))
@@ -351,7 +489,7 @@ impl List {
     pub fn inner_type(&self) -> Type {
         let mut t = Type::empty();
         for el in &self.0 {
-            t.add_all(&el.read().unwrap().get().as_type());
+            t.add_all(&el.get().as_type());
         }
         t
     }

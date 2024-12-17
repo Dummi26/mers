@@ -1,5 +1,3 @@
-use std::sync::{Arc, RwLock};
-
 use mers_lib::{
     data::{self, Data, Type},
     prelude_extend_config::*,
@@ -17,7 +15,7 @@ pub fn add_general(cfg: Config, args: Vec<String>) -> Config {
             move |_, _| {
                 Ok(Data::new(configs::with_list::List(
                     args.iter()
-                        .map(|v| Arc::new(RwLock::new(Data::new(data::string::String(v.clone())))))
+                        .map(|v| Data::new(data::string::String(v.clone())))
                         .collect(),
                 )))
             },
