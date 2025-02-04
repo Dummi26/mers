@@ -15,6 +15,7 @@ pub mod gen;
 pub mod util;
 pub mod with_base;
 pub mod with_command_running;
+pub mod with_fs;
 pub mod with_get;
 pub mod with_iters;
 pub mod with_list;
@@ -41,8 +42,10 @@ impl Config {
     /// - `with_stdio()`
     /// - `with_command_running()`
     /// - `with_multithreading()`
+    /// - `with_fs()`
     pub fn bundle_std(self) -> Self {
-        self.with_multithreading()
+        self.with_fs()
+            .with_multithreading()
             .with_command_running()
             .with_stdio()
             .bundle_pure()
