@@ -6,7 +6,7 @@ Mers is a simple, safe programming language.
 cargo install mers
 ```
 
-# examples
+## examples
 
 ```
 "Hello, World!".println
@@ -37,7 +37,7 @@ We create a function using the `->` syntax, then assign it
 to the `say_hello` variable.
 We then call the function with the `()` argument.
 
-# safety & type system
+## safety & type system
 
 Mers is type-checked, which guarantees
 that a valid mers program will not crash
@@ -84,7 +84,7 @@ some_number_as_string := (some_number).concat
 some_value := if some_string.eq(some_number_as_string) { some_number } else { some_string }
 ```
 
-# simplicity
+## simplicity
 
 mers only has a few different expressions:
 
@@ -151,7 +151,7 @@ without copying the entire value.
 When a copy of a value is changed, it is (at
 least partially) copied before mers changes it.</small>
 
-# more examples
+## more examples
 
 ```
 if "a".eq("b") {
