@@ -6,7 +6,38 @@ Mers is a simple, safe programming language.
 cargo install mers
 ```
 
-## safety & type system
+# examples
+
+```
+"Hello, World!".println
+```
+
+In mers, `.function` is the syntax used to call functions.
+Everything before the `.` is the function's argument.
+In this case, our argument is the string containing `Hello, World!`.
+
+---
+
+```
+greeting := "Hello, World!"
+greeting.println
+```
+
+We use `name := value` to declare a variable, in this case `my_var`.
+We can then simply write `my_var` whenever we want to use its value.
+
+---
+
+```
+say_hello := () -> "Hello, World!".println
+().say_hello
+```
+
+We create a function using the `->` syntax, then assign it
+to the `say_hello` variable.
+We then call the function with the `()` argument.
+
+# safety & type system
 
 Mers is type-checked, which guarantees
 that a valid mers program will not crash
@@ -53,7 +84,7 @@ some_number_as_string := (some_number).concat
 some_value := if some_string.eq(some_number_as_string) { some_number } else { some_string }
 ```
 
-## simplicity
+# simplicity
 
 mers only has a few different expressions:
 
@@ -120,38 +151,7 @@ without copying the entire value.
 When a copy of a value is changed, it is (at
 least partially) copied before mers changes it.</small>
 
-# examples
-
-```
-"Hello, World!".println
-```
-
-In mers, `.function` is the syntax used to call functions.
-Everything before the `.` is the function's argument.
-In this case, our argument is the string containing `Hello, World!`.
-
----
-
-```
-greeting := "Hello, World!"
-greeting.println
-```
-
-We use `name := value` to declare a variable, in this case `my_var`.
-We can then simply write `my_var` whenever we want to use its value.
-
----
-
-```
-say_hello := () -> "Hello, World!".println
-().say_hello
-```
-
-We create a function using the `->` syntax, then assign it
-to the `say_hello` variable.
-We then call the function with the `()` argument.
-
----
+# more examples
 
 ```
 if "a".eq("b") {
