@@ -220,11 +220,26 @@ pub fn parse(
             }
         } else if let Some(':') = src.peek_char() {
             src.next_char();
+            let first_start = first.source_range().start();
+            let field_start = src.get_pos();
             let field = src.next_word().to_owned();
-            first = Box::new(program::parsed::field::Field {
-                pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
+            let field_end = src.get_pos();
+            // allow a.f(b, c) syntax (but not f(a, b, c))
+            let args = if let Some('(') = src.peek_char() {
+                src.next_char();
+                Some((
+                    parse_multiple(src, srca, ")")?,
+                    (first_start, src.get_pos(), srca).into(),
+                ))
+            } else {
+                None
+            };
+            first = Box::new(program::parsed::field_chain::FieldChain {
+                pos_in_src: (first_start, src.get_pos(), srca).into(),
                 object: first,
+                args,
                 field,
+                field_pos: (field_start, field_end, srca).into(),
             });
             pos_after_first = src.get_pos();
         } else {

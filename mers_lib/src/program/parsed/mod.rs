@@ -22,6 +22,8 @@ pub mod custom_type;
 #[cfg(feature = "parse")]
 pub mod field;
 #[cfg(feature = "parse")]
+pub mod field_chain;
+#[cfg(feature = "parse")]
 pub mod function;
 #[cfg(feature = "parse")]
 pub mod r#if;

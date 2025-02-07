@@ -25,6 +25,8 @@ pub mod custom_type;
 #[cfg(feature = "run")]
 pub mod field;
 #[cfg(feature = "run")]
+pub mod field_chain;
+#[cfg(feature = "run")]
 pub mod function;
 #[cfg(feature = "run")]
 pub mod r#if;

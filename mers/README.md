@@ -96,6 +96,7 @@ mers only has a few different expressions:
 - blocks: `{ a, b, c }`
 - functions: `arg -> expression`
 - function calls: `arg.func` or `a.func(b, c)`, which becomes `(a, b, c).func`
+- associated function calls on objects: `obj:func` or `obj:func(b, c)`, as above - `obj` must contain a function `func`
 - `if condition expression` and `if condition expression_1 else expression_2`
 - `loop expression`
 - type hints `[Int] 5`
