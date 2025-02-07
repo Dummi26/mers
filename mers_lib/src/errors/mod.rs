@@ -72,6 +72,7 @@ pub enum EColor {
     ChainWithNonFunction,
     Function,
     FunctionArgument,
+    ObjectField,
     InitFrom,
     InitTo,
     AssignFrom,

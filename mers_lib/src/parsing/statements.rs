@@ -218,6 +218,15 @@ pub fn parse(
                 });
                 pos_after_first = src.get_pos();
             }
+        } else if let Some(':') = src.peek_char() {
+            src.next_char();
+            let field = src.next_word().to_owned();
+            first = Box::new(program::parsed::field::Field {
+                pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
+                object: first,
+                field,
+            });
+            pos_after_first = src.get_pos();
         } else {
             src.set_pos(pos_after_first);
             break;

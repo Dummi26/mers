@@ -50,7 +50,7 @@ pub fn default_theme<C>(
     let type_right = blue;
     let type_wrong = magenta;
     let type_wrong_b = magenta_bright;
-    let function = blue_bright; // used in combination with TYPE_WRONG
+    let function_and_field = blue_bright; // used in combination with TYPE_WRONG
     let missing = cyan;
     let runtime = yellow;
     let runtime_b = yellow_bright;
@@ -93,8 +93,9 @@ pub fn default_theme<C>(
 
         AssignTargetNonReference => type_wrong,
 
-        Function => function,
+        Function => function_and_field,
         FunctionArgument => type_wrong,
+        ObjectField => function_and_field,
 
         InitFrom | AssignFrom | AsTypeStatementWithTooBroadType => type_wrong,
         InitTo | AssignTo | AsTypeTypeAnnotation => type_right,
