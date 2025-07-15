@@ -15,6 +15,8 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, i| {
                     let mut out = Type::empty();
                     for a in a.types.iter() {

@@ -19,6 +19,8 @@ pub fn to_mers_func(
     data::function::Function {
         info: Info::neverused(),
         info_check: Arc::new(Mutex::new(Info::neverused())),
+        fixed_type: None,
+        fixed_type_out: Arc::new(Mutex::new(None)),
         out: Ok(Arc::new(move |a, i| out(a, i))),
         run: Arc::new(move |a, i| run(a, i)),
         inner_statements: None,

@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use crate::{
     data,
     errors::{CheckError, SourceRange},
+    parsing::types::ParsedType,
     program::{self, run::CheckInfo},
 };
 
@@ -13,6 +14,7 @@ pub struct Function {
     pub pos_in_src: SourceRange,
     pub arg: Box<dyn MersStatement>,
     pub run: Box<dyn MersStatement>,
+    pub fixed_type: Option<Vec<(Vec<ParsedType>, Option<Vec<ParsedType>>)>>,
 }
 
 impl MersStatement for Function {
@@ -38,6 +40,8 @@ impl MersStatement for Function {
             func_no_info: data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                fixed_type: self.fixed_type.clone(),
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(move |a, i| {
                     arg2.check(i, Some(a))?;
                     Ok(run2.check(i, None)?)

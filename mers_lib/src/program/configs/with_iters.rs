@@ -144,6 +144,8 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, i| {
                     for a in &a.types {
                         if let Some(tuple) = a.as_any().downcast_ref::<data::tuple::TupleT>() {
@@ -229,6 +231,8 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, i| {
                     let data = if let Some(a) = a.iterable() {
                         a
@@ -246,6 +250,8 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, i| {
                     let data = if let Some(a) = a.iterable() {
                         a
@@ -301,6 +307,8 @@ fn genfunc_iter_and_func(
     data::function::Function {
         info: program::run::Info::neverused(),
         info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+        fixed_type: None,
+        fixed_type_out: Arc::new(Mutex::new(None)),
         out: Ok(Arc::new(move |a, i| iter_out_arg(a, i, name, |f| ft(f)))),
         run: Arc::new(move |a, _i| {
             if let Some(tuple) = a.get().as_any().downcast_ref::<data::tuple::Tuple>() {
@@ -359,6 +367,8 @@ fn genfunc_iter_and_arg<T: MersType, D: MersData>(
     data::function::Function {
         info: program::run::Info::neverused(),
         info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+        fixed_type: None,
+        fixed_type_out: Arc::new(Mutex::new(None)),
         out: Ok(Arc::new(move |a, i| {
             iter_out_arg(a, i, name, |f: &T| ft(f), type_sample)
         })),
@@ -607,12 +617,15 @@ impl MersType for IterT {
             false
         }
     }
+    fn without(&self, remove: &dyn MersType) -> Option<Type> {
+        if self.is_included_in(remove) {
+            Some(Type::empty())
+        } else {
+            None
+        }
+    }
     fn iterable(&self) -> Option<Type> {
         Some(self.2.clone())
-    }
-    fn subtypes(&self, acc: &mut Type) {
-        // NOTE: This might not be good enough
-        acc.add(Arc::new(self.clone()));
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -655,6 +668,8 @@ fn genfunc_iter_in_val_out(
     Function {
         info: crate::info::Info::neverused(),
         info_check: Arc::new(Mutex::new(crate::info::Info::neverused())),
+        fixed_type: None,
+        fixed_type_out: Arc::new(Mutex::new(None)),
         out: Ok(Arc::new(move |a, i| {
             if let Some(iter_over) = a.iterable() {
                 if iter_over.is_included_in(&iter_type) {
@@ -748,8 +763,12 @@ impl MersType for RangeT {
                 self.is_empty() || (!target.is_empty() && self.0 >= target.0 && self.1 <= target.1)
             })
     }
-    fn subtypes(&self, acc: &mut Type) {
-        acc.add(Arc::new(Clone::clone(self)))
+    fn without(&self, remove: &dyn MersType) -> Option<Type> {
+        if self.is_included_in(remove) {
+            Some(Type::empty())
+        } else {
+            None
+        }
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self

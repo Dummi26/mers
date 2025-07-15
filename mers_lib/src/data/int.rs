@@ -96,27 +96,35 @@ impl MersType for IntT {
             false
         }
     }
-    fn subtypes(&self, acc: &mut Type) {
-        // INT_MIN .. INT32U_MIN .. INT32S_MIN .. -128 .. -1 .. 0 .. 1 .. 127 .. 255 .. 65535 .. INT32S_MAX .. INT32U_MAX .. INT_MAX
-        let mut add_range = |min, max| {
-            // the range is non-empty, self starts before or where the range ends, and self ends after or where the range starts.
-            if min <= max && self.0 <= max && min <= self.1 {
-                acc.add(Arc::new(IntT(self.0.max(min), self.1.min(max))));
+    fn without(&self, remove: &dyn MersType) -> Option<Type> {
+        if self.is_included_in(remove) {
+            Some(Type::empty())
+        } else if let Some(remove) = remove.as_any().downcast_ref::<Self>() {
+            if remove.0 <= self.0 && self.1 <= remove.1 {
+                Some(Type::empty())
+            } else if remove.0 <= self.0 && self.0 <= remove.1 && remove.1 <= self.1 {
+                if remove.1 + 1 <= self.1 {
+                    Some(Type::new(Self(remove.1 + 1, self.1)))
+                } else {
+                    Some(Type::empty())
+                }
+            } else if self.0 <= remove.0 && remove.0 <= self.1 && self.1 <= remove.1 {
+                if self.0 <= remove.0 + 1 {
+                    Some(Type::new(Self(self.0, remove.0 - 1)))
+                } else {
+                    Some(Type::empty())
+                }
+            } else if self.0 < remove.0 && remove.0 <= remove.1 && remove.1 < self.1 {
+                Some(Type::newm(vec![
+                    Arc::new(Self(self.0, remove.0 - 1)),
+                    Arc::new(Self(remove.1 + 1, self.1)),
+                ]))
+            } else {
+                None
             }
-        };
-        add_range(INT_MIN, INT32U_MIN.saturating_sub(1));
-        add_range(INT32U_MIN, INT32S_MIN.saturating_sub(1));
-        add_range(INT32S_MIN, -129);
-        add_range(-128, -2);
-        add_range(-1, -1);
-        add_range(0, 0);
-        add_range(1, 1);
-        add_range(2, 127);
-        add_range(128, 255);
-        add_range(256, 65535);
-        add_range(65536, INT32S_MAX);
-        add_range(INT32S_MAX.saturating_add(1), INT32U_MAX);
-        add_range(INT32U_MAX.saturating_add(1), INT_MAX);
+        } else {
+            None
+        }
     }
     fn as_any(&self) -> &dyn Any {
         self

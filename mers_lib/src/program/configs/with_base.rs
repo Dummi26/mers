@@ -30,6 +30,8 @@ impl Config {
             .add_var("lock_update", data::function::Function {
                 info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, i| {
                     for t in a.types.iter() {
                         if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
@@ -95,6 +97,8 @@ impl Config {
             data::function::Function {
                 info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, i| {
                     for t in &a.types {
                         if t.as_any().downcast_ref::<data::string::StringT>().is_none() && t.as_any().downcast_ref::<data::tuple::TupleT>().is_none() && t.iterable().is_none() {
@@ -122,6 +126,8 @@ impl Config {
             data::function::Function {
                 info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, _i| {
                     for t in &a.types {
                             if t.iterable().is_none() {
@@ -158,6 +164,8 @@ impl Config {
             data::function::Function {
                 info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, _i| Ok(Type::new(data::reference::ReferenceT(a.clone()))))),
                 run: Arc::new(|a, _i| {
                     Ok(Data::new(data::reference::Reference(Arc::new(RwLock::new(a.clone())))))
@@ -170,6 +178,8 @@ impl Config {
             data::function::Function {
                 info: Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, i| if let Some(v) = a.dereference() { Ok(v) } else { Err(format!("cannot dereference type {}", a.with_info(i)).into())
                 })),
                 run: Arc::new(|a, _i| {

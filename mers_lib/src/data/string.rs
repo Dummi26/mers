@@ -1,4 +1,4 @@
-use std::{any::Any, fmt::Display, sync::Arc};
+use std::{any::Any, fmt::Display};
 
 use crate::info::DisplayInfo;
 
@@ -51,8 +51,12 @@ impl MersType for StringT {
     fn is_included_in(&self, target: &dyn MersType) -> bool {
         self.is_same_type_as(target)
     }
-    fn subtypes(&self, acc: &mut Type) {
-        acc.add(Arc::new(self.clone()));
+    fn without(&self, remove: &dyn MersType) -> Option<Type> {
+        if self.is_included_in(remove) {
+            Some(Type::empty())
+        } else {
+            None
+        }
     }
     fn as_any(&self) -> &dyn Any {
         self

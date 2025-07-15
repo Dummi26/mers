@@ -142,20 +142,10 @@ pub trait MersType: Any + Debug + Send + Sync {
     fn is_same_type_as(&self, other: &dyn MersType) -> bool;
     /// This doesn't handle the case where target is Type (Type::is_included_in handles it)
     fn is_included_in(&self, target: &dyn MersType) -> bool;
-    /// Returns all types that can result from the use of this type.
-    /// Usually, this is just `acc.add(Arc::new(self.clone()))`
-    /// but if there exists one or more inner types, this becomes interesting:
-    /// Using `(int/string)` will end up being either `(int)` or `(string)`,
-    /// so this function should add `(int)` and `(string)`.
-    /// Since `(int/string)` can't exist at runtime, we don't need to list `self`.
-    /// note also: `subtypes` has to be called recursively, i.e. you would have to call `.substring` on `int` and `string`.
-    fn subtypes(&self, acc: &mut Type);
-    /// like `subtypes`, but returns the accumulator
-    fn subtypes_type(&self) -> Type {
-        let mut acc = Type::empty();
-        self.subtypes(&mut acc);
-        acc
-    }
+    /// Returns `self` with `remove` removed, if it is different from `self`.
+    /// This must, at least, return `Some(Type::empty())` if `self.is_included_in(remove)`.
+    /// For example, `(Int<1..9>).remove(Int<4..6>)` would return `Some(Int<1..3>/Int<7..9>)`.
+    fn without(&self, remove: &dyn MersType) -> Option<Type>;
     fn as_any(&self) -> &dyn Any;
     fn mut_any(&mut self) -> &mut dyn Any;
     fn to_any(self) -> Box<dyn Any>;
@@ -189,8 +179,8 @@ impl MersType for TypeWithOnlyName {
     fn is_included_in(&self, _target: &dyn MersType) -> bool {
         false
     }
-    fn subtypes(&self, acc: &mut Type) {
-        acc.add(Arc::new(self.clone()))
+    fn without(&self, _remove: &dyn MersType) -> Option<Type> {
+        None
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -478,6 +468,29 @@ impl Type {
             self.add(Arc::clone(t));
         }
     }
+    pub fn without_in_place(&mut self, remove: &dyn MersType) {
+        let mut rm = vec![];
+        let mut add = vec![];
+        for (i, t) in self.types.iter_mut().enumerate() {
+            if t.is_included_in(remove) {
+                rm.push(i);
+            } else if let Some(without) = t.without(remove) {
+                rm.push(i);
+                add.push(without);
+            }
+        }
+        for i in rm.into_iter().rev() {
+            self.types.swap_remove(i);
+        }
+        for t in add {
+            self.add_all(&t);
+        }
+    }
+    pub fn without_in_place_all(&mut self, remove: &Self) {
+        for t in &remove.types {
+            self.without_in_place(t.as_ref());
+        }
+    }
     pub fn dereference(&self) -> Option<Self> {
         let mut o = Self::empty();
         for t in &self.types {
@@ -513,17 +526,6 @@ impl Type {
     }
     pub fn is_included_in_single(&self, target: &dyn MersType) -> bool {
         self.types.iter().all(|s| s.is_included_in(target))
-    }
-    pub fn subtypes(&self, acc: &mut Type) {
-        for t in &self.types {
-            t.subtypes(acc);
-        }
-    }
-    pub fn subtypes_type(&self) -> Type {
-        let mut acc = Type::empty();
-        acc.smart_type_simplification = false;
-        self.subtypes(&mut acc);
-        acc
     }
     pub fn iterable(&self) -> Option<Type> {
         let mut o = Self::empty();

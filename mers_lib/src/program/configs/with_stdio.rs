@@ -91,6 +91,8 @@ impl Config {
                 data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                    fixed_type: None,
+                    fixed_type_out: Arc::new(Mutex::new(None)),
                     out: Ok(Arc::new(|a, _i| Ok(a.clone()))),
                     run: Arc::new(|a, i| {
                         let a2 = a.get();
@@ -114,6 +116,8 @@ impl Config {
                 data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                    fixed_type: None,
+                    fixed_type_out: Arc::new(Mutex::new(None)),
                     out: Ok(Arc::new(|_a, _i| Ok(Type::empty_tuple()))),
                     run: Arc::new(|a, i| {
                         if let Some((_, stderr)) = &mut *i.global.stdout.lock().unwrap() {
@@ -133,6 +137,8 @@ impl Config {
                 data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                    fixed_type: None,
+                    fixed_type_out: Arc::new(Mutex::new(None)),
                     out: Ok(Arc::new(|_a, _i| Ok(Type::empty_tuple()))),
                     run: Arc::new(|a, i| {
                         if let Some((_, stderr)) = &mut *i.global.stdout.lock().unwrap() {
@@ -151,6 +157,8 @@ impl Config {
                 data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                    fixed_type: None,
+                    fixed_type_out: Arc::new(Mutex::new(None)),
                     out: Ok(Arc::new(|_a, _i| Ok(Type::empty_tuple()))),
                     run: Arc::new(|a, i| {
                         if let Some((stdout, _)) = &mut *i.global.stdout.lock().unwrap() {
@@ -170,6 +178,8 @@ impl Config {
                 data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                    fixed_type: None,
+                    fixed_type_out: Arc::new(Mutex::new(None)),
                     out: Ok(Arc::new(|_a, _i| Ok(Type::empty_tuple()))),
                     run: Arc::new(|a, i| {
                         if let Some((stdout, _)) = &mut *i.global.stdout.lock().unwrap() {

@@ -7,6 +7,7 @@ use std::{
 use crate::{
     errors::CheckError,
     info::DisplayInfo,
+    parsing::types::ParsedType,
     program::run::{CheckInfo, Info},
 };
 
@@ -15,6 +16,8 @@ use super::{Data, MersData, MersType, Type};
 pub struct Function {
     pub info: Info,
     pub info_check: Arc<Mutex<CheckInfo>>,
+    pub fixed_type: Option<Vec<(Vec<ParsedType>, Option<Vec<ParsedType>>)>>,
+    pub fixed_type_out: Arc<Mutex<Option<Result<Arc<Vec<(Type, Type)>>, CheckError>>>>,
     pub out: Result<
         Arc<dyn Fn(&Type, &mut CheckInfo) -> Result<Type, CheckError> + Send + Sync>,
         Arc<Vec<(Type, Type)>>,
@@ -31,6 +34,8 @@ impl Clone for Function {
         Self {
             info: self.info.duplicate(),
             info_check: self.info_check.clone(),
+            fixed_type: self.fixed_type.clone(),
+            fixed_type_out: self.fixed_type_out.clone(),
             out: self.out.clone(),
             run: self.run.clone(),
             inner_statements: self.inner_statements.clone(),
@@ -45,6 +50,8 @@ impl Function {
         Self {
             info: crate::info::Info::neverused(),
             info_check: Arc::new(Mutex::new(crate::info::Info::neverused())),
+            fixed_type: None,
+            fixed_type_out: Arc::new(Mutex::new(None)),
             out: Err(Arc::new(out)),
             run: Arc::new(run),
             inner_statements: None,
@@ -57,6 +64,8 @@ impl Function {
         Self {
             info: crate::info::Info::neverused(),
             info_check: Arc::new(Mutex::new(crate::info::Info::neverused())),
+            fixed_type: None,
+            fixed_type_out: Arc::new(Mutex::new(None)),
             out: Ok(Arc::new(move |a, i| out(a, i))),
             run: Arc::new(run),
             inner_statements: None,
@@ -66,6 +75,8 @@ impl Function {
         Self {
             info,
             info_check: Arc::clone(&self.info_check),
+            fixed_type: self.fixed_type.clone(),
+            fixed_type_out: self.fixed_type_out.clone(),
             out: self.out.clone(),
             run: Arc::clone(&self.run),
             inner_statements: self
@@ -75,10 +86,55 @@ impl Function {
         }
     }
     pub fn with_info_check(&self, check: CheckInfo) {
+        if let Some(fixed_type) = &self.fixed_type {
+            if let Ok(out_func) = &self.out {
+                let mut nout = Ok(Vec::with_capacity(fixed_type.len()));
+                for (in_type, out_type) in fixed_type {
+                    if let Ok(new_out) = &mut nout {
+                        let in_type = crate::parsing::types::type_from_parsed(in_type, &check)
+                            .expect("failed to get intype from parsed type");
+                        let out_type_want = out_type.as_ref().map(|out_type| {
+                            crate::parsing::types::type_from_parsed(out_type, &check)
+                                .expect("failed to get intype from parsed type")
+                        });
+                        let mut out_type = match out_func(&in_type, &mut check.clone()) {
+                            Ok(t) => t,
+                            Err(e) => {
+                                nout = Err(e);
+                                break;
+                            }
+                        };
+                        if let Some(out_type_want) = out_type_want {
+                            if out_type.is_included_in(&out_type_want) {
+                                out_type = out_type_want;
+                            } else {
+                                nout = Err(format!(
+                                        "function must return {} for input {} because of its definition, but it returns {}.",
+                                        out_type_want.with_info(&check),
+                                        in_type.with_info(&check),
+                                        out_type.with_info(&check),
+                                    )
+                                    .into());
+                                break;
+                            }
+                        }
+                        new_out.push((in_type, out_type));
+                    } else {
+                        break;
+                    }
+                }
+                *self.fixed_type_out.lock().unwrap() = Some(nout.map(Arc::new));
+            }
+        }
         *self.info_check.lock().unwrap() = check;
     }
     pub fn check(&self, arg: &Type) -> Result<Type, CheckError> {
+        // TODO: this should require a CheckInfo and call `with_info_check`.
         self.get_as_type().o(arg)
+    }
+    pub fn check_try(&self, arg: &Type) -> Result<Type, (CheckError, Vec<(Type, Type)>)> {
+        // TODO: this should require a CheckInfo and call `with_info_check`.
+        self.get_as_type().o_try(arg)
     }
     pub fn run_mut(
         &mut self,
@@ -102,6 +158,19 @@ impl Function {
     }
     pub fn get_as_type(&self) -> FunctionT {
         let info = self.info_check.lock().unwrap().clone();
+        if self.fixed_type.is_some() {
+            match &*self.fixed_type_out.lock().unwrap() {
+                Some(Ok(types)) => return FunctionT(Err(types.clone()), info),
+                Some(Err(e)) => {
+                    let e = e.clone();
+                    return FunctionT(
+                        Ok(Arc::new(move |_, _| Err(e.clone()))),
+                        crate::info::Info::neverused(),
+                    );
+                }
+                _ => {}
+            }
+        }
         match &self.out {
             Ok(out) => {
                 let out = Arc::clone(out);
@@ -189,13 +258,26 @@ pub struct FunctionT(
 impl FunctionT {
     /// get output type
     pub fn o(&self, i: &Type) -> Result<Type, CheckError> {
+        self.o_try(i).map_err(|(e, _)| e)
+    }
+    /// get output type
+    pub fn o_try(&self, i: &Type) -> Result<Type, (CheckError, Vec<(Type, Type)>)> {
         match &self.0 {
-            Ok(f) => f(i, &self.1),
+            Ok(f) => f(i, &self.1).map_err(|e| (e, vec![])),
             Err(v) => v
                 .iter()
                 .find(|(a, _)| i.is_included_in(a))
                 .map(|(_, o)| o.clone())
-                .ok_or_else(|| format!("This function, which was defined with an explicit type, cannot be called with an argument of type {}.", i.with_info(&self.1)).into()),
+                .ok_or_else(||
+                    (
+                        format!("This function, which was defined with an explicit type, cannot be called with an argument of type {}.", i.with_info(&self.1)).into(),
+                        v.iter()
+                            .filter(|(a, _)| i.types.iter().any(|i| a.types.iter().any(|a|
+                                i.without(a.as_ref()).is_some())))
+                            .map(|(a, o)| (a.clone(), o.clone()))
+                            .collect()
+                    )
+                ),
         }
     }
 }
@@ -280,8 +362,12 @@ impl MersType for FunctionT {
             false
         }
     }
-    fn subtypes(&self, acc: &mut Type) {
-        acc.add(Arc::new(self.clone()));
+    fn without(&self, remove: &dyn MersType) -> Option<Type> {
+        if self.is_included_in(remove) {
+            Some(Type::empty())
+        } else {
+            None
+        }
     }
     fn as_any(&self) -> &dyn Any {
         self

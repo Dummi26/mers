@@ -114,6 +114,68 @@ pub fn parse(
     let mut pos_after_first = src.get_pos();
     loop {
         src.skip_whitespace();
+        // check for `arg [types] -> expr` function syntax
+        if let Some('[') = src.peek_char() {
+            let reset_no_func_pos = src.get_pos();
+            let _ = src.next_char();
+            let mut fixed_type = Vec::new();
+            loop {
+                src.skip_whitespace();
+                if let Ok(ty) = super::types::parse_type(src, srca) {
+                    src.skip_whitespace();
+                    if src.peek_word() == "->" {
+                        src.next_word();
+                        if let Ok(ot) = super::types::parse_type(src, srca) {
+                            fixed_type.push((ty, Some(ot)));
+                        } else {
+                            fixed_type.clear();
+                            break;
+                        }
+                    } else {
+                        fixed_type.push((ty, None));
+                    }
+                } else {
+                    fixed_type.clear();
+                    break;
+                }
+                src.skip_whitespace();
+                match src.next_char() {
+                    Some(']') => break,
+                    Some(',') => continue,
+                    _ => {
+                        fixed_type.clear();
+                        break;
+                    }
+                }
+            }
+            if fixed_type.is_empty() {
+                src.set_pos(reset_no_func_pos);
+            } else {
+                src.skip_whitespace();
+                let pos_in_src = src.get_pos();
+                if src.next_word() != "->" {
+                    src.set_pos(reset_no_func_pos);
+                } else {
+                    src.skip_whitespace();
+                    let run = match parse(src, srca) {
+                        Ok(Some(v)) => v,
+                        Ok(None) => {
+                            return Err(CheckError::new()
+                                .src(vec![((pos_in_src, src.get_pos(), srca).into(), None)])
+                                .msg_str(format!("EOF after `->`")))
+                        }
+                        Err(e) => return Err(e),
+                    };
+                    first = Box::new(program::parsed::function::Function {
+                        pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
+                        arg: first,
+                        run,
+                        fixed_type: Some(fixed_type),
+                    });
+                    break;
+                }
+            }
+        }
         match src.peek_word_allow_colon() {
             ":=" => {
                 let pos_in_src = src.get_pos();
@@ -164,6 +226,7 @@ pub fn parse(
                     pos_in_src: (first.source_range().start(), src.get_pos(), srca).into(),
                     arg: first,
                     run,
+                    fixed_type: None,
                 });
                 break;
             }

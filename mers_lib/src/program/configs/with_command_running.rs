@@ -34,6 +34,8 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, i| {
                     if a.types.iter().all(|t| t.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in_single(&data::string::StringT) && t.0[1].iterable().is_some_and(|t| t.is_included_in_single(&data::string::StringT)))) {
                         Ok(Type::newm(vec![
@@ -89,6 +91,8 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, i| {
                     if a.types.iter().all(|t| t.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in_single(&data::string::StringT) && t.0[1].iterable().is_some_and(|t| t.is_included_in_single(&data::string::StringT)))) {
                         Ok(Type::newm(vec![
@@ -133,6 +137,8 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, i| {
                     if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
@@ -161,6 +167,8 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, i| {
                     if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
@@ -195,6 +203,8 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, i| {
                     if a.types.iter().all(|a| a.as_any().downcast_ref::<data::tuple::TupleT>().is_some_and(|t| t.0.len() == 2 && t.0[0].is_included_in_single(&ChildProcessT) && t.0[1].iterable().is_some_and(|i| i.is_included_in_single(&data::byte::ByteT)))) {
                         Ok(data::bool::bool_type())
@@ -224,6 +234,8 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, i| {
                     if a.is_included_in_single(&data::tuple::TupleT(vec![Type::new(ChildProcessT), Type::new(data::string::StringT)])) {
                         Ok(data::bool::bool_type())
@@ -253,6 +265,8 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, i| {
                     if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
@@ -282,6 +296,8 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, i| {
                     if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
@@ -311,6 +327,8 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, i| {
                     if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
@@ -340,6 +358,8 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new( CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, i| {
                     if a.is_included_in_single(&ChildProcessT) {
                         Ok(Type::newm(vec![
@@ -431,8 +451,12 @@ impl MersType for ChildProcessT {
     fn is_included_in(&self, target: &dyn MersType) -> bool {
         target.as_any().is::<Self>()
     }
-    fn subtypes(&self, acc: &mut Type) {
-        acc.add(Arc::new(self.clone()));
+    fn without(&self, remove: &dyn MersType) -> Option<Type> {
+        if self.is_included_in(remove) {
+            Some(Type::empty())
+        } else {
+            None
+        }
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self

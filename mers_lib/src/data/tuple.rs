@@ -107,8 +107,59 @@ impl MersType for TupleT {
             false
         }
     }
-    fn subtypes(&self, acc: &mut Type) {
-        self.gen_subtypes_recursively(acc, &mut Vec::with_capacity(self.0.len()));
+    fn without(&self, remove: &dyn MersType) -> Option<Type> {
+        let m = self.0.len();
+        if let Some(remove) = remove
+            .as_any()
+            .downcast_ref::<Self>()
+            .filter(|r| r.0.len() == m)
+        {
+            let mut out = Type::empty();
+            for i1 in 0usize.. {
+                let mut self_tuple = Vec::with_capacity(m);
+                let mut i1 = i1;
+                for j in 0..m {
+                    let mm = self.0[j].types.len();
+                    self_tuple.push(&self.0[j].types[i1 % mm]);
+                    i1 /= mm;
+                }
+                if i1 != 0 {
+                    break;
+                }
+                let mut covered = false;
+                for i2 in 0usize.. {
+                    let mut remove_tuple = Vec::with_capacity(m);
+                    let mut i2 = i2;
+                    for j in 0..m {
+                        let mm = remove.0[j].types.len();
+                        remove_tuple.push(&remove.0[j].types[i2 % mm]);
+                        i2 /= mm;
+                    }
+                    if i2 != 0 {
+                        break;
+                    }
+                    if (0..m).all(|j| {
+                        self_tuple[j]
+                            .as_ref()
+                            .is_included_in(remove_tuple[j].as_ref())
+                    }) {
+                        covered = true;
+                        break;
+                    }
+                }
+                if !covered {
+                    out.add(Arc::new(Self(
+                        self_tuple
+                            .iter()
+                            .map(|v| Type::newm(vec![Arc::clone(v)]))
+                            .collect(),
+                    )));
+                }
+            }
+            Some(out)
+        } else {
+            None
+        }
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -126,25 +177,5 @@ impl MersType for TupleT {
                 .map(|v| v.simplify_for_display(info))
                 .collect(),
         )))
-    }
-}
-
-impl TupleT {
-    pub fn gen_subtypes_recursively(&self, acc: &mut Type, types: &mut Vec<Arc<dyn MersType>>) {
-        if types.len() >= self.0.len() {
-            let nt = Self(
-                types
-                    .iter()
-                    .map(|v| Type::newm(vec![Arc::clone(v)]))
-                    .collect(),
-            );
-            acc.add(Arc::new(nt));
-        } else {
-            for t in self.0[types.len()].subtypes_type().types {
-                types.push(t);
-                self.gen_subtypes_recursively(acc, types);
-                types.pop();
-            }
-        }
     }
 }

@@ -33,6 +33,8 @@ impl Config {
             data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, _i| {
                     let mut out = Type::empty();
                     for t in a.types.iter() {
@@ -59,6 +61,8 @@ impl Config {
             .add_var("thread_finished", data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, i| {
                     for t in a.types.iter() {
                         if !t.as_any().is::<ThreadT>() {
@@ -80,6 +84,8 @@ impl Config {
             .add_var("thread_await", data::function::Function {
                 info: program::run::Info::neverused(),
                 info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                fixed_type: None,
+                fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, i| {
                     let mut out = Type::empty();
                     for t in a.types.iter() {
@@ -162,9 +168,11 @@ impl MersType for ThreadT {
             false
         }
     }
-    fn subtypes(&self, acc: &mut Type) {
-        for t in self.0.subtypes_type().types {
-            acc.add(Arc::new(Self(Type::newm(vec![t]))));
+    fn without(&self, remove: &dyn MersType) -> Option<Type> {
+        if self.is_included_in(remove) {
+            Some(Type::empty())
+        } else {
+            None
         }
     }
     fn as_any(&self) -> &dyn std::any::Any {

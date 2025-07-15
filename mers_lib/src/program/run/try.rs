@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 use crate::{
     data::{self, Data, Type},
@@ -25,7 +25,7 @@ impl MersStatement for Try {
             return Err("can't init to statement type Try".to_string().into());
         }
         let mut t = Type::empty();
-        let arg = self.arg.check(info, init_to)?;
+        let mut arg = self.arg.check(info, init_to)?;
         let funcs = self
             .funcs
             .iter()
@@ -46,62 +46,75 @@ impl MersStatement for Try {
         };
         drop(unused_try_statements_lock);
         drop(index_lock);
-        for arg in arg.subtypes_type().types.iter() {
-            let mut found = false;
-            let mut errs = vec![];
-            for (i, func) in funcs.iter().enumerate() {
-                let mut func_res = Type::empty();
-                let mut func_err = None;
-                for ft in func.types.iter() {
-                    if let Some(ft) = ft.executable() {
-                        match ft.o(&Type::newm(vec![Arc::clone(arg)])) {
-                            Ok(res) => {
-                                func_res.add_all(&res);
-                            }
-                            Err(e) => func_err = Some(e),
+        'func_options: for (i, func) in funcs.iter().enumerate() {
+            // TODO! handle the case where a function is a one-of-multiple type...
+            if func.types.len() != 1 {
+                return Err(format!(
+                    "Try-statement requires clearly defined functions, but got type {}",
+                    func.with_info(info)
+                )
+                .into());
+            }
+            for ft in func.types.iter() {
+                if let Some(ft) = ft.executable() {
+                    let using_func = |t: &mut Type, func_res: &Type| {
+                        // found the function to use
+                        info.global.unused_try_statements.lock().unwrap()[my_index].1[i] = None;
+                        t.add_all(func_res);
+                    };
+                    match ft.o_try(&arg) {
+                        Ok(res) => {
+                            using_func(&mut t, &res);
+                            arg = Type::empty();
+                            break 'func_options;
                         }
-                    } else {
-                        return Err(CheckError::new()
-                            .msg_str(format!(
-                                "try: #{} is not a function, type is {} within {}.",
-                                i + 1,
-                                ft.simplified_as_string(info),
-                                func.simplify_for_display(info).with_info(info),
-                            ))
-                            .src(vec![
-                                (self.source_range(), None),
-                                (self.funcs[i].source_range(), Some(EColor::TryNotAFunction)),
-                            ]));
+                        Err((_, covered)) => {
+                            for (t_in, t_out) in &covered {
+                                arg.without_in_place_all(t_in);
+                                using_func(&mut t, t_out);
+                            }
+                        }
                     }
-                }
-                if let Some(err) = func_err {
-                    // can't use this function for this argument
-                    errs.push(err);
                 } else {
-                    // found the function to use
-                    info.global.unused_try_statements.lock().unwrap()[my_index].1[i] = None;
-                    found = true;
-                    t.add_all(&func_res);
-                    break;
+                    return Err(CheckError::new()
+                        .msg_str(format!(
+                            "try: #{} is not a function, type is {} within {}.",
+                            i + 1,
+                            ft.simplified_as_string(info),
+                            func.simplify_for_display(info).with_info(info),
+                        ))
+                        .src(vec![
+                            (self.source_range(), None),
+                            (self.funcs[i].source_range(), Some(EColor::TryNotAFunction)),
+                        ]));
                 }
             }
-            if !found {
-                let mut err = CheckError::new()
-                    .msg_str(format!(
-                        "try: no function found for argument of type {}.",
-                        arg.simplified_as_string(info)
-                    ))
-                    .src(vec![(
-                        self.pos_in_src.clone(),
-                        Some(EColor::TryNoFunctionFound),
-                    )]);
-                for (i, e) in errs.into_iter().enumerate() {
-                    err = err
-                        .msg_str(format!("Error for function #{}:", i + 1))
-                        .err(e);
+        }
+        if !arg.types.is_empty() {
+            let mut err = CheckError::new()
+                .msg_str(format!(
+                    "try: uncovered argument type {}.",
+                    arg.simplified_as_string(info)
+                ))
+                .src(vec![(
+                    self.pos_in_src.clone(),
+                    Some(EColor::TryNoFunctionFound),
+                )]);
+            for (i, func) in funcs.iter().enumerate() {
+                err = err.msg_str(format!(
+                    "Error for function #{} {}:",
+                    i + 1,
+                    func.with_info(info)
+                ));
+                for e in func
+                    .types
+                    .iter()
+                    .filter_map(|t| t.executable().unwrap().o(&arg).err())
+                {
+                    err = err.err(e);
                 }
-                return Err(err);
             }
+            return Err(err);
         }
         Ok(t)
     }

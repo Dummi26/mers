@@ -37,6 +37,8 @@ impl Config {
                 data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                    fixed_type: None,
+                    fixed_type_out: Arc::new(Mutex::new(None)),
                     out: Ok(Arc::new(|a, i| {
                         if let Some(a) = a.dereference() {
                             let mut out = Type::empty();
@@ -85,6 +87,8 @@ impl Config {
                 data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                    fixed_type: None,
+                    fixed_type_out: Arc::new(Mutex::new(None)),
                     out: Ok(Arc::new(|a, i| {
                         for t in a.types.iter() {
                             if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
@@ -148,6 +152,8 @@ impl Config {
                 data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                    fixed_type: None,
+                    fixed_type_out: Arc::new(Mutex::new(None)),
                     out: Ok(Arc::new(|a, i| {
                         for t in a.types.iter() {
                             if let Some(t) = t.as_any().downcast_ref::<data::tuple::TupleT>() {
@@ -221,6 +227,8 @@ impl Config {
                 data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                    fixed_type: None,
+                    fixed_type_out: Arc::new(Mutex::new(None)),
                     out: Ok(Arc::new(|a, i| {
                         let mut o = Type::empty();
                         for t in a.types.iter() {
@@ -298,6 +306,8 @@ impl Config {
                 data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                    fixed_type: None,
+                    fixed_type_out: Arc::new(Mutex::new(None)),
                     out: Ok(Arc::new(|a, i| {
                         let mut o = Type::empty();
                         for t in a.types.iter() {
@@ -369,6 +379,8 @@ impl Config {
                 data::function::Function {
                     info: program::run::Info::neverused(),
                     info_check: Arc::new(Mutex::new(CheckInfo::neverused())),
+                    fixed_type: None,
+                    fixed_type_out: Arc::new(Mutex::new(None)),
                     out: Ok(Arc::new(|a, i| {
                         if let Some(v) = a.iterable() {
                             Ok(Type::new(ListT(v)))
@@ -464,12 +476,11 @@ impl MersType for ListT {
             .downcast_ref::<Self>()
             .is_some_and(|v| self.0.is_included_in(&v.0))
     }
-    fn subtypes(&self, acc: &mut Type) {
-        // The type of an empty list is a list where the items are `<unreachable>`
-        acc.add(Arc::new(Self(Type::empty())));
-        // All possible list types
-        for t in self.0.subtypes_type().types {
-            acc.add(Arc::new(Self(Type::newm(vec![t]))));
+    fn without(&self, remove: &dyn MersType) -> Option<Type> {
+        if self.is_included_in(remove) {
+            Some(Type::empty())
+        } else {
+            None
         }
     }
     fn as_any(&self) -> &dyn std::any::Any {
