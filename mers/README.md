@@ -101,7 +101,7 @@ mers only has a few different expressions:
 - `loop expression`
 - type hints `[Int] 5`
 - type definitions `[[Number] Int/Float]` or `[[TypeOfX] := x]`, which can also be used as a type check: `[[_] := expression]` checks that the expression is type-correct
-- try: mers' switch/match: `x.try(num -> num.div(2), _ -> 0)`
+- try: mers' switch/match: `x.try(num [Int] -> num.div(2), _ -> 0)`
 
 mers treats everything as call-by-value by default:
 
@@ -175,7 +175,10 @@ It can also produce values.
 ```
 val := loop {
   "> ".print
-  ().read_line.trim.parse_float
+  ().read_line.try(
+    () [()] -> (())
+    (line) [(String)] -> line.trim.parse_float
+  )
 }
 val.println
 ```
@@ -196,7 +199,7 @@ val := if "a".eq("a") {
 }
 val.try(
   // if the value is a number, print half of it
-  num -> num.div(2).println
+  num [Int] -> num.div(2).println
   // for any other value, print it directly
   other -> other.println
 )
