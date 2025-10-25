@@ -133,7 +133,7 @@ impl MersType for ObjectT {
         if let Some(remove) = remove
             .as_any()
             .downcast_ref::<Self>()
-            .filter(|r| r.0.len() <= m)
+            .filter(|r| r.0.len() >= m)
         {
             let mut out = Type::empty();
             for i1 in 0usize.. {
@@ -163,7 +163,7 @@ impl MersType for ObjectT {
                         remove_tuple
                             .iter()
                             .find(|(v, _)| *v == self_tuple[j].0)
-                            .is_none_or(|(_, r)| {
+                            .is_some_and(|(_, r)| {
                                 self_tuple[j].1.as_ref().is_included_in(r.as_ref())
                             })
                     }) {
