@@ -95,7 +95,7 @@ impl MersStatement for FieldChain {
                     .as_any()
                     .downcast_ref::<data::reference::Reference>()
                 {
-                    obj_ref = r.0.read().unwrap();
+                    obj_ref = r.read();
                     obj_in_ref = obj_ref.get();
                     obj_in_ref.as_any().downcast_ref::<data::object::Object>()
                 } else {
@@ -126,7 +126,7 @@ impl MersStatement for FieldChain {
             for res in more_args.iter().map(|arg| arg.run(info)) {
                 args.push(res?);
             }
-            Data::new(Tuple(args))
+            Data::new(Tuple::from(args))
         } else {
             object
         };

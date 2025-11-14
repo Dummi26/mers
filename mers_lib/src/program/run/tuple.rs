@@ -1,7 +1,7 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, sync::Arc};
 
 use crate::{
-    data::{self, tuple::TupleT, Data, MersType, Type},
+    data::{self, reference::ReferenceT, tuple::TupleT, Data, MersType, Type},
     errors::{CheckError, EColor, SourceRange},
 };
 
@@ -23,11 +23,27 @@ impl MersStatement for Tuple {
                 .map(|_| Type::empty())
                 .collect::<VecDeque<_>>();
             let print_is_part_of = init_to.types.len() > 1;
-            for t in init_to.types.iter() {
+            for (t, init_to_ref) in init_to
+                .types
+                .iter()
+                .filter_map(|t| t.as_any().downcast_ref::<ReferenceT>())
+                .flat_map(|r| r.0.types.iter().map(|t| (t, true)))
+                .chain(
+                    init_to
+                        .types
+                        .iter()
+                        .filter(|t| !t.as_any().is::<ReferenceT>())
+                        .map(|t| (t, false)),
+                )
+            {
                 if let Some(t) = t.as_any().downcast_ref::<TupleT>() {
                     if t.0.len() == self.elems.len() {
                         for (i, e) in t.0.iter().enumerate() {
-                            vec[i].add_all(&e);
+                            if init_to_ref {
+                                vec[i].add(Arc::new(ReferenceT(e.clone())));
+                            } else {
+                                vec[i].add_all(e);
+                            }
                         }
                     } else {
                         return Err(CheckError::new().msg(vec![
@@ -102,11 +118,11 @@ impl MersStatement for Tuple {
         )))
     }
     fn run_custom(&self, info: &mut super::Info) -> Result<Data, CheckError> {
-        Ok(Data::new(data::tuple::Tuple(
+        Ok(Data::new(data::tuple::Tuple::from(
             self.elems
                 .iter()
                 .map(|s| Ok(s.run(info)?))
-                .collect::<Result<_, CheckError>>()?,
+                .collect::<Result<Vec<_>, CheckError>>()?,
         )))
     }
     fn has_scope(&self) -> bool {

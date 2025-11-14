@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{
-    data::{self, object::ObjectT, Data, Type},
+    data::{self, object::ObjectT, reference::ReferenceT, Data, Type},
     errors::{CheckError, EColor, SourceRange},
 };
 
@@ -23,7 +23,19 @@ impl MersStatement for Object {
             init_to_is_empty_type = init_to.types.is_empty();
             let print_is_part_of = init_to.types.len() > 1;
             let mut init_fields = HashMap::new();
-            for t in init_to.types.iter() {
+            for (t, init_to_ref) in init_to
+                .types
+                .iter()
+                .filter_map(|t| t.as_any().downcast_ref::<ReferenceT>())
+                .flat_map(|r| r.0.types.iter().map(|t| (t, true)))
+                .chain(
+                    init_to
+                        .types
+                        .iter()
+                        .filter(|t| !t.as_any().is::<ReferenceT>())
+                        .map(|t| (t, false)),
+                )
+            {
                 if let Some(ot) = t.as_any().downcast_ref::<ObjectT>() {
                     let mut fields = self.fields.iter().map(|(t, _)| *t).collect::<Vec<_>>();
                     fields.sort();
@@ -31,10 +43,12 @@ impl MersStatement for Object {
                         if let Ok(i) = fields.binary_search(field) {
                             fields.remove(i);
                         }
-                        init_fields
-                            .entry(*field)
-                            .or_insert_with(Type::empty)
-                            .add_all(t);
+                        let init_fields = init_fields.entry(*field).or_insert_with(Type::empty);
+                        if init_to_ref {
+                            init_fields.add(Arc::new(ReferenceT(t.clone())));
+                        } else {
+                            init_fields.add_all(t);
+                        }
                     }
                     if !fields.is_empty() {
                         return Err(CheckError::new().msg(vec![
@@ -136,7 +150,7 @@ impl MersStatement for Object {
             self.fields
                 .iter()
                 .map(|(n, s)| Ok::<_, CheckError>((n.clone(), s.run(info)?)))
-                .collect::<Result<_, _>>()?,
+                .collect::<Result<Vec<_>, _>>()?,
         )))
     }
     fn has_scope(&self) -> bool {

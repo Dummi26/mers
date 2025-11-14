@@ -805,7 +805,7 @@ fn func_math_op(
                     .map(|v| &v.0)
                     .filter(|v| v.len() == 2)
                 {
-                    let (a, b) = (&a[0], &a[1]);
+                    let (a, b) = (&a[0].read(), &a[1].read());
                     let (a, b) = (a.get(), b.get());
                     let a = a
                         .as_any()

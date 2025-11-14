@@ -225,7 +225,7 @@ impl Data {
         Self::new(tuple::Tuple(vec![]))
     }
     pub fn one_tuple(v: Self) -> Self {
-        Self::new(tuple::Tuple(vec![v]))
+        Self::new(tuple::Tuple::from([v]))
     }
     /// Returns true if self is `()`.
     pub fn is_zero_tuple(&self) -> bool {
@@ -253,13 +253,13 @@ impl Data {
             None
         }
     }
-    pub fn get(&self) -> RwLockReadGuard<Box<dyn MersData>> {
+    pub fn get(&'_ self) -> RwLockReadGuard<'_, Box<dyn MersData>> {
         self.data.read().unwrap()
     }
-    pub fn get_mut_unchecked(&self) -> RwLockWriteGuard<Box<dyn MersData>> {
+    pub fn get_mut_unchecked(&'_ self) -> RwLockWriteGuard<'_, Box<dyn MersData>> {
         self.data.write().unwrap()
     }
-    pub fn try_get_mut(&self) -> Option<RwLockWriteGuard<Box<dyn MersData>>> {
+    pub fn try_get_mut(&'_ self) -> Option<RwLockWriteGuard<'_, Box<dyn MersData>>> {
         if self.is_mut && self.counts.0.load(std::sync::atomic::Ordering::Relaxed) == 0 {
             Some(self.get_mut_unchecked())
         } else {
@@ -268,7 +268,7 @@ impl Data {
     }
     /// like try_get_mut, but instead of returning `None` this function `get()`s the data and clones it.
     /// When cloning data, this transforms `self` into a `Data` with `is_mut: true`, hence the `&mut self` parameter.
-    pub fn get_mut(&mut self) -> RwLockWriteGuard<Box<dyn MersData>> {
+    pub fn get_mut(&'_ mut self) -> RwLockWriteGuard<'_, Box<dyn MersData>> {
         if self.try_get_mut().is_none() {
             #[cfg(debug_assertions)]
             eprintln!(

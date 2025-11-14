@@ -53,7 +53,7 @@ impl Config {
                 run: Arc::new(|a, i| {
                     let a = a.get();
                     let cmd = a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
-                    let (cmd, args) = (&cmd.0[0], &cmd.0[1]);
+                    let (cmd, args) = (&cmd.0[0].read(), &cmd.0[1].read());
                     let cmd = cmd.get();
                     let (cmd, args) = (
                         cmd.as_any().downcast_ref::<data::string::String>().unwrap(),
@@ -74,7 +74,7 @@ impl Config {
                                 String::from_utf8_lossy(&output.stdout).into_owned();
                             let stderr =
                                 String::from_utf8_lossy(&output.stderr).into_owned();
-                            Ok(Data::new(data::tuple::Tuple(vec![
+                            Ok(Data::new(data::tuple::Tuple::from([
                                 status,
                                 Data::new(data::string::String(stdout)),
                                 Data::new(data::string::String(stderr)),
@@ -106,7 +106,7 @@ impl Config {
                 run: Arc::new(|a, i| {
                     let a = a.get();
                     let cmd = a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
-                    let (cmd, args) = (&cmd.0[0], &cmd.0[1]);
+                    let (cmd, args) = (&cmd.0[0].read(), &cmd.0[1].read());
                     let cmd = cmd.get();
                     let (cmd, args) = (
                         cmd.as_any().downcast_ref::<data::string::String>().unwrap(),
@@ -215,8 +215,10 @@ impl Config {
                 run: Arc::new(|a, i| {
                     let a = a.get();
                     let tuple = a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
-                    let child = tuple.0[0].get();
-                    let bytes = tuple.0[1].get();
+                    let child = tuple.0[0].read();
+                    let child = child.get();
+                    let bytes = tuple.0[1].read();
+                    let bytes = bytes.get();
                     let child = child.as_any().downcast_ref::<ChildProcess>().unwrap();
                     let mut child = child.0.lock().unwrap();
                     let buf = bytes.iterable(&i.global).unwrap().map(|v| v.map(|v| v.get().as_any().downcast_ref::<data::byte::Byte>().unwrap().0)).collect::<Result<Vec<_>, _>>()?;
@@ -246,8 +248,10 @@ impl Config {
                 run: Arc::new(|a, _i| {
                     let a = a.get();
                     let tuple = a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
-                    let child = tuple.0[0].get();
-                    let string = tuple.0[1].get();
+                    let child = tuple.0[0].read();
+                    let child = child.get();
+                    let string = tuple.0[1].read();
+                    let string = string.get();
                     let child = child.as_any().downcast_ref::<ChildProcess>().unwrap();
                     let mut child = child.0.lock().unwrap();
                     let buf = string.as_any().downcast_ref::<data::string::String>().unwrap().0.as_bytes();

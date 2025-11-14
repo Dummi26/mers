@@ -60,14 +60,14 @@ impl MersStatement for Variable {
                 info.scopes[self.var.0].vars[self.var.1] = nothing;
             } else {
                 // (reference to) data which will never be referenced again
-                return Ok(Data::new(data::reference::Reference(Arc::new(
-                    RwLock::new(Data::empty_tuple()),
-                ))));
+                return Ok(Data::new(data::reference::Reference::from(
+                    Data::empty_tuple(),
+                )));
             }
         }
         Ok(if self.is_ref_not_ignore {
             let v = &info.scopes[self.var.0].vars[self.var.1];
-            Data::new(data::reference::Reference(Arc::clone(v)))
+            Data::new(data::reference::Reference::raw(Arc::clone(v)))
         } else {
             info.scopes[self.var.0].vars[self.var.1]
                 .write()

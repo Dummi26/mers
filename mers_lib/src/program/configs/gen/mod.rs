@@ -43,7 +43,7 @@ impl<A: FromMersData> FromMersData for OneOrNone<A> {
             if v.0.is_empty() {
                 f(Some(Self(None)))
             } else {
-                A::try_represent(v.0[0].get().as_ref(), |v1| {
+                A::try_represent(v.0[0].read().get().as_ref(), |v1| {
                     if let Some(va) = v1 {
                         f(Some(Self(Some(va))))
                     } else {
@@ -205,7 +205,7 @@ impl<A: FromMersData> FromMersData for (A,) {
             .downcast_ref::<data::tuple::Tuple>()
             .filter(|v| v.0.len() == 1)
         {
-            A::try_represent(v.0[0].get().as_ref(), |v1| {
+            A::try_represent(v.0[0].read().get().as_ref(), |v1| {
                 if let Some(va) = v1 {
                     f(Some((va,)))
                 } else {
@@ -222,7 +222,7 @@ impl<A: ToMersData> ToMersData for (A,) {
         Type::new(data::tuple::TupleT(vec![A::as_type_to()]))
     }
     fn represent(self) -> Data {
-        Data::new(data::tuple::Tuple(vec![self.0.represent()]))
+        Data::new(data::tuple::Tuple::from([self.0.represent()]))
     }
 }
 
@@ -242,9 +242,9 @@ impl<A: FromMersData, B: FromMersData> FromMersData for (A, B) {
             .downcast_ref::<data::tuple::Tuple>()
             .filter(|v| v.0.len() == 2)
         {
-            A::try_represent(v.0[0].get().as_ref(), |v1| {
+            A::try_represent(v.0[0].read().get().as_ref(), |v1| {
                 if let Some(va) = v1 {
-                    B::try_represent(v.0[1].get().as_ref(), |v2| {
+                    B::try_represent(v.0[1].read().get().as_ref(), |v2| {
                         if let Some(vb) = v2 {
                             f(Some((va, vb)))
                         } else {
@@ -265,7 +265,7 @@ impl<A: ToMersData, B: ToMersData> ToMersData for (A, B) {
         Type::new(data::tuple::TupleT(vec![A::as_type_to(), B::as_type_to()]))
     }
     fn represent(self) -> Data {
-        Data::new(data::tuple::Tuple(vec![
+        Data::new(data::tuple::Tuple::from([
             self.0.represent(),
             self.1.represent(),
         ]))
@@ -288,11 +288,11 @@ impl<A: FromMersData, B: FromMersData, C: FromMersData> FromMersData for (A, B, 
             .downcast_ref::<data::tuple::Tuple>()
             .filter(|v| v.0.len() == 3)
         {
-            A::try_represent(v.0[0].get().as_ref(), |v1| {
+            A::try_represent(v.0[0].read().get().as_ref(), |v1| {
                 if let Some(va) = v1 {
-                    B::try_represent(v.0[1].get().as_ref(), |v2| {
+                    B::try_represent(v.0[1].read().get().as_ref(), |v2| {
                         if let Some(vb) = v2 {
-                            C::try_represent(v.0[2].get().as_ref(), |v3| {
+                            C::try_represent(v.0[2].read().get().as_ref(), |v3| {
                                 if let Some(vc) = v3 {
                                     f(Some((va, vb, vc)))
                                 } else {
@@ -321,7 +321,7 @@ impl<A: ToMersData, B: ToMersData, C: ToMersData> ToMersData for (A, B, C) {
         ]))
     }
     fn represent(self) -> Data {
-        Data::new(data::tuple::Tuple(vec![
+        Data::new(data::tuple::Tuple::from([
             self.0.represent(),
             self.1.represent(),
             self.2.represent(),

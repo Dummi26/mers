@@ -100,8 +100,10 @@ pub fn to_mers_func_concrete_string_string_to_any(
         move |a, _| {
             let a = a.get();
             let a = &a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap().0;
-            let l = a[0].get();
-            let r = a[1].get();
+            let l = a[0].read();
+            let l = l.get();
+            let r = a[1].read();
+            let r = r.get();
             f(
                 l.as_any()
                     .downcast_ref::<data::string::String>()

@@ -65,9 +65,7 @@ impl Config {
                             .as_any()
                             .downcast_ref::<data::reference::Reference>()
                             .unwrap()
-                            .0
                             .write()
-                            .unwrap()
                             .get_mut()
                             .mut_any()
                             .downcast_mut::<List>()
@@ -128,20 +126,18 @@ impl Config {
                     run: Arc::new(|a, _i| {
                         let tuple = a.get();
                         let tuple = tuple.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
-                        tuple.0[0]
+                        tuple.0[0].read()
                             .get()
                             .as_any()
                             .downcast_ref::<data::reference::Reference>()
                             .unwrap()
-                            .0
                             .write()
-                            .unwrap()
                             .get_mut()
                             .mut_any()
                             .downcast_mut::<List>()
                             .unwrap()
                             .0
-                            .push(tuple.0[1].clone());
+                            .push(tuple.0[1].read().clone());
                             Ok(Data::empty_tuple())
                     }),
                 inner_statements: None,
@@ -197,15 +193,14 @@ impl Config {
                     run: Arc::new(|a, _i| {
                         let tuple = a.get();
                         let tuple = tuple.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
-                        let index = tuple.0[1].get().as_any().downcast_ref::<data::int::Int>().unwrap().0 as usize;
-                            let list = tuple.0[0]
-                            .get();
+                        let index = tuple.0[1].read().get().as_any().downcast_ref::<data::int::Int>().unwrap().0 as usize;
+                            let list = tuple.0[0].read();
+                            let list = list.get();
                             let mut list = list
                             .as_any()
                             .downcast_ref::<data::reference::Reference>()
                             .unwrap()
-                            .0
-                            .write().unwrap();
+                            .write();
                             let mut list = list
                             .get_mut();
                             let list = list
@@ -215,7 +210,7 @@ impl Config {
                         if index > list.0.len() {
                             Ok(Data::new(data::bool::Bool(false)))
                         } else {
-                            list.0.insert(index, tuple.0[2].clone());
+                            list.0.insert(index, tuple.0[2].read().clone());
                             Ok(Data::new(data::bool::Bool(true)))
                         }
                     }),
@@ -277,15 +272,14 @@ impl Config {
                     run: Arc::new(|a, _i| {
                         let tuple = a.get();
                         let tuple = tuple.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
-                        let index = tuple.0[1].get().as_any().downcast_ref::<data::int::Int>().unwrap().0 as usize;
-                            let list = tuple.0[0]
-                            .get();
+                        let index = tuple.0[1].read().get().as_any().downcast_ref::<data::int::Int>().unwrap().0 as usize;
+                            let list = tuple.0[0].read();
+                            let list = list.get();
                             let mut list = list
                             .as_any()
                             .downcast_ref::<data::reference::Reference>()
                             .unwrap()
-                            .0
-                            .write().unwrap();
+                            .write();
                             let mut list = list
                             .get_mut();
                             let list = list
@@ -293,7 +287,7 @@ impl Config {
                             .downcast_mut::<List>()
                             .unwrap();
                         if index < list.0.len() {
-                            Ok(Data::one_tuple(std::mem::replace(&mut list.0[index], tuple.0[2].clone())))
+                            Ok(Data::one_tuple(std::mem::replace(&mut list.0[index], tuple.0[2].read().clone())))
                         } else {
                             Ok(Data::empty_tuple())
                         }
@@ -350,15 +344,14 @@ impl Config {
                     run: Arc::new(|a, _i| {
                         let tuple = a.get();
                         let tuple = tuple.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
-                        let index = tuple.0[1].get().as_any().downcast_ref::<data::int::Int>().unwrap().0 as usize;
-                            let list = tuple.0[0]
-                            .get();
+                        let index = tuple.0[1].read().get().as_any().downcast_ref::<data::int::Int>().unwrap().0 as usize;
+                            let list = tuple.0[0].read();
+                            let list = list.get();
                             let mut list = list
                             .as_any()
                             .downcast_ref::<data::reference::Reference>()
                             .unwrap()
-                            .0
-                            .write().unwrap();
+                            .write();
                             let mut list = list
                             .get_mut();
                             let list = list

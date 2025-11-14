@@ -7,17 +7,32 @@ use crate::info::DisplayInfo;
 
 use super::{Data, MersData, MersDataWInfo, MersType, Type};
 
-#[derive(Debug, PartialEq, Clone)]
-pub struct Object(Vec<(usize, Data)>);
+#[derive(Debug, PartialEq)]
+pub struct Object(Vec<(usize, super::reference::Reference)>);
 impl Object {
-    pub fn new(v: Vec<(usize, Data)>) -> Self {
-        Self(v)
+    pub fn new(v: impl IntoIterator<Item = (usize, Data)>) -> Self {
+        Self(
+            v.into_iter()
+                .map(|(i, d)| (i, super::reference::Reference::from(d)))
+                .collect(),
+        )
     }
-    pub fn get(&self, f: usize) -> Option<&Data> {
-        self.iter().find(|v| v.0 == f).map(|v| &v.1)
+    pub fn get(&self, f: usize) -> Option<Data> {
+        self.iter().find(|v| v.0 == f).map(|v| v.1.read().clone())
     }
-    pub fn iter(&self) -> std::slice::Iter<(usize, Data)> {
+    pub fn get_mut(&self, f: usize) -> Option<&super::reference::Reference> {
+        self.iter().find(|v| v.0 == f).map(|(_, v)| v)
+    }
+    pub fn iter(&'_ self) -> std::slice::Iter<'_, (usize, super::reference::Reference)> {
         self.0.iter()
+    }
+    pub fn clone_refs(&self) -> Self {
+        Self(self.0.iter().map(|(i, r)| (*i, r.clone_ref())).collect())
+    }
+}
+impl Clone for Object {
+    fn clone(&self) -> Self {
+        Self(self.0.iter().map(|(i, r)| (*i, r.clone_data())).collect())
     }
 }
 #[derive(Debug, Clone)]
@@ -29,7 +44,7 @@ impl ObjectT {
     pub fn get(&self, f: usize) -> Option<&Type> {
         self.iter().find(|v| v.0 == f).map(|v| &v.1)
     }
-    pub fn iter(&self) -> std::slice::Iter<(usize, Type)> {
+    pub fn iter(&'_ self) -> std::slice::Iter<'_, (usize, Type)> {
         self.0.iter()
     }
     fn len(&self) -> usize {
@@ -49,7 +64,7 @@ impl MersData for Object {
                 f,
                 "{}: {}",
                 info.get_object_field_name(*field),
-                val.get().with_display(info)
+                val.read().get().with_display(info)
             )?;
             comma_sep = true;
         }
@@ -69,7 +84,7 @@ impl MersData for Object {
     fn as_type(&self) -> Type {
         Type::new(ObjectT(
             self.iter()
-                .map(|(n, v)| (n.clone(), v.get().as_type()))
+                .map(|(n, v)| (n.clone(), v.read().get().as_type()))
                 .collect(),
         ))
     }

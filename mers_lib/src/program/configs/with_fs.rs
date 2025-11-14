@@ -76,7 +76,8 @@ impl Config {
                         .as_any()
                         .downcast_ref::<Tuple>()
                         .expect("got non-tuple argument to fs_read_text");
-                    let (a, b) = (a.0[0].get(), a.0[1].get());
+                    let (a, b) = (a.0[0].read(), a.0[1].read());
+                    let (a, b) = (a.get(), b.get());
                     let a = a
                         .as_any()
                         .downcast_ref::<data::string::String>()

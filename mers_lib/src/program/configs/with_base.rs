@@ -1,5 +1,5 @@
 use std::{
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
@@ -68,10 +68,12 @@ impl Config {
                 run: Arc::new(|a, i| {
                     let a = a.get();
                     let a = a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
-                    let arg_ref = a.0[0].get();
+                    let arg_ref = a.0[0].read();
+                    let arg_ref = arg_ref.get();
                     let arg_ref = arg_ref.as_any().downcast_ref::<data::reference::Reference>().unwrap();
-                    let mut arg = arg_ref.0.write().unwrap();
-                    let func = a.0[1].get();
+                    let mut arg = arg_ref.write();
+                    let func = a.0[1].read();
+                    let func = func.get();
                     *arg = func.execute(arg.clone(), &i.global).unwrap()?;
                     Ok(Data::empty_tuple())
                 }),
@@ -168,7 +170,7 @@ impl Config {
                 fixed_type_out: Arc::new(Mutex::new(None)),
                 out: Ok(Arc::new(|a, _i| Ok(Type::new(data::reference::ReferenceT(a.clone()))))),
                 run: Arc::new(|a, _i| {
-                    Ok(Data::new(data::reference::Reference(Arc::new(RwLock::new(a.clone())))))
+                    Ok(Data::new(data::reference::Reference::from(a)))
                 }),
                 inner_statements: None,
             },
@@ -188,7 +190,7 @@ impl Config {
                         .as_any()
                         .downcast_ref::<data::reference::Reference>()
                     {
-                        Ok(r.0.write().unwrap().clone())
+                        Ok(r.read().clone())
                     } else {
                         Err("called deref on non-reference".into())
                     }

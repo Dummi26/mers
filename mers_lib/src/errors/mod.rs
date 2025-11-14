@@ -178,7 +178,7 @@ impl CheckErrorHRConfig {
             .color(s, EColor::Indent(self.color_index), &mut t);
         return t;
     }
-    pub fn indent_start(&self, right: bool) -> IndentStr {
+    pub fn indent_start(&'_ self, right: bool) -> IndentStr<'_> {
         IndentStr(
             &self.idt_start,
             self.color(
@@ -186,13 +186,13 @@ impl CheckErrorHRConfig {
             ),
         )
     }
-    pub fn indent_default(&self, right: bool) -> IndentStr {
+    pub fn indent_default(&'_ self, right: bool) -> IndentStr<'_> {
         IndentStr(
             &self.idt_default,
             self.color(Self::CHARS[self.style as usize][1][right as usize]),
         )
     }
-    pub fn indent_end(&self, right: bool) -> IndentStr {
+    pub fn indent_end(&'_ self, right: bool) -> IndentStr<'_> {
         IndentStr(
             &self.idt_end,
             self.color(
@@ -200,7 +200,7 @@ impl CheckErrorHRConfig {
             ),
         )
     }
-    pub fn indent_single(&self, right: bool) -> IndentStr {
+    pub fn indent_single(&'_ self, right: bool) -> IndentStr<'_> {
         IndentStr(
             &self.idt_single,
             self.color(if self.is_inner {

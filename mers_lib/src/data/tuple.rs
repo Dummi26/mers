@@ -4,15 +4,38 @@ use crate::{errors::CheckError, info::DisplayInfo};
 
 use super::{Data, MersData, MersType, Type};
 
-#[derive(Debug, Clone)]
-pub struct Tuple(pub Vec<Data>);
+#[derive(Debug)]
+pub struct Tuple(pub Vec<super::reference::Reference>);
 
 impl Tuple {
+    pub fn empty() -> Self {
+        Self(vec![])
+    }
+    pub fn from(elems: impl IntoIterator<Item = Data>) -> Self {
+        Self(
+            elems
+                .into_iter()
+                .map(|d| super::reference::Reference::from(d))
+                .collect(),
+        )
+    }
     pub fn len(&self) -> usize {
         self.0.len()
     }
-    pub fn get(&self, i: usize) -> Option<&Data> {
-        self.0.get(i)
+    pub fn get(&self, i: usize) -> Option<Data> {
+        self.0.get(i).map(|v| v.read().clone())
+    }
+    pub fn get_mut(&self, i: usize) -> Option<super::reference::Reference> {
+        self.0.get(i).map(|v| v.clone_ref())
+    }
+    pub fn clone_refs(&self) -> Self {
+        Self(self.0.iter().map(|r| r.clone_ref()).collect())
+    }
+}
+
+impl Clone for Tuple {
+    fn clone(&self) -> Self {
+        Self(self.0.iter().map(|r| r.clone_data()).collect())
     }
 }
 
@@ -23,7 +46,7 @@ impl MersData for Tuple {
             if i > 0 {
                 write!(f, ", ")?;
             }
-            c.get().display(info, f)?;
+            c.read().get().display(info, f)?;
         }
         write!(f, ")")?;
         Ok(())
@@ -39,13 +62,21 @@ impl MersData for Tuple {
         &self,
         _gi: &crate::program::run::RunLocalGlobalInfo,
     ) -> Option<Box<dyn Iterator<Item = Result<Data, CheckError>>>> {
-        Some(Box::new(self.0.clone().into_iter().map(Ok)))
+        Some(Box::new(
+            Clone::clone(self)
+                .0
+                .into_iter()
+                .map(|r| r.read().clone())
+                .map(Ok),
+        ))
     }
     fn clone(&self) -> Box<dyn MersData> {
         Box::new(Clone::clone(self))
     }
     fn as_type(&self) -> Type {
-        Type::new(TupleT(self.0.iter().map(|v| v.get().as_type()).collect()))
+        Type::new(TupleT(
+            self.0.iter().map(|v| v.read().get().as_type()).collect(),
+        ))
     }
     fn as_any(&self) -> &dyn Any {
         self

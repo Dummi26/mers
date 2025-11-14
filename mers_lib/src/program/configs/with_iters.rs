@@ -74,7 +74,8 @@ impl Config {
                 }, |a, _| {
                     let a = a.get();
                     let a = a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
-                    let (v, e) = (a.0[0].get(), a.0[1].get());
+                    let (v, e) = (a.0[0].read(), a.0[1].read());
+                    let (v, e) = (v.get(), e.get());
                     let (v, e) = (v.as_any().downcast_ref::<data::int::Int>().unwrap(), e.as_any().downcast_ref::<data::int::Int>().unwrap());
                     Ok(Data::new(Range(v.0, e.0)))
                 }
@@ -114,7 +115,8 @@ impl Config {
                 }, |a, _| {
                     let a = a.get();
                     let a = a.as_any().downcast_ref::<data::tuple::Tuple>().unwrap();
-                    let (v, e) = (a.0[0].get(), a.0[1].get());
+                    let (v, e) = (a.0[0].read(), a.0[1].read());
+                    let (v, e) = (v.get(), e.get());
                     let (v, e) = (v.as_any().downcast_ref::<data::int::Int>().unwrap(), e.as_any().downcast_ref::<data::int::Int>().unwrap());
                     if let Some(e) = e.0.checked_sub(1) {
                         Ok(Data::new(Range(v.0, e)))
@@ -495,7 +497,7 @@ impl MersData for Iter {
                         .iterable(&gi)?
                         .enumerate()
                         .map(|(i, v)| match v {
-                            Ok(v) => Ok(Data::new(data::tuple::Tuple(vec![
+                            Ok(v) => Ok(Data::new(data::tuple::Tuple::from([
                                 Data::new(data::int::Int(i as _)),
                                 v,
                             ]))),

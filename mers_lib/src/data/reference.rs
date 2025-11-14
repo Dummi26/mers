@@ -1,14 +1,32 @@
 use std::{
     any::Any,
-    sync::{Arc, RwLock},
+    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
 use crate::{errors::CheckError, info::DisplayInfo};
 
 use super::{Data, MersData, MersType, Type};
 
-#[derive(Debug, Clone)]
-pub struct Reference(pub Arc<RwLock<Data>>);
+#[derive(Debug)]
+pub struct Reference(Arc<RwLock<Data>>);
+
+impl Reference {
+    /// Creates a reference from data,
+    /// so that the original data can't be
+    /// modified through the new reference.
+    pub fn from(data: Data) -> Self {
+        Self(Arc::new(RwLock::new(data.mkref().0)))
+    }
+    pub fn raw(reference: Arc<RwLock<Data>>) -> Self {
+        Self(reference)
+    }
+    pub fn read(&'_ self) -> RwLockReadGuard<'_, Data> {
+        self.0.read().unwrap()
+    }
+    pub fn write(&'_ self) -> RwLockWriteGuard<'_, Data> {
+        self.0.write().unwrap()
+    }
+}
 
 impl MersData for Reference {
     fn display(&self, info: &DisplayInfo<'_>, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -79,7 +97,7 @@ impl MersData for Reference {
         }
     }
     fn clone(&self) -> Box<dyn MersData> {
-        Box::new(Clone::clone(self))
+        Box::new(self.clone_ref())
     }
     fn as_type(&self) -> Type {
         Type::new(ReferenceT(self.0.read().unwrap().get().as_type()))
@@ -92,6 +110,23 @@ impl MersData for Reference {
     }
     fn to_any(self) -> Box<dyn Any> {
         Box::new(self)
+    }
+}
+
+impl Reference {
+    pub fn clone_ref(&self) -> Self {
+        Self(Arc::clone(&self.0))
+    }
+    pub fn clone_data(&self) -> Self {
+        Self(Arc::new(RwLock::new(
+            self.0.read().unwrap().clone().mkref().0,
+        )))
+    }
+}
+
+impl PartialEq for Reference {
+    fn eq(&self, other: &Self) -> bool {
+        *self.0.read().unwrap() == *other.0.read().unwrap()
     }
 }
 

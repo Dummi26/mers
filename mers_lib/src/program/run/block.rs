@@ -30,7 +30,7 @@ impl MersStatement for Block {
             .iter()
             .map(|s| s.run(info))
             .last()
-            .unwrap_or_else(|| Ok(Data::new(data::tuple::Tuple(vec![]))))
+            .unwrap_or_else(|| Ok(Data::new(data::tuple::Tuple::empty())))
     }
     fn has_scope(&self) -> bool {
         true
