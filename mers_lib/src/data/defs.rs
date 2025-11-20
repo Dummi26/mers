@@ -17,8 +17,8 @@ pub fn assign(from: &Data, target: &Data) {
                     .as_any()
                     .downcast_ref::<crate::data::reference::Reference>()
                     .and_then(|r| {
-                        r.read()
-                            .get()
+                        r.write()
+                            .get_mut()
                             .as_any()
                             .downcast_ref::<crate::data::tuple::Tuple>()
                             .map(|v| (v.clone_refs(), true))
@@ -46,8 +46,8 @@ pub fn assign(from: &Data, target: &Data) {
                     .as_any()
                     .downcast_ref::<crate::data::reference::Reference>()
                     .and_then(|r| {
-                        r.read()
-                            .get()
+                        r.write()
+                            .get_mut()
                             .as_any()
                             .downcast_ref::<crate::data::object::Object>()
                             .map(|v| (v.clone_refs(), true))
